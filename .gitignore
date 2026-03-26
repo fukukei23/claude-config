@@ -1,0 +1,10 @@
+.env
+*.env
+history.jsonl
+projects/
+logs/
+channels/
+plugins/cache/
+__pycache__/
+*.pyc
+.credentials.json

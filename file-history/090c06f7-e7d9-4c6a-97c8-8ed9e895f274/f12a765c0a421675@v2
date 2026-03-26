@@ -1,0 +1,97 @@
+{
+  "dmPolicy": "allowlist",
+  "allowFrom": [
+    "1135078010899398727"
+  ],
+  "groups": {
+    "1479832235610734664": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1480559453538484375": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1480589360465186847": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1480704704349606021": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1480724445747482720": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1481189779449057361": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1481513790091563101": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1481747400686178434": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482053801623163011": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482154983070634025": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482523923886113032": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482539740044591104": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482558437702238249": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482569332516192413": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482875560660045977": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482989452371689474": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1482990699363307591": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1483210388064440511": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1483266905816174673": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1483293897282031697": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1483310936768123063": {
+      "requireMention": true,
+      "allowFrom": []
+    },
+    "1483565367757377799": {
+      "requireMention": true,
+      "allowFrom": []
+    }
+  },
+  "pending": {}
+}

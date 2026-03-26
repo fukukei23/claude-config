@@ -1,0 +1,14 @@
+Host openclaw-vps
+    HostName 162.43.17.111
+    User op
+    IdentityFile ~/.ssh/id_ed25519
+
+Host claw-node
+    HostName 192.168.1.7
+    User user
+    IdentityFile ~/.ssh/id_ed25519
+
+Host claw-node-tailscale
+    HostName 100.78.104.58
+    User user
+    IdentityFile ~/.ssh/id_ed25519

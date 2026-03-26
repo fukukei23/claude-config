@@ -1,0 +1,14 @@
+{
+  "dmPolicy": "pairing",
+  "allowFrom": [],
+  "groups": {},
+  "pending": {
+    "ad55d9": {
+      "senderId": "1135078010899398727",
+      "chatId": "1485184064150573167",
+      "createdAt": 1774181889148,
+      "expiresAt": 1774185489148,
+      "replies": 1
+    }
+  }
+}

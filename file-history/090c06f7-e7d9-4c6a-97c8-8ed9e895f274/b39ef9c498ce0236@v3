@@ -1,0 +1,50 @@
+{
+  "mcpServers": {
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "BSAWdQHpVNWcuqbpQzlp9Q_D7mwY3qu"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "discord@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ssh *)",
+      "Bash(ssh-copy-id *)",
+      "Bash(sshpass *)",
+      "Bash(scp *)",
+      "Bash(docker *)",
+      "Bash(systemctl *)",
+      "Bash(chmod *)",
+      "Bash(chown *)",
+      "Bash(gh *)",
+      "Bash(git *)",
+      "Bash(sudo apt-get *)",
+      "Bash(tmux *)",
+      "Bash(fnm *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(bun *)",
+      "Bash(node *)",
+      "Bash(npm *)",
+      "plugin:discord:*"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(dd *)",
+      "Bash(mkfs *)",
+      "Bash(* --no-preserve-root *)"
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "fallback": {
+    "primary_provider": "glm-zai",
+    "secondary_provider": "minimax-anthropic-compatible",
+    "retry": {
+      "primary_retries": 1,
+      "primary_retry_delay_seconds": 2
+    },
+    "fallback_on": {
+      "http_status_codes": [429, 500, 502, 503, 504],
+      "error_keywords": [
+        "timeout",
+        "timed out",
+        "econnreset",
+        "enotfound",
+        "eai_again",
+        "connection reset",
+        "temporary failure"
+      ]
+    },
+    "do_not_fallback_on": {
+      "http_status_codes": [400, 401, 403, 404, 422],
+      "error_keywords": [
+        "invalid api key",
+        "authentication",
+        "unauthorized",
+        "forbidden",
+        "bad request",
+        "invalid_request_error"
+      ]
+    }
+  },
+  "minimax": {
+    "base_url": "https://api.minimax.io/anthropic",
+    "env_api_key_name": "MINIMAX_API_KEY",
+    "model_map": {
+      "opus": "MiniMax-M2.7",
+      "sonnet": "MiniMax-M2.7",
+      "haiku": "MiniMax-M2.5-highspeed"
+    }
+  },
+  "logging": {
+    "dir": "/home/yn441611/.claude/logs",
+    "file_prefix": "claude-fallback",
+    "format": "jsonl"
+  }
+}

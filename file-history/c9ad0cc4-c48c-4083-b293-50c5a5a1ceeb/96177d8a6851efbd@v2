@@ -1,0 +1,244 @@
+# LLM引き継ぎ資料 — krokod セットアップ状況
+
+**作成日**: 2026-03-22
+**対象**: LLM・ユーザー両方が記憶リセットされた状態でも引き継げる完全な状態記録
+
+---
+
+## 1. 環境の全体像
+
+### 登場人物・システムの役割
+
+| 名前 | 種別 | 役割 |
+|------|------|------|
+| **krokod（クロコド）** | PC（WSL2環境） | メイン開発マシン。Claude Codeが常駐するLLMエージェント端末 |
+| **fukukei（フクロウ）** | ユーザー | オーナー。Discord / ターミナルからクロコドに指示を出す |
+| **yotsuba（よつば）** | 未確認（要確認） | 詳細不明。今後確認が必要 |
+
+### 全体構成図
+
+```
+fukukei（ユーザー）
+  │
+  ├── ターミナル（VSCode / WSL2）
+  │     └── Claude Code CLI（krokod上で動作）
+  │
+  └── Discord
+        ├── チャンネル 1479832235044769872  → Claude Code（メンション必須）
+        └── チャンネル 1479832235610734664  → Claude Code（メンション必須）
+```
+
+---
+
+## 2. krokod セットアップ済み内容
+
+### 2-1. OS・基本環境
+
+| 項目 | 内容 |
+|------|------|
+| OS | Windows 11 + WSL2 Ubuntu |
+| シェル | bash（WSL2） |
+| エディタ | VSCode |
+| tmux セッション名 | `krokod`（`tmux attach -t krokod` で接続） |
+
+### 2-2. Claude Code
+
+| 項目 | 内容 |
+|------|------|
+| バージョン | 2.1.81 |
+| バイナリパス | `/run/user/1000/fnm_multishells/.../bin/claude` |
+| メインモデル | claude-sonnet-4-6 |
+| 設定ファイル | `~/.claude/settings.json` |
+| プロジェクト設定 | `/mnt/c/Users/USER/.claude/CLAUDE.md` |
+
+#### 有効プラグイン
+
+- `discord@claude-plugins-official`（Discordチャンネル連携）
+
+#### ロード済みリソース（起動時）
+
+- 19 plugins / 14 skills / 24 agents / 18 hooks / 6 plugin MCP servers / 3 plugin LSP servers
+
+#### MCP サーバー
+
+| サーバー | 用途 |
+|---------|------|
+| brave-search | Brave検索API |
+| plugin:discord | Discord連携（プラグイン経由） |
+| plugin:context7 | ライブラリドキュメント取得 |
+| plugin:playwright | ブラウザ自動化 |
+
+### 2-3. Discord チャンネル設定
+
+設定ファイル: `~/.claude/channels/discord/access.json`
+
+```json
+{
+  "dmPolicy": "allowlist",
+  "allowFrom": ["1135078010899398727"],
+  "groups": {
+    "1479832235044769872": { "requireMention": true, "allowFrom": [] },
+    "1479832235610734664": { "requireMention": true, "allowFrom": [] }
+  },
+  "pending": {}
+}
+```
+
+| フィールド | 値 | 意味 |
+|-----------|-----|------|
+| `dmPolicy` | `allowlist` | 許可リストのユーザーのみDM受付 |
+| `allowFrom` | `1135078010899398727` | fukukeiのユーザーID（唯一の許可ユーザー） |
+| `requireMention` | `true` | 両チャンネルともメンション必須 |
+
+#### Discord サーバーID・チャンネルID 対応表
+
+| ID | 種別 | 備考 |
+|----|------|------|
+| `1479832235044769872` | チャンネルID（またはサーバーID） | メンションあり設定 |
+| `1479832235610734664` | チャンネルID | メンションあり設定 |
+| `1135078010899398727` | ユーザーID | fukukeiのDiscordユーザーID |
+| `1485180498832658485` | ロールID | @ロールメンションで使用 |
+
+### 2-4. GitHub 設定
+
+| 項目 | 内容 |
+|------|------|
+| GitHubユーザー名 | `fukukei23` |
+| メール | `fukukei4416@gmail.com` |
+| トークン環境変数 | `GITHUB_TOKEN`（`~/.bashrc`に設定済み） |
+| credential helper | `GITHUB_TOKEN` 環境変数を自動使用 |
+| krokod-setup リポジトリ | https://github.com/fukukei23/krokod-setup（プライベート） |
+
+### 2-5. tmux
+
+- セッション名: `krokod`
+- 接続コマンド: `tmux attach -t krokod`
+- 作成日時: 2026-03-22 21:49
+
+### 2-6. sudoers 設定
+
+- 現時点では未確認（アクセス不可）
+- 要確認事項として記録
+
+---
+
+## 3. 重要なファイルパス一覧
+
+| ファイル | 用途 |
+|---------|------|
+| `~/.claude/settings.json` | Claude Code 設定（MCPサーバー・プラグイン） |
+| `~/.claude/settings.local.json` | Claude Code ローカル設定 |
+| `/mnt/c/Users/USER/.claude/CLAUDE.md` | プロジェクトレベルの Claude 動作ルール |
+| `~/.claude/CLAUDE.md` | グローバル Claude 動作ルール |
+| `~/.claude/channels/discord/access.json` | Discord アクセス制御設定 |
+| `~/.bashrc` | 環境変数（GITHUB_TOKEN, MINIMAX_API_KEY 等） |
+| `~/.gitconfig` | Git グローバル設定 |
+| `~/Documents/krokod-setup/` | セットアップ資料（Linux側） |
+| `/mnt/c/Users/USER/Documents/krokod-setup/` | セットアップ資料（Windows側） |
+
+---
+
+## 4. 環境変数（~/.bashrc）
+
+| 変数名 | 用途 |
+|--------|------|
+| `GITHUB_TOKEN` | GitHub 認証トークン |
+| `MINIMAX_API_KEY` | MiniMax APIキー（LLMフォールバック用） |
+
+> **注意**: トークン値は本資料には記載しない。実際の値は `~/.bashrc` を参照すること。
+
+---
+
+## 5. 残タスクと優先順位
+
+| 優先度 | タスク | 状態 |
+|--------|--------|------|
+| 🔴 高 | yotsuba（よつば）の役割・構成確認 | 未着手 |
+| 🔴 高 | Discord 全チャンネル応答設定（チャンネルID追加） | 対応待ち（fukukeiがIDを提供する必要あり） |
+| 🟡 中 | sudoers 設定の確認・記録 | 未確認 |
+| 🟡 中 | tmux セッションの自動起動設定（WSL2起動時） | 未着手 |
+| 🟢 低 | krokod-setup リポジトリへの継続的なドキュメント更新 | 進行中 |
+
+---
+
+## 6. よく使うコマンド
+
+### Claude Code
+
+```bash
+# Claude Code 起動
+claude
+
+# プラグインリロード（Claude Code内）
+/reload-plugins
+
+# Discord アクセス管理（Claude Code内）
+/discord:access                          # 現在の設定確認
+/discord:access group add <channelId>    # チャンネル追加
+/discord:access group rm <channelId>     # チャンネル削除
+/discord:access allow <userId>           # ユーザー許可
+/discord:access policy <mode>            # DMポリシー変更
+```
+
+### tmux
+
+```bash
+tmux attach -t krokod    # krokodセッションに接続
+tmux new -s krokod       # krokodセッション新規作成
+tmux ls                  # セッション一覧
+```
+
+### GitHub
+
+```bash
+source ~/.bashrc                        # 環境変数の再読み込み
+git push                                # GITHUBTOKENが自動使用される
+gh repo list fukukei23                  # リポジトリ一覧
+```
+
+### Discord 設定確認
+
+```bash
+cat ~/.claude/channels/discord/access.json
+```
+
+---
+
+## 7. 注意事項・既知の問題
+
+### セキュリティ
+
+- `GITHUB_TOKEN` は `~/.bashrc` にプレーンテキストで保存されている。定期的な更新推奨
+- Discord の `dmPolicy` が `allowlist` のため、fukukei（`1135078010899398727`）以外はDM不可
+- git push は必ず確認してから実行（CLAUDE.mdのルール）
+
+### Discord プラグイン
+
+- `requireMention: true` のチャンネルでは、必ず `@ロール` または `@Claude` のメンションが必要
+- `1479832235044769872` はサーバーIDの可能性あり（チャンネルIDとの区別要確認）
+- 「全チャンネル応答」はワイルドカード未対応。チャンネルIDを個別追加が必要
+
+### WSL2環境
+
+- Windowsパス（`/mnt/c/...`）と Linuxパス（`~/...`）の混在に注意
+- tmux セッションは WSL2 再起動で消える。再接続時は `tmux new -s krokod`
+
+### Claude Code
+
+- APIタイムアウト: 3分（180秒）
+- 長時間タスクは分割して実行すること
+
+---
+
+## 8. セッション引き継ぎ手順
+
+1. `tmux attach -t krokod`（または `tmux new -s krokod`）
+2. `source ~/.bashrc`（環境変数の確認）
+3. `cat ~/.claude/channels/discord/access.json`（Discord設定確認）
+4. `claude`（Claude Code 起動）
+5. `/reload-plugins`（プラグイン確認）
+6. この資料の「残タスク」から作業再開
+
+---
+
+*このドキュメントは 2026-03-22 の作業終了時点の状態を記録したものです。*

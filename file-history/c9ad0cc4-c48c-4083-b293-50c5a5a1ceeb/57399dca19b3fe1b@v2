@@ -1,0 +1,73 @@
+# krokod-setup — Claude Code セットアップ手順
+
+2026-03-22 に実施したセットアップの記録です。
+
+---
+
+## 1. Claude Code + Discord プラグイン連携
+
+### 概要
+Claude Code に公式 Discord プラグインを導入し、Discord チャンネルから Claude に話しかけられる環境を構築しました。
+
+### 実施内容
+
+#### 1-1. プラグインリロード
+```
+/reload-plugins
+```
+- 19 plugins, 14 skills, 24 agents, 18 hooks, 6 plugin MCP servers, 3 plugin LSP servers が読み込まれたことを確認
+
+#### 1-2. Discord アクセス設定 (`/discord:access`)
+
+アクセス制御ファイル: `~/.claude/channels/discord/access.json`
+
+| 操作 | 内容 |
+|------|------|
+| `group add 1479832235044769872` | チャンネルをグループ追加（requireMention=true） |
+| `group add 1479832235044769872 requireMention=false` | メンションなしでも応答するよう変更 |
+| `group add 1479832235610734664` | 別チャンネルをグループ追加（requireMention=true） |
+
+最終的な `access.json` の構成:
+```json
+{
+  "dmPolicy": "allowlist",
+  "allowFrom": ["1135078010899398727"],
+  "groups": {
+    "1479832235044769872": { "requireMention": false, "allowFrom": [] },
+    "1479832235610734664": { "requireMention": true,  "allowFrom": [] }
+  },
+  "pending": {}
+}
+```
+
+### ポリシー説明
+
+| フィールド | 値 | 意味 |
+|-----------|-----|------|
+| `dmPolicy` | `allowlist` | allowFrom に含まれるユーザーのDMのみ受付 |
+| `requireMention` | `false` | メンションなしでもチャンネルの発言に反応 |
+| `requireMention` | `true`  | @メンションされた発言にのみ反応 |
+
+---
+
+## 2. 動作確認
+
+Discord チャンネル `1479832235610734664` にて「おはよう」と送信し、Claude Code から「おはようございます！😊」と返信されることを確認。
+
+---
+
+## 3. 環境情報
+
+| 項目 | 内容 |
+|------|------|
+| OS | Windows 11 + WSL2 Ubuntu |
+| シェル | bash (WSL2) |
+| Claude Code モデル | claude-sonnet-4-6 |
+| Discord プラグイン | claude-plugins-official/discord 0.0.1 |
+
+---
+
+## 参考
+
+- [Claude Code 公式ドキュメント](https://docs.anthropic.com/claude-code)
+- Discord プラグイン設定ファイル: `~/.claude/channels/discord/access.json`

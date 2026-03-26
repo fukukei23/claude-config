@@ -1,0 +1,97 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh *)",
+      "Bash(ssh-copy-id *)",
+      "Bash(sshpass *)",
+      "Bash(scp *)",
+      "Bash(docker *)",
+      "Bash(systemctl *)",
+      "Bash(chmod *)",
+      "Bash(chown *)",
+      "Bash(gh *)",
+      "Bash(git *)",
+      "Bash(sudo apt-get *)",
+      "Bash(tmux *)",
+      "Bash(fnm *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(bun *)",
+      "Bash(node *)",
+      "Bash(npm *)",
+      "*",
+      "Read(//etc/**)",
+      "Bash(tmux -V)",
+      "Bash(systemctl --user status)",
+      "Bash(tmux ls:*)",
+      "Bash(systemctl --user status tmux-krokod.service)",
+      "Bash(claude --version)",
+      "Bash(fnm --version)",
+      "Bash(systemctl --user daemon-reload)",
+      "Bash(systemctl --user start tmux-krokod.service)",
+      "Bash(chmod:*)",
+      "Bash(ssh-copy-id:*)",
+      "Bash(ssh openclaw-vps:*)",
+      "Bash(sudo apt-get:*)",
+      "Bash(sshpass:*)",
+      "Bash(ssh claw-node:*)",
+      "Bash(gh auth:*)",
+      "Bash(bun --version)",
+      "mcp__plugin_discord_discord__reply",
+      "Bash(xargs cat:*)",
+      "Bash(xargs ls:*)",
+      "mcp__plugin_discord_discord__download_attachment",
+      "Bash(sudo -l)",
+      "WebFetch(domain:fxtwitter.com)",
+      "WebFetch(domain:vxtwitter.com)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(diff *)",
+      "Bash(curl *)",
+      "Bash(ping *)",
+      "Bash(which *)",
+      "Bash(echo *)",
+      "Bash(pwd)",
+      "Bash(env)",
+      "Bash(export *)",
+      "Bash(source *)",
+      "Bash(python3 *)",
+      "Bash(pip3 *)"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(dd *)",
+      "Bash(mkfs *)",
+      "Bash(* --no-preserve-root *)"
+    ],
+    "defaultMode": "default"
+  },
+  "enabledPlugins": {
+    "discord@claude-plugins-official": true
+  },
+  "language": "日本語",
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "ANTHROPIC_AUTH_TOKEN": "YOUR_TOKEN_HERE",
+    "API_TIMEOUT_MS": "3000000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": 1,
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "GLM-5-Turbo",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "GLM-5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "GLM-4.7"
+  },
+  "mcpServers": {
+    "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ]
+    }
+  }
+}
