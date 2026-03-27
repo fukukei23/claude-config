@@ -1,10 +1,41 @@
+# 環境変数・機密情報
 .env
 *.env
+*.env.local
+.env.*.local
+
+# Claude Code設定（機密情報含む）
+settings.json
+settings.local.json
+settings.json.bak
+.credentials.json
+
+# Claude Codeデータ
 history.jsonl
 projects/
 logs/
 channels/
 plugins/cache/
+sessions/
+session-env/
+file-history/
+shell-snapshots/
+cache/
+paste-cache/
+backups/
+backup-*/
+
+# IDE・エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
 __pycache__/
 *.pyc
-.credentials.json
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
