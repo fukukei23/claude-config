@@ -1,43 +1,48 @@
 # Claude Code → Obsidian 自動ログ
 
-Claude Codeでの作業をObsidianに自動保存する仕組み。
+**Claude Codeでの作業を自動的にObsidianに記録する仕組み**
 
-## 機能
+複数の場所・プロジェクトでClaude Codeを使っていて、「あれ、どこまでやったっけ？」とならないように、作業ログを自動保存します。
 
-- セッション終了時に自動でタイムスタンプ追加
-- 日次/プロジェクト/セッション単位でログ管理
-- Obsidianで見やすいMarkdown形式
+## 特徴
 
-## セットアップ
+- ✅ **セッション終了時に自動保存** - Stopフックで自動実行
+- ✅ **日次/プロジェクト/セッション単位で整理** - あとで見返しやすい
+- ✅ **Obsidianで即座に確認** - グラフビュー、検索、タグ活用
+- ✅ **ハイブリッド運用** - 自動 + 手動のベストプラクティス
 
-### 1. Obsidian vault内にディレクトリ作成
+## クイックスタート
+
+### 1. ディレクトリ作成
 
 ```bash
-# Obsidian vaultのパスに合わせて変更
+# Obsidian vault内にClaudeLogディレクトリを作成
 OBSIDIAN_PATH="$HOME/your-obsidian-vault/ClaudeLog"
-
 mkdir -p "$OBSIDIAN_PATH"/{daily,projects,sessions,templates}
 ```
 
-### 2. テンプレートをコピー
+### 2. テンプレート配置
 
 ```bash
-cp -r templates/* "$OBSIDIAN_PATH/templates/"
+# テンプレートをコピー
+cp templates/*.md "$OBSIDIAN_PATH/templates/"
 ```
 
-### 3. スクリプトのパスを設定
+### 3. フックスクリプト設定
 
 ```bash
-# スクリプトをClaude設定ディレクトリにコピー
+# スクリプトをClaude設定ディレクトリに配置
+mkdir -p ~/.claude/scripts
 cp scripts/save-session-log.sh ~/.claude/scripts/
 chmod +x ~/.claude/scripts/save-session-log.sh
 
-# スクリプト内のOBSIDIAN_PATHを自分の環境に合わせて編集
+# スクリプト内の OBSIDIAN_PATH を自分の環境に変更
+sed -i "s|/home/yn441611/openclaw-workspace/obsidian|$HOME/your-obsidian-vault|g" ~/.claude/scripts/save-session-log.sh
 ```
 
 ### 4. settings.json にフック追加
 
-`~/.claude/settings.json` に以下を追加:
+`~/.claude/settings.json`:
 
 ```json
 {
@@ -52,47 +57,116 @@ chmod +x ~/.claude/scripts/save-session-log.sh
 }
 ```
 
+完了！次回のセッション終了時から自動でログが保存されます。
+
 ## 使い方
 
-### 自動保存
-セッション終了時に自動でタイムスタンプが追加される。
+### 自動（セッション終了時）
 
-### 手動保存
+セッション終了時にタイムスタンプが自動追加されます。
+
+### 手動（任意のタイミング）
+
 ```
 「今日の作業をObsidianに保存して」
 「このプロジェクトの進捗をログに書いて」
+「セッションのサマリーを保存して」
 ```
 
 ## ディレクトリ構成
 
 ```
 ClaudeLog/
-├── daily/           # 日次ログ (YYYY-MM-DD.md)
-├── projects/        # プロジェクト別ログ
-│   └── MOC.md       # プロジェクト一覧 (Map of Content)
-├── sessions/        # セッション詳細
-└── templates/       # テンプレート
+├── daily/              # 日次ログ
+│   ├── 2026-03-27.md
+│   └── 2026-03-28.md
+├── projects/           # プロジェクト別
+│   ├── MOC.md          # プロジェクト一覧
+│   ├── NexusCore.md
+│   └── openclaw.md
+├── sessions/           # セッション詳細
+│   └── 2026-03-27-setup-logging.md
+└── templates/          # テンプレート
     ├── daily.md
     ├── project.md
     └── session.md
 ```
 
+## ログの例
+
+### 日次ログ (daily/2026-03-27.md)
+
+```markdown
+# 2026-03-27 Claude作業ログ
+
+## 今日やったこと
+- Claude Codeの長期記憶システムを構築
+- Obsidian自動ログの仕組みをセットアップ
+
+## 完了したタスク
+- [x] ClaudeLogディレクトリ構造作成
+- [x] Stopフック設定
+
+## 進行中のタスク
+- [ ] 他プロジェクトへの展開
+
+## 次回やること
+- 定期的にセッションサマリーを保存
+
+---
+セッション終了: 15:45
+```
+
 ## 運用のコツ
 
-1. **日次ログ**: 毎日の作業をざっくり記録
-2. **プロジェクトログ**: 重要なプロジェクトは別途ページ作成
-3. **セッションログ**: 詳細な作業内容が必要な場合
-4. **定期的に振り返り**: Obsidianのグラフビューで全体像を確認
+| タイミング | やること |
+|------------|----------|
+| セッション開始時 | 前回のログを確認 |
+| 作業中 | 重要な判断は「保存して」で記録 |
+| セッション終了時 | 自動でタイムスタンプ追加 |
+| 週次 | 週レビューでMOC更新 |
 
-## Claude Memory との違い
+## Claude Memory との関係
 
-| 項目 | Claude Memory | Obsidian Log |
-|------|---------------|--------------|
-| 目的 | Claudeが参照する長期記憶 | 人間が見る作業ログ |
-| 保存先 | `~/.claude/projects/` | Obsidian vault |
-| 自動更新 | 一部（feedback等） | フックで自動 |
-| 見やすさ | 機械向け | 人間向け |
+| | Claude Memory | Obsidian Log |
+|---|---------------|--------------|
+| **目的** | Claudeが参照 | 人間が確認 |
+| **保存先** | `~/.claude/projects/` | Obsidian vault |
+| **内容** | ユーザー属性、フィードバック | 作業履歴、進捗 |
+| **自動更新** | 一部 | フックで自動 |
+
+**両方使うのがベストプラクティス**
+
+## トラブルシューティング
+
+### ログが保存されない
+
+1. スクリプトに実行権限があるか確認
+   ```bash
+   ls -la ~/.claude/scripts/save-session-log.sh
+   ```
+2. settings.jsonのパスが正しいか確認
+3. OBSIDIAN_PATHが正しいか確認
+
+### Obsidianで表示されない
+
+- Obsidianを再読み込み（Ctrl+R）
+- ファイルが実際に作成されているか確認
+
+## カスタマイズ
+
+### テンプレート編集
+
+`templates/` 内のMarkdownファイルを自由にカスタマイズできます。
+
+### 保存タイミング変更
+
+`PreToolUse` フックを使うことで、ツール実行前にログ保存も可能です。
 
 ## ライセンス
 
 MIT
+
+---
+
+**Contributing**: 改善案はIssue/PRで歓迎します
