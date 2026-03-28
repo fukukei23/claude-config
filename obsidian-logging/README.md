@@ -6,6 +6,7 @@
 
 ## 特徴
 
+- ✅ **セッション開始時に前回ログ表示** - SessionStartフックで自動実行
 - ✅ **セッション終了時に自動保存** - Stopフックで自動実行
 - ✅ **日次/プロジェクト/セッション単位で整理** - あとで見返しやすい
 - ✅ **Obsidianで即座に確認** - グラフビュー、検索、タグ活用
@@ -33,11 +34,11 @@ cp templates/*.md "$OBSIDIAN_PATH/templates/"
 ```bash
 # スクリプトをClaude設定ディレクトリに配置
 mkdir -p ~/.claude/scripts
-cp scripts/save-session-log.sh ~/.claude/scripts/
-chmod +x ~/.claude/scripts/save-session-log.sh
+cp scripts/save-session-log.sh scripts/load-obsidian-log.sh ~/.claude/scripts/
+chmod +x ~/.claude/scripts/*.sh
 
 # スクリプト内の OBSIDIAN_PATH を自分の環境に変更
-sed -i "s|/home/yn441611/openclaw-workspace/obsidian|$HOME/your-obsidian-vault|g" ~/.claude/scripts/save-session-log.sh
+sed -i "s|/home/yn441611/openclaw-workspace/obsidian|$HOME/your-obsidian-vault|g" ~/.claude/scripts/*.sh
 ```
 
 ### 4. settings.json にフック追加
@@ -47,6 +48,12 @@ sed -i "s|/home/yn441611/openclaw-workspace/obsidian|$HOME/your-obsidian-vault|g
 ```json
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "command": "/home/YOUR_USERNAME/.claude/scripts/load-obsidian-log.sh",
+        "timeout": 5000
+      }
+    ],
     "Stop": [
       {
         "command": "/home/YOUR_USERNAME/.claude/scripts/save-session-log.sh",
