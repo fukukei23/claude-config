@@ -1,0 +1,61 @@
+# LLMプール実装の重要な判断
+
+## 背景
+
+Claude Codeのminifiedファイル（11MB）を直接修正するのは技術的に困難であり、破損リスクが高いため、ラッパースクリプト方式を採用することにした。
+
+## 決定事項
+
+| 項目 | 決定 | 理由 |
+|---------|--------|------|
+| 実装方式 | ラッパースクリプト（`claude-wrapper.js`） | minifiedファイル直接修正は困難 |
+| 設定管理 | `settings.json` + `.env` ファイル | APIキーを設定から分離し、セキュリティ向上 |
+| フェイルオーバー | 手動切り替え | 自動フェイルオーバーはAPI呼び出しレイヤーで実装が必要だが、実装が複雑 |
+| 開発速度 | 優先 | 軽量な方法論を優先 |
+
+## プロバイダー構成
+
+| 優先順位 | プロバイダー | モデル | コスト | 説明 |
+|---------|------------|-------|------|--------|
+| 1 | GLM-4.7 | glm-4-plus | $0.003/1K | 最安の中の最安（安定性重視） |
+| 2 | MiniMax M2.5 | abab6.5s-chat | $0.001/1K | 最安だが応答品質に懸念 |
+| 3 | Kimi | moonshot-v1-8k | $0.005/1K | コストパフォーマンスバランス |
+
+**排除したプロバイダー:**
+- Claude Sonnet（$0.015/1K） - コストが高すぎるため除外
+- Claude Opus（$0.030/1K） - コストが高すぎるため除外
+
+## フェイルオーバーロジック
+
+- GLM-4.7を優先的に試行
+- GLM失敗 → MiniMax M2.5に切り替え
+- MiniMax失敗 → Kimiに切り替え
+- 全失敗後、リセットしてGLMとMiniMaxで再試行
+
+## ファイル構成
+
+```
+.claude/
+├── lib/
+│   ├── llm-pool-manager.js
+│   ├── llm-fallback-client.js
+│   ├── settings-validator.js
+│   ├── test-llm-pool.js
+│   ├── env-loader.js
+│   ├── claude-wrapper.js
+│   └── claude.bat
+├── .env (実際のAPIキー)
+├── .env.example (テンプレート)
+├── .gitignore (APIキー保護)
+├── .claude-wrapper.json (エージェント統合用)
+├── settings.json (LLMプール設定)
+└── docs/
+    └── decisions/
+        └── 001-llm-pool-implementation.md (このファイル)
+```
+
+## 今後の改善案
+
+1. **エージェント統合**: Claude CodeのMCP（Model Context Protocol）サーバーを活用して、プロバイダー選択UIを追加
+2. **統計情報**: 各プロバイダーの成功/失敗回数、コスト計算を表示
+3. **コマンドライン引数**: `claude --provider minimax` でプロバイダーを直接指定可能にする

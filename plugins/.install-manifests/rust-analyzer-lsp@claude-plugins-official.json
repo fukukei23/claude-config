@@ -1,0 +1,8 @@
+{
+  "pluginId": "rust-analyzer-lsp@claude-plugins-official",
+  "createdAt": "2026-02-25T12:26:49.172Z",
+  "files": {
+    "LICENSE": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5",
+    "README.md": "d1c3952fa0e1b33a334d08b82cc7a23dc86c543d5cee55a04fdfc33e70ef495b"
+  }
+}

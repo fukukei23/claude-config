@@ -4,6 +4,13 @@ WSL2 Ubuntu環境でのAIファースト開発。GLM-5をメインLLMとし、�
 
 ---
 
+## 削除禁止ルール
+- `core/`, `lib/`, `tools/`, `docs/`, `agents/`, `scheduled-tasks/` は削除・移動を禁ずる。
+- 上記ディレクトリ配下のファイル・サブディレクトリも同様に扱う。
+- クリーンアップ（未使用削除・整理）は必ずユーザへ提案のみとし、自動実行しない。
+
+---
+
 ## 言語設定
 - **常に日本語で回答・出力すること**
 - タスク名、ファイル名の提案、コメント等も日本語を優先
@@ -64,7 +71,7 @@ Proプランのトークンは限られているため、**GLMをデフォルト
 - **バックエンド: Z.AI / GLM-5.1**
 - 認証: `~/.claude/settings.json` の `ANTHROPIC_AUTH_TOKEN`（GLMキー）
 - エンドポイント: `https://api.z.ai/api/anthropic`
-- フォールバック: GLM失敗時は `~/.claude/scripts/claude-fallback` でMiniMaxへ退避
+- フォールバック: GLM失敗時は `~/.claude/core/claude-fallback` でMiniMaxへ退避
 
 ### 重要な仕組み（2026-03-31検証済み）
 - デスクトップアプリ: `.credentials.json` OAuth > settings.json env（OAuthが必ず勝つ）

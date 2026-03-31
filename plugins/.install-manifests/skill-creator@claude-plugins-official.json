@@ -1,0 +1,27 @@
+{
+  "pluginId": "skill-creator@claude-plugins-official",
+  "createdAt": "2026-02-25T12:31:45.259Z",
+  "files": {
+    ".claude-plugin\\plugin.json": "d5be2c44cf046f84143a90f058523d23b40eb941cc1fbbc6b6165a86ee59da1c",
+    "LICENSE": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5",
+    "README.md": "689abe6e9956ef706525e719eed9cbaa8de44b1cce435c1c3f0abc59e0a525fa",
+    "skills\\skill-creator\\agents\\analyzer.md": "8ccce0d9755f7684277870e791ffb643b026d5dd4508e5c1bdc8dfec9e8532b5",
+    "skills\\skill-creator\\agents\\comparator.md": "ee90af43eb0dbe2fdadbb96d01f9776f387ed5c529ce083c22b8bec4e3ae10d3",
+    "skills\\skill-creator\\agents\\grader.md": "6ec1c6950fcafa3e00d5e845b2498c5ea3e8f7f012bd9c6abad25425f3ee619c",
+    "skills\\skill-creator\\assets\\eval_review.html": "2cc6071b35ac897b17cf0388ce240fd959396f35f95a1f7d3e74a248dd060d0f",
+    "skills\\skill-creator\\eval-viewer\\generate_review.py": "44d97a35be977331b13b04932927b3beb285862a173f0f15dd052d4f31de5c76",
+    "skills\\skill-creator\\eval-viewer\\viewer.html": "46abd4e19e482b4aeebea24b135c2d88fb122a63346dbeab7fcecd83828a826d",
+    "skills\\skill-creator\\LICENSE.txt": "49bbe9114e49214df2ccc324cb3ac8d1d1aa1c3a0947f94c286765e86647b32e",
+    "skills\\skill-creator\\references\\schemas.md": "5ef5fd3c1ac7baae965b5bda6b4f2cf6a191a2d712c7fef2a12dde84573b4833",
+    "skills\\skill-creator\\scripts\\aggregate_benchmark.py": "16c5a53e4cbf55a679a42c244cba39cee463d99ce507ecc9fafc4cb4e0a133e0",
+    "skills\\skill-creator\\scripts\\generate_report.py": "d90ec4cfc2dd539564edd332880fb7561309a1f0097d082de88e3101d6c8031e",
+    "skills\\skill-creator\\scripts\\improve_description.py": "eead49a27311aa1627cb9693c18a6edf772a3d2a889a4859973673a8f871c427",
+    "skills\\skill-creator\\scripts\\package_skill.py": "2cd9a9891844516fd30466eae30e4a9b9a199802522de3fb12f59a063fba58ab",
+    "skills\\skill-creator\\scripts\\quick_validate.py": "99f76b23da5882ccc9301890e4c31837e4a9262bd1a9a75dc729df0b12459d52",
+    "skills\\skill-creator\\scripts\\run_eval.py": "252ac58feedf233673d6a605661158db20806f724c7d1dd32c92ae316b24ef67",
+    "skills\\skill-creator\\scripts\\run_loop.py": "4ee43e46d2462fa5d55fcae64ece567805e1f446fd50e696ad3bbcd6c5d10f3b",
+    "skills\\skill-creator\\scripts\\utils.py": "b396f920bfbb422822427d800656ab125876e1e42ae242ed3c9380338f9d0833",
+    "skills\\skill-creator\\scripts\\__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "skills\\skill-creator\\SKILL.md": "fb97d54973ea9f442e011b0c2a09f59d4c3c83425d09e9a9dba603299f56b37a"
+  }
+}
