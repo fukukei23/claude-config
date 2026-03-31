@@ -1,7 +1,0 @@
-# APIキー・シークレット管理ファイル
-# このファイルはGitHubにpushしないこと
-# パーミッション: 600 (所有者のみ読み書き)
-
-export MINIMAX_API_KEY=sk-cp-xV3eIVebDLyyLvv38sBdhopYgQwuyxJEWfFejnNJJEKqwN213o_UTw-EVk6dBzjY3abMQqC2Na1OGN5ZwSPEZLVydEaOQSd3DcW2Z8TDJmPLh1L2folEFUQ
-export GITHUB_TOKEN=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
-export BRAVE_API_KEY=BSAWdQHpVNWcuqbpQzlp9Q_D7mwY3qu

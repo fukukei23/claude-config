@@ -1,41 +1,50 @@
-# 環境変数・機密情報
-.env
-*.env
-*.env.local
-.env.*.local
-
-# Claude Code設定（機密情報含む）
+# ===== 認証・機密情報（絶対除外）=====
+.credentials.json
 settings.json
 settings.local.json
-settings.json.bak
-.credentials.json
+*.key
+*.pem
+*.token
 
-# Claude Codeデータ
+# ===== 会話ログ（JSONL）=====
 history.jsonl
-projects/
-logs/
-channels/
-plugins/cache/
+**/*.jsonl
+
+# ===== セッション・一時データ =====
 sessions/
-session-env/
-file-history/
-shell-snapshots/
-cache/
 paste-cache/
+shell-snapshots/
+stats-cache.json
+statsig/
+telemetry/
+mcp-needs-auth-cache.json
+todos/
+temp/
+debug/
+cache/
+file-history/
+session-env/
+ide/
+vercel-plugin-device-id
+vercel-plugin-telemetry-preference
+
+# ===== バックアップ =====
 backups/
 backup-*/
 
-# IDE・エディタ
+# ===== OS・エディタ =====
+.DS_Store
+Thumbs.db
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
+# ===== Node.js =====
+node_modules/
+*.log
 
-# OS
-.DS_Store
-Thumbs.db
+# ===== その他一時ファイル =====
+*.tmp
+*.temp
+.env
