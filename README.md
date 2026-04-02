@@ -54,3 +54,22 @@ Claude Code（デスクトップアプリ）用のグローバル設定、運用
 | `agents/` | Claude Codeエージェント定義ファイル |
 | `scheduled-tasks/` | 日次レポート・コスト管理など定期自動実行タスク |
 | `plugins/` | Claude Code拡張プラグイン |
+
+## 2環境構成（重要）
+
+このリポジトリは **Windows Desktop側の設定** を管理しています。
+WSL2側（krokod）は独立した設定を持ち、2環境は完全に独立して動作します。
+
+| 項目 | Windows Desktop（本リポジトリ） | WSL2 CLI（krokod） |
+|------|-------------------------------|-------------------|
+| 設定フォルダ | `C:\Users\USER\.claude\` | `/home/yn441611/.claude/` |
+| CLAUDE.md | Desktop Edition | CLI Edition |
+| settings.json | プラグイン・UI設定のみ | GLM/MCP/hooks/権限の本体 |
+| バックエンドLLM | OAuth Sonnet（Pro） | GLM-5.1（Z.AI） |
+| MCPサーバー | Desktopアプリのコネクタ経由 | settings.jsonで直接定義 |
+| hooks | なし | SessionStart/Stop あり |
+
+**注意事項:**
+- OAuthが存在する限り、Windows Desktop側のenv設定は無効（OAuthが必ず勝つ）
+- 2つの設定ファイルは共有していない。片方を変更しても他方に影響しない
+- WSL2側の設定は [krokod-setup](https://github.com/fukukei23/krokod-setup) を参照
