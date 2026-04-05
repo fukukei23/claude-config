@@ -2,72 +2,74 @@
 
 このドキュメントは、本リポジトリで管理されているClaude環境（Windowsデスクトップアプリ版およびWSL2 CLI版）における、**正確なアーキテクチャとLLMのルーティング仕組み**を定義するものです。
 
-他のAIインスタンス（GitHub Copilot, Claude等）や開発者がこの環境を解析・変更する際に、**絶対に誤解を生じさせないための公式な仕様書**として機能します。
-
 ---
 
 ## 📋 目次
 1. [システム全体のアーキテクチャ](#1-システム全体のアーキテクチャ)
 2. [環境ごとの認証とベースモデル](#2-環境ごとの認証とベースモデル)
 3. [MCPサーバーの役割と構成](#3-mcpサーバーの役割と構成)
-4. [LLMルーティングポリシー（CLAUDE.md）](#4-llmルーティングポリシーclaudemd)
-5. [🚨 よくある誤解（重要）](#5-よくある誤解重要)
+4. [LLMルーティングポリシー](#4-llmルーティングポリシー)
+5. [🚨 よくある誤解](#5-よくある誤解)
 
 ---
 
 ## 1. システム全体のアーキテクチャ
 
-本環境は、単一のLLMがすべてを処理するのではなく、用途や環境に応じて**「Sonnet」「MiniMax」「GLM」の3つのモデルを動的に切り替えて使用するマルチモデルルーティングアーキテクチャ**を採用しています。
+本システムは**「WSL2 CLI版」と「デスクトップ版」の2つの異なるアーキテクチャ**でルーティングを実行します。それぞれで設定ファイルやルーティングの仕組みが完全に異なります。
 
-切り替えの制御は、APIのエンドポイントや架空の設定ファイルではなく、Claudeに読み込ませるシステムプロンプト（`CLAUDE.md`）と、MCP（Model Context Protocol）サーバーを組み合わせることで実現されています。
+- **WSL2 CLI版**: `fallback-config.json` を読み込み、LLMプロバイダーのルーティングとフォールバックを直接制御
+- **デスクトップ版**: MCPサーバー経由で `CLAUDE.md` に記述されたルールに基づきClaude自身がルーティングを判断・実行
 
 ---
 
 ## 2. 環境ごとの認証とベースモデル
 
-デスクトップアプリ版とWSL2 CLI版では、初期状態で起動するベースモデルと認証方式が異なります。
-
-### 🖥️ デスクトップアプリ版（Windows）
-- **ベースモデル**: `Sonnet 4.6`（Anthropic OAuth）
-- **認証方式**: AnthropicのOAuth認証（Proプラン購読）
-- **ルーティングの仕組み**:
-  Sonnet 4.6がベースとして起動し、`CLAUDE.md` の指示を読み取り、必要に応じてMCPツールを呼び出して他モデルへ処理を委譲します。
-- **主要設定ファイル**:
-  - `C:\Users\USER\.claude\CLAUDE.md` ← ルーティングポリシーを記述（AIへの指示）
-  - `C:\Users\USER\AppData\Roaming\Claude\claude_desktop_config.json` ← MCPサーバー登録
-
-### ⌨️ WSL2 CLI版（Cursor等）
-- **ベースモデル**: Z.AIを経由したGLM（AnthropicプロトコルをZ.AIが受信）
-- **認証・接続方式**:
-  `~/.claude/.env` に以下を設定し、APIリクエストを直接Z.AIに向けています。
+### ⌨️ WSL2 CLI版
+- **ベースモデル**: MiniMax（Anthropic互換API）→ GLMへ自動フォールバック
+- **認証**: `~/.claude/.env`
   ```
   ANTHROPIC_AUTH_TOKEN=<GLM/Z.AIキー>
   ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic
   ```
+- **フォールバック設定**: `C:\Users\USER\.claude\core\fallback-config.json`
+  ```json
+  {
+    "fallback": {
+      "primary_provider": "minimax-anthropic-compatible",
+      "secondary_provider": "glm-zai",
+      "fallback_on": { "http_status_codes": [429, 500, 502, 503, 504] },
+      "do_not_fallback_on": { "http_status_codes": [400, 401, 403, 404, 422] }
+    }
+  }
+  ```
+  - タイムアウト・500系エラー → GLMへ自動フォールバック
+  - 401/403等の認証エラー → フォールバックせずエラー返却（設定ミスとして扱う）
+
+### 🖥️ デスクトップアプリ版（Windows）
+- **ベースモデル**: Sonnet 4.6（Anthropic OAuth固定）
+- **認証**: AnthropicのOAuth認証（Proプラン購読）
+- **ルーティング**: `CLAUDE.md` の指示 + MCPツール呼び出し
 - **主要設定ファイル**:
-  - `~/.claude/.env` ← 認証トークンとエンドポイント
-  - `~/.claude.json` ← MCPサーバー登録
+  - `C:\Users\USER\.claude\CLAUDE.md` ← ルーティングポリシー（AIへの指示）
+  - `C:\Users\USER\AppData\Roaming\Claude\claude_desktop_config.json` ← MCPサーバー登録
+- ⚠️ **`fallback-config.json` はデスクトップ版では使用されない**
 
 ---
 
 ## 3. MCPサーバーの役割と構成
 
-デスクトップアプリ版において、Sonnet 4.6からMiniMaxやGLMの能力を利用するためには、**MCPサーバー経由で明示的にツールを呼び出す**必要があります。
+デスクトップ版において、Sonnet 4.6からMiniMaxやGLMを利用するためにはMCPサーバー経由で**明示的にツールを呼び出す**必要があります。
 
-各MCPサーバーはローカルでホストされ、それぞれの専用APIキーを使用して独立して機能します。
-
-| ツール名 | スクリプトパス | 使用するAPIキー | 用途 |
+| ツール名 | スクリプト | APIキー | 用途 |
 | :--- | :--- | :--- | :--- |
-| `minimax_ask` 他 | `~/.claude/scripts/minimax-mcp-server.py` | `MINIMAX_API_KEY` | MiniMaxモデルへの問い合わせ |
-| `glm_ask` 他 | `~/.claude/scripts/glm-mcp-server.py` | `GLM_API_KEY` | GLMモデルへの問い合わせ |
+| `minimax_ask` 他 | `~/.claude/scripts/minimax-mcp-server.py` | `MINIMAX_API_KEY` | MiniMaxへの問い合わせ |
+| `glm_ask` 他 | `~/.claude/scripts/glm-mcp-server.py` | `GLM_API_KEY` | GLMへの問い合わせ |
 
-**⚠️ 重要**: これらのツールは自動実行されるわけではありません。`CLAUDE.md` のルーティングポリシーに従って、Claude自身が判断して明示的にツールをコールすることで初めて動作します。
+**⚠️ 重要**: MCPツールは自動実行されません。`CLAUDE.md` のポリシーに従い、Claude自身が判断して呼び出します。
 
 ---
 
-## 4. LLMルーティングポリシー（CLAUDE.md）
-
-LLMの振り分けは、`CLAUDE.md` の記述によってAIの挙動を制御することで実現されています。
+## 4. LLMルーティングポリシー
 
 | 優先度 | モデル | 対象タスク |
 | :---: | :--- | :--- |
@@ -75,30 +77,27 @@ LLMの振り分けは、`CLAUDE.md` の記述によってAIの挙動を制御す
 | 🥈 第二優先 | 🟡 **GLM** | コード生成。またはMiniMaxが失敗した際のフォールバック |
 | 🥉 最終手段 | 🔵 **Sonnet** | Tier1・複雑なアーキ設計・両方失敗時のみ |
 
-> ルーティングポリシーを変更したい場合は `C:\Users\USER\.claude\CLAUDE.md` の「LLM利用ポリシー」セクションを編集してください。
+> ルーティングポリシーを変更する場合:
+> - **デスクトップ版**: `C:\Users\USER\.claude\CLAUDE.md` を編集
+> - **WSL2 CLI版**: `C:\Users\USER\.claude\core\fallback-config.json` を編集
 
 ---
 
-## 5. 🚨 よくある誤解（重要）
+## 5. 🚨 よくある誤解
 
-別のClaudeインスタンスやAIコード解析ツールが本構成を解析した際の**誤解と誤った提案**を防ぐため、以下を厳守してください。
+### ❌ 誤解1: CLI版の設定（fallback-config.json）をデスクトップ版に適用しようとする
+- **事実**: 2つの環境は完全に独立したアーキテクチャです。`fallback-config.json` はWSL2 CLI版専用であり、デスクトップ版には無関係です。
+- **正しい対応**: デスクトップ版のルーティング変更は `CLAUDE.md` を編集してください。
 
-### ❌ 誤解1: `fallback-config.json` や `primary_provider` が存在する
-- **事実**: そのようなファイルもパラメータも**存在しません**。
-- **原因**: AIが「LLMルーティング設定」という概念から、OpenAI互換の config.json 等の構造を幻覚したことによる誤認識。
-- **正しい理解**: ルーティング設定は `CLAUDE.md` に記述されたMarkdownのプロンプト指示のみで定義されます。
+### ❌ 誤解2: デスクトップ版でベースモデルを変更できる
+- **事実**: デスクトップ版はAnthropicのOAuth仕様上、**常にSonnet 4.6が固定**です。
+- **正しい理解**: MCPツール（`minimax_ask`, `glm_ask`）を呼び出すことで処理を委譲するのみです。
 
-### ❌ 誤解2: デスクトップ版で設定ファイルを書き換えれば別モデルがベースになる
-- **事実**: デスクトップアプリ版のベースモデルはAnthropicのOAuth仕様上、**常にSonnet 4.6で固定**されています。
-- **正しい理解**: MCPツール（`minimax_ask`, `glm_ask`）を呼び出すことで処理を他モデルに委譲するのみです。
+### ❌ 誤解3: 401/403エラー時に別プロバイダーへフォールバックすれば解決する
+- **事実**: 認証エラーはAPIキーの設定ミスを意味します。`fallback-config.json` も401/403ではフォールバックしない設計です。APIキーを確認してください。
 
-### ❌ 誤解3: CLI版とデスクトップ版の設定ファイルが同じ
-- **事実**: パスと形式が異なります。
-  - デスクトップ版: `C:\Users\USER\AppData\Roaming\Claude\claude_desktop_config.json`
-  - CLI版: `~/.claude.json` / `~/.claude/.env`
-
-### ⚠️ 今後のAI解析者への指示
-本リポジトリ内の設定を変更・提案する場合は、**必ず実際にファイルシステムに存在するファイルのみを参照・編集**してください。実在しない設定ファイルの作成や、存在しないプロパティの変更を提案しないでください。
+### ⚠️ AI解析者への指示
+設定を変更・提案する際は、**必ず実際にファイルシステムに存在するファイルのみを参照**してください。環境（CLI版/デスクトップ版）を混同した提案は誤動作の原因になります。
 
 ---
 
