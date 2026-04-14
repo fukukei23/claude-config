@@ -8,6 +8,7 @@ Claude Codeで再利用可能なプロンプトテンプレート集。
 | ファイル | 用途 | 対象 |
 |----------|------|------|
 | [repo-deep-analysis.md](repo-deep-analysis.md) | GitHubリポジトリの深層分析 | 任意のリポジトリ |
+| [repo-value-extraction.md](repo-value-extraction.md) | リポジトリから再利用可能コンポーネントの発見・評価 | 任意のリポジトリ |
 
 ### レビュー系
 （今後追加）
