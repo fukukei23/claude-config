@@ -1,12 +1,12 @@
 # トラブルシューティング
 
-Claude CodeデスクトップアプリとCLIでサードパーティLLMを使う際の調査記録と正しい知識。
+Claude CodeのDesktop AppとCLI（WSL2）における設定・認証・ルーティングの問題解決ガイド。
 
-> **最終更新: 2026-03-31（実機検証済み）**
+> **最終更新: 2026-04-14**
 
 ---
 
-## ⚠️ 重要: 2つの環境は完全に独立している
+## 前提: 2つの環境は完全に独立している
 
 ```
 C:\Users\USER\.claude\           ← デスクトップアプリが読む（Windows側）
@@ -46,7 +46,8 @@ C:\Users\USER\.claude\           ← デスクトップアプリが読む（Wind
 - 削除では解決しない
 
 ### 結論
-デスクトップアプリでサードパーティLLMを使う方法は現時点で存在しない。
+デスクトップアプリでベースモデルを変更する方法は現時点で存在しない。
+ただし、MCPツール（`minimax_ask`, `glm_ask`）経由で外部LLMに処理を委譲できる。
 Anthropic Proサブスクリプションを使い続けるのが現実的。
 
 ---
@@ -72,12 +73,12 @@ CursorでClaude Code CLIを起動した場合、WSL2の `~/.claude/settings.json
 
 ---
 
-## 2環境の対応表（2026-03-31時点の最終設定）
+## 2環境の対応表
 
 | 環境 | バックエンド | 設定ファイル | 認証 |
 |------|------------|------------|------|
 | デスクトップアプリ（全タブ） | Anthropic Sonnet 4.6 | `C:\Users\USER\.claude\.credentials.json` | OAuth（Pro） |
-| Cursor Claude Code CLI | GLM-5.1 (Z.AI) | `~/.claude/settings.json` (WSL2) | GLM APIキー |
+| Claude Code CLI（WSL2） | GLM-5.1 (Z.AI) | `~/.claude/settings.json` (WSL2) | GLM APIキー |
 
 ---
 
