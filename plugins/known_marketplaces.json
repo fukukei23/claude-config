@@ -13,5 +13,13 @@
     },
     "installLocation": "C:\\Users\\USER\\.claude\\plugins\\cache\\local",
     "lastUpdated": "2026-03-27T00:00:00.000Z"
+  },
+  "thedotmack": {
+    "source": {
+      "source": "github",
+      "repo": "thedotmack/claude-mem"
+    },
+    "installLocation": "C:\\Users\\USER\\.claude\\plugins\\marketplaces\\thedotmack",
+    "lastUpdated": "2026-04-13T00:00:00.000Z"
   }
 }

@@ -165,6 +165,16 @@
         "gitCommitSha": "205b6e0b30366a969412d9aab7b99bea99d58db1",
         "projectPath": "C:\\Users\\USER"
       }
+    ],
+    "claude-mem@thedotmack": [
+      {
+        "scope": "user",
+        "installPath": "C:\\Users\\USER\\.claude\\plugins\\cache\\thedotmack\\claude-mem\\12.1.0",
+        "version": "12.1.0",
+        "installedAt": "2026-04-13T00:00:00.000Z",
+        "lastUpdated": "2026-04-13T00:00:00.000Z",
+        "projectPath": "C:\\Users\\USER"
+      }
     ]
   }
 }
