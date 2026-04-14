@@ -42,8 +42,26 @@
 │ settings.local  │    │ settings.local.json│
 │ .env            │    │ .claude-wrapper    │
 │ scheduled_tasks │    │ .env               │
+│                 │    │                    │
+│ [claude-mem]    │    │ [claude-mem]       │
+│ ~/.claude-mem/  │    │ C:\~\.claude-mem\  │
+│ v12.1.0 GLM/Z.ai│   │ v12.1.0 Sonnet OAuth│
 └─────────────────┘    └──────────────────────┘
 ```
+
+## claude-mem（永続メモリプラグイン）
+
+両環境にインストール済み。操作ログを自動記録し、次回セッション冒頭に注入。
+
+| 項目 | WSL2 CLI | Windows Desktop |
+|------|----------|-----------------|
+| バージョン | v12.1.0 | v12.1.0 |
+| 要約API | Z.ai経由（GLMトークン消費） | Claude OAuth（サブスク枠内） |
+| データ場所 | `~/.claude-mem/` | `C:\Users\USER\.claude-mem\` |
+| 推奨モデル | デフォルト（Sonnet） | Haiku（コスト最適化推奨） |
+| Web Viewer | `http://localhost:37777` | `http://localhost:37777` |
+
+3層メモリ設計の第1層（自動操作ログ）を担当。詳細は `claude-mem/README.md` 参照。
 
 ## ファイル分類
 
