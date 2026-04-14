@@ -10,10 +10,12 @@ Claude Codeで再利用可能なプロンプトテンプレート集。
 | [repo-deep-analysis.md](repo-deep-analysis.md) | GitHubリポジトリの深層分析 | 任意のリポジトリ |
 | [repo-value-extraction.md](repo-value-extraction.md) | リポジトリから再利用可能コンポーネントの発見・評価 | 任意のリポジトリ |
 
-### レビュー系
-（今後追加）
-
 ### 生成系
+| ファイル | 用途 | 対象 |
+|----------|------|------|
+| [component-extraction-packaging.md](component-extraction-packaging.md) | コンポーネント抽出→パッケージ化→マネタイズ評価 | 価値抽出済みコンポーネント |
+
+### レビュー系
 （今後追加）
 
 ## 使い方
