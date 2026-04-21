@@ -49,8 +49,20 @@
 **内容:**
 ```
 set -g mouse on
+
+# 右クリックでペースト（コンテキストメニュー無効化）
+unbind -n MouseDown3Pane
+bind -n MouseDown3Pane paste-buffer
+
+# コピーモードをvim風キーバインドに
+setw -g mode-keys vi
+bind -T copy-mode-vi v send-keys -X begin-selection
+bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel
+
+# WSL2: コピー時にWindowsクリップボードにも送る
+bind -T copy-mode-vi Enter send-keys -X copy-selection-and-cancel \; run "tmux save-buffer - | clip.exe > /dev/null 2>&1"
+bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel \; run "tmux save-buffer - | clip.exe > /dev/null 2>&1"
 ```
-マウス操作のみ有効。最小構成。
 
 **注意:** `tmux source ~/.tmux.conf` を実行するとペインレイアウトがリセットされる場合がある。
 設定変更後は `source` ではなく、構成し直すことを想定すること。
@@ -150,25 +162,25 @@ bash /home/yn441611/projects/claude-config/scripts/tmux-restore-6pane.sh ssot
 tmux内でテキストをコピー・ペーストする方法は2通りある。
 
 ### 方法A: マウス操作（推奨）
-前提: `~/.tmux.conf` に `set -g mouse on` が設定されていること。
+前提: `~/.tmux.conf` の右クリックペースト設定が有効であること。
 
 | 操作 | やり方 |
 |---|---|
-| コピー | テキストをドラッグ選択 → 自動でtmuxバッファにコピー |
-| ペースト | `Ctrl+b ]` （または右クリック） |
+| コピー | テキストをドラッグ選択 → 自動でtmuxバッファ + Windowsクリップボードにコピー |
+| ペースト | **右クリック** または `Ctrl+b ]` |
 | スクロール | マウスホイール（スクロールモードに入る） |
 | スクロール終了 | `q` または `Esc` |
 
 **注意:** 単純にドラッグするとtmuxのコピーになり、ターミナルの選択にならない。
 ターミナル本体の選択を使いたい場合は `Shift` を押しながらドラッグ。
 
-### 方法B: キーボード操作
+### 方法B: キーボード操作（vim風）
 | 操作 | キー |
 |---|---|
 | コピーモード開始 | `Ctrl+b [` |
-| カーソル移動 | `←↑→↓` または `vimキー（hjkl）` |
-| 選択開始 | `Space` |
-| 選択終了（コピー） | `Enter` |
+| カーソル移動 | `hjkl` または `←↑→↓` |
+| 選択開始 | `v` |
+| 選択終了（コピー） | `y` または `Enter` |
 | ペースト | `Ctrl+b ]` |
 | コピーモード終了 | `q` または `Esc` |
 
@@ -262,6 +274,6 @@ tmux list-panes -a -F "#{session_name}:#{pane_index} #{pane_current_command}"
 
 | ファイル | 場所 | 内容 |
 |---|---|---|
-| 設定 | `~/.tmux.conf` | `set -g mouse on` のみ |
+| 設定 | `~/.tmux.conf` | マウスON + 右クリックペースト + vimキーバインド + WSL2クリップボード連携 |
 | 復旧スクリプト | `claude-config/scripts/tmux-restore-6pane.sh` | 1コマンド復旧 |
 | このドキュメント | `SSOT/00_SYSTEM/shared-rules/tmux-cheatsheet.md` | 構成仕様・操作リファレンス |
