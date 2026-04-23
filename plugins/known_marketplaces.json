@@ -4,22 +4,15 @@
       "source": "github",
       "repo": "anthropics/claude-plugins-official"
     },
-    "installLocation": "C:\\Users\\USER\\.claude\\plugins\\marketplaces\\claude-plugins-official",
-    "lastUpdated": "2026-03-09T06:41:32.418Z"
-  },
-  "local": {
-    "source": {
-      "source": "local"
-    },
-    "installLocation": "C:\\Users\\USER\\.claude\\plugins\\cache\\local",
-    "lastUpdated": "2026-03-27T00:00:00.000Z"
+    "installLocation": "/home/yn441611/.claude/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-04-23T14:52:19.133Z"
   },
   "thedotmack": {
     "source": {
       "source": "github",
       "repo": "thedotmack/claude-mem"
     },
-    "installLocation": "C:\\Users\\USER\\.claude\\plugins\\marketplaces\\thedotmack",
-    "lastUpdated": "2026-04-13T00:00:00.000Z"
+    "installLocation": "/home/yn441611/.claude/plugins/marketplaces/thedotmack",
+    "lastUpdated": "2026-04-14T12:50:15.960Z"
   }
 }

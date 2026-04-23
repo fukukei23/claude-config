@@ -1,239 +1,71 @@
-# グローバル開発設定
+# Claude Code - CLI Edition (WSL2)
 
-WSL2 Ubuntu環境でのAIファースト開発。GLM-5をメインLLMとし、コスト効率と品質のバランスを重視。
-
----
-
-## 削除禁止ルール
-- `core/`, `lib/`, `tools/`, `docs/`, `agents/`, `scheduled-tasks/` は削除・移動を禁ずる。
-- 上記ディレクトリ配下のファイル・サブディレクトリも同様に扱う。
-- クリーンアップ（未使用削除・整理）は必ずユーザへ提案のみとし、自動実行しない。
-
----
-
-## 言語設定
-- **常に日本語で回答・出力すること**
-- タスク名、ファイル名の提案、コメント等も日本語を優先
-- コード内のコメントも日本語で記述
-
----
+> **対象環境**: WSL2 Ubuntu Claude Code CLI / 全環境共通設定（LLMルーティングのSSOT）
 
 ## 環境
-- OS: Windows 11 + WSL2 Ubuntu
-- エディタ: VSCode
-- ファイルパス形式: `\\wsl.localhost\Ubuntu\home\yn441611\` または `/home/yn441611/`
-- シェル: bash (WSL2内)
+- WSL2 Ubuntu / ホーム: /home/yn441611/
+- タイムアウト: 10分。長時間タスクは分割
 
----
+## 基本ルール
+- 丁寧な日本語で回答
+- 詳細はSSOT共通ルールを参照: `/home/yn441611/vaults/SSOT/00_SYSTEM/shared-rules/rules.md`
 
-## LLM使用ポリシー（重要）
+## LLM利用ポリシー
+- メイン: 🟡[GLM-5.1]（glm_ask経由）
+- フォールバック: 🟠[MiniMax]（minimax_ask経由）— GLM失敗時・大量処理用
+- Sonnet使用は事前ユーザー許可必須: 🔵[Sonnet]
 
-### デフォルトのLLM振り分けルール
-Proプランのトークンは限られているため、**GLMをデフォルト**として以下のルールに厳密に従うこと：
+## バッジ表示ルール（厳格）
+**毎回のレスポンスの冒頭と末尾に必ず表示すること:**
+- GLM使用時: `🟡[GLM]`
+- MiniMax使用時: `🟠[MiniMax]`
+- Sonnet直接回答時: `🔵[Sonnet]`
 
-| 用途 | 使用LLM | MCPツール |
-|-----|---------|---------|
-| **普通の会話・質問・調査・説明・雑談** | 🟡 **GLM-5.1**（デフォルト） | `glm_ask` |
-| コード生成・ドキュメント作成・GitHub・Obsidian更新 | 🟡 **GLM-5.1** | `glm_generate_code` / `glm_write_document` / `glm_ask` |
-| ファイル要約・翻訳・大量変換・バッチ処理 | 🟠 **MiniMax**（軽量処理） | `minimax_summarize_file` / `minimax_batch_process` / `minimax_ask` |
-| Tier1（セキュリティ・認証・本番デプロイ）・複雑なアーキ設計・GLMが失敗した場合 | 🔵 **Sonnet**（最終手段） | （直接回答） |
+## タスク切り替え時の記録（厳格・自動実行）
+**新しいトピックに移る前・ユーザーが「記録して」「ありがとう」「OK」「次」等の合図を出した時**に、必ず以下を実行すること。
+※「後で書く」は禁止。今書く。記録前に次のタスクに移行禁止。
+※片方だけの実行はNG。以下の3ステップを必ず全て実行すること。
 
-### 会話フロー（重要）
-1. ユーザーからメッセージを受け取る
-2. **まず `glm_ask` を呼び出してGLMに回答させる**
-3. GLMの回答をそのままユーザーに返す（加工不要）
-4. Sonnet直接回答は上記表の「最終手段」ケースのみ
+### Step 1: SSOT履歴ファイルの作成（必須）
+- **場所**: `/home/yn441611/vaults/SSOT/01_DECISIONS/<該当プロジェクト>/YYYY-MM-DD_<内容>.md`
+- **記載内容**: 技術的修正内容、根本原因、修正コード、コマンド履歴、トラブルシューティング
+- **役割**: 「いつ・なぜそう決めたか」の変遷記録
+- **外部公開の場合**: `/home/yn441611/vaults/SSOT/20_PUBLISHING/<フォルダ>/` に成果物を格納し、`_INDEX.md` を更新
 
-### レスポンスへのバッジ表示ルール
-**毎回のレスポンスの冒頭に必ず以下のバッジを付けること：**
-- GLMツールを使った場合: `🟡[GLM]`
-- MiniMaxツールを使った場合: `🟠[MiniMax]`
-- Sonnet（自分）が直接回答する場合: `🔵[Sonnet]`
+### Step 2: リポジトリ本体ドキュメントの更新（該当時のみ）
+- **対象**: プロダクト文書（README.md, CLAUDE.md, docs/）の更新が必要な場合
+- **場所**: 各リポジトリの `docs/` ディレクトリ内
+- **役割**: 「今のプロジェクトの全貌」の現在形ドキュメント
+- **いつやるか**: プロダクト構想・要件・設計に変更があった時、新規プロジェクトの初期セットアップ時
 
-### IMPORTANT
-- **普通の会話でも必ずglm_askを経由すること。Sonnetで直接回答しない**
-- Sonnet直接回答は「Tier1・複雑なアーキ設計・GLM失敗時」のみ
-- ユーザーがどのLLMが動いているか常に把握できるようにバッジを省略しないこと
-- **🔴 Sonnetを直接使う前に必ずユーザーに許可を取ること（例：「Sonnetを使ってよいですか？」）**
-- ブラウザ自動操作・ファイル操作・ツール実行の結果報告もGLM経由でユーザーに返す
+#### 2層の使い分け
+| 層 | 場所 | 内容 | 性質 |
+|---|---|---|---|
+| SSOT | `obsidian-ssot/01_DECISIONS/` | 変更履歴・判断理由 | 履歴（過去形） |
+| リポジトリ | `docs/`, `README.md`, `CLAUDE.md` | プロダクト全貌・現在の仕様 | 現在形 |
 
----
+### Step 3: 日記（ハブ）の更新（必須）
+- **場所**: `/home/yn441611/vaults/SSOT/10_DAILY/YYYY-MM-DD.md`
+- **記載内容**: セッションサマリー（3〜5行）+ **Step 1の詳細ファイルへの相対リンク**（必須）+ 未解決問題
+- **ルール**: 日記には詳細を直書きしない（サマリー + リンクのみ）
 
-## LLM統合
-
-### デスクトップアプリ（チャット・Cowork・Codeタブ全て）
-- **バックエンド: Anthropic Claude Sonnet 4.6**
-- 認証: `C:\Users\USER\.claude\.credentials.json` のOAuth（Pro購読）
-- 重要: OAuthが存在する限り settings.json のenvセクションは無効
-- Pro制限: 週次リセット・追加課金あり（追加$5/月上限）
-
-### CursorアプリのClaude Code CLI（WSL2内）
-- **バックエンド: Z.AI / GLM-5.1**
-- 認証: `~/.claude/settings.json` の `ANTHROPIC_AUTH_TOKEN`（GLMキー）
-- エンドポイント: `https://api.z.ai/api/anthropic`
-- フォールバック: GLM失敗時は `~/.claude/core/claude-fallback` でMiniMaxへ退避
-
-### 重要な仕組み（2026-03-31検証済み）
-- デスクトップアプリ: `.credentials.json` OAuth > settings.json env（OAuthが必ず勝つ）
-- Cursor CLI: `settings.json` env > `.credentials.json`（envが優先）
-- 2つの環境は独立して動作する
-
-### タスク複雑度による自動選択
-- Simple (0.0-0.35): Haiku相当
-- Medium (0.35-0.65): Sonnet相当
-- Complex (0.65-1.0): Opus相当（品質優先時）
-
----
-
-## 🔴 厳格禁止（絶対に実行しないで）
-
-### 以下のコマンドは使用禁止
-- `rm -rf` で `*` や `/` を含むもの
-- `del *.*`、`Remove-Item -Recurse *` などの全削除
-- `git reset --hard`、`git push --force`
-- `DROP`、`TRUNCATE`、`DELETE *` を含むSQL
-- `sudo`、`shutdown`、`reboot`、`format`
-
-### 以下のファイル/ディレクトリへの操作禁止
-- `C:\Windows`、`C:\Program Files`
-- `/etc`、`/bin`、`/usr/bin`（WSL）
-- `.git/` ディレクトリ
-- `.env`、`.env.production` の削除/変更
-
----
-
-## 開発フロー
-
-### ブランチ命名規則
+### フォーマット（日記側）
 ```
-feat/機能名     # 新機能
-fix/バグ名       # バグ修正
-docs/内容       # ドキュメント
-refactor/対象   # リファクタリング
-test/対象       # テスト追加
-chore/内容      # その他（依存関係更新等）
+## セッションログ (HH:MM)
+- 作業内容
+- 詳細: 01_DECISIONS/<プロジェクト>/YYYY-MM-DD_<内容>.md
+- 未解決: ○○（原因: △△、次にやる: □□）
 ```
 
-### コミットメッセージ（Conventional Commits）
-```
-feat: 機能の説明
-fix: バグ修正の説明
-docs: ドキュメント変更の説明
-refactor: リファクタリング内容
-test: テスト追加内容
-chore: その他の変更
-```
+## コーディング原則
+- 実装前に既存コードを理解してから変更する（Think Before Coding）
+- 最小の変更で目的を達成する（Surgical Changes）
+- 複雑な解決策よりシンプルな方を選ぶ（Simplicity First）
+- 詳細: `01_DECISIONS/claude-config/2026-04-16_karpathy-coding-guidelines.md`
 
-### Git運用
-- ローカルコミット: 自動実行OK
-- git push: 必ず確認（askモード）
-- force push: 禁止
-
----
-
-## Tier 1品質管理（超軽量版）
-
-以下のキーワードを含むタスクのみ実装前に簡易仕様確認必須:
-
-| カテゴリ | キーワード |
-|---------|-----------|
-| **金銭** | 決済、課金、返金、料金計算、サブスクリプション |
-| **認証** | パスワード、トークン、OAuth、JWT |
-| **データ破壊** | データ削除、テーブル削除、カラム削除、マイグレーション |
-| **本番環境** | 本番デプロイ、プロダクション、本番リリース |
-| **セキュリティ** | 暗号化、SQLインジェクション、XSS、CSRF |
-
-それ以外のタスク（API追加、UI変更、テスト追加等）は即座に実装開始。
-
-### 簡易仕様確認（3項目）
-1. 何を作るか（1-2文）
-2. 主要な制約（3つまで）
-3. 影響範囲（新規/既存、対象ファイル）
-
-IMPORTANT: Tier 1以外でも、Claudeが判断に迷う場合は質問してOK。
-
----
-
-## 自動化方針
-
-### 🟢 自動実行OK（確認不要）
-- ファイル作成・編集・読み取り
-- テスト実行
-- 非破壊的bashコマンド（ls, cat, grep, find等）
-- ローカルブランチ作成・コミット
-- Docker操作（起動・停止・ビルド）
-- パッケージインストール（npm, pip等）
-- 開発サーバー起動
-
-### 🟡 確認必須（AskUserQuestionを使用）
-- ファイル削除（rm）
-- git push
-- Tier 1タスクの実装開始
-- 本番環境への操作
-
-### 作業方針
-- 最初にタスク全体を設計・計画
-- 不明点は可能な限りLLMで解決
-- **人間にしか判断できない重要事項のみ質問**
-- それ以外は全自動で進行
-
----
-
-## プロジェクト管理
-
-### /initコマンド運用
-1. 新規プロジェクトで`/init`実行
-2. 生成されたCLAUDE.mdを叩き台として使用
-3. Claude自身に精査・削減させる（自明な情報、冗長な記述を削除）
-4. 「この行を削除したら、Claudeが間違いを犯すか？」テストを適用
-
-### Progressive Disclosure
-プロジェクトのCLAUDE.mdが500行を超えた場合:
-1. Layer 1（CLAUDE.md）: 30-50行に削減
-2. Layer 2（.claude/rules/*.md）: 詳細ルールを分離
-3. Layer 3（.claude/skills/）: 専門知識を分離
-
-約500行以内に収めることが推奨されるが、短いほど効果的。
-
----
-
-## Desktop Commander MCP
-
-以下の操作が利用可能:
-- ファイル読み書き編集
-- ディレクトリ操作
-- プロセス起動（サーバー起動等）
-- bashコマンド実行（破壊的操作以外）
-
----
-
-## 注意事項
-- ユーザーはコードを読めないため、安全第一で行動
-- バイパスモードが有効になっている
-- 不安な操作は必ず確認する
-- WSL2環境: Windowsパスと Linux パスの混在に注意
-- APIタイムアウト: 3分設定。長時間タスクは分割実行
-- GLM-5優先: コスト効率重視だが、品質が必要な場合は上位モデル使用OK
-- IMPORTANT: コードは全てLLMが書く。人間はレビューと意思決定に専念
-
-## ワークスペース管理
-
-### 構造
-- 作業の起点: `C:\Users\User\workspace\`
-- プロジェクト状態の索引: `workspace\_INDEX.md`（タスク開始前に必ず参照）
-- `active\` = 作業対象。読み書き自由
-- `archive\` = 読み取り専用。移動・削除は確認必須
-- `handover\` = LLM引き継ぎ文書の置き場。ルート直置き禁止
-
-### ファイル命名規則
-- 日付入りファイル: `YYYY-MM-DD_名前.ext`
-- バックアップファイル: `元ファイル名_bak_YYYY-MM-DD.ext`
-- 引継ぎ文書: `handover\YYYY-MM-DD_プロジェクト名_handover.md`
-
-### AIが自動更新するもの
-- `_INDEX.md`（新規プロジェクト追加・完了時）
-- `handover\` 内の引き継ぎ文書（タスク完了時）
-
-### 注意
-- `tools\atelier-kyo-manager` に `.env` あり。移動時はパス依存設定を確認すること
-- `docker-compose.yml`（ルート）は帰属プロジェクト未特定。触れないこと
+## SSOT（共通知識ベース）
+- 場所: `/home/yn441611/vaults/SSOT/`
+- GitHub: https://github.com/fukukei23/obsidian-ssot
+- LLMルーティング詳細: `00_SYSTEM/shared-rules/llm-routing.md`
+- **全GitHubリポジトリ索引**: `00_SYSTEM/repo-index.md`（YAML: `repo-index.yaml`）— fukukei23の全20リポジトリの概要・関係性・ステータス
+- 新しいプロジェクト開始時や前提確認時はSSOTを参照すること
