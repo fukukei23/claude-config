@@ -2,7 +2,7 @@
 # Usage: powershell.exe -File take-screenshot.ps1 [output_path]
 
 param(
-    [string]$OutputPath = "\\wsl.localhost\Ubuntu\home\yn441611\screenshot.png"
+    [string]$OutputPath = "$env:USERPROFILE\screenshot.png"
 )
 
 Add-Type -AssemblyName System.Windows.Forms

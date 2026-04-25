@@ -12,7 +12,7 @@
 
 KEYS="$1"
 
-SCRIPT_PATH="/home/yn441611/.claude/scripts/hotkey.ps1"
+SCRIPT_PATH="$HOME/.claude/scripts/hotkey.ps1"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
     -ExecutionPolicy Bypass \

@@ -40,7 +40,7 @@
     }
   },
   "logging": {
-    "dir": "/home/yn441611/.claude/logs",
+    "dir": "~/.claude/logs",
     "file_prefix": "claude-fallback",
     "format": "jsonl"
   }

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Claude Code セッション終了時にObsidianログを更新
 
-OBSIDIAN_PATH="/home/yn441611/openclaw-workspace/obsidian/ClaudeLog"
+OBSIDIAN_PATH="$HOME/openclaw-workspace/obsidian/ClaudeLog"
 TODAY=$(date +%Y-%m-%d)
 DAILY_LOG="$OBSIDIAN_PATH/daily/$TODAY.md"
 

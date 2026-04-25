@@ -59,7 +59,7 @@ def print_output(stdout: str, stderr: str) -> None:
 
 
 def write_log(config: dict, payload: dict) -> None:
-    log_dir = Path(config["logging"]["dir"])
+    log_dir = Path(config["logging"]["dir"]).expanduser()
     log_dir.mkdir(parents=True, exist_ok=True)
     filename = f"{config['logging']['file_prefix']}-{dt.date.today().isoformat()}.jsonl"
     out = log_dir / filename

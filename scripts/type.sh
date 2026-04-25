@@ -6,7 +6,7 @@
 TEXT="$1"
 DELAY="${2:-50}"
 
-SCRIPT_PATH="/home/yn441611/.claude/scripts/type.ps1"
+SCRIPT_PATH="$HOME/.claude/scripts/type.ps1"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
     -ExecutionPolicy Bypass \

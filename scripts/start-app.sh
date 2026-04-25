@@ -14,7 +14,7 @@ if [ "$3" == "--wait" ]; then
     WAIT_FLAG="-Wait"
 fi
 
-SCRIPT_PATH="/home/yn441611/.claude/scripts/start-app.ps1"
+SCRIPT_PATH="$HOME/.claude/scripts/start-app.ps1"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
     -ExecutionPolicy Bypass \

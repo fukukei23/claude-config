@@ -14,13 +14,13 @@
 # └──────────┴──────────┘
 
 SESSION="${1:-ssot}"
-CLAUDE="/home/yn441611/.npm-global/bin/claude"
+CLAUDE="$HOME/.npm-global/bin/claude"
 MONITOR_CMD='watch -n 5 "tmux ls && tmux list-panes -a"'
 
 # セッション存在確認（なければ作成）
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   echo "セッション '$SESSION' を新規作成..."
-  tmux new-session -s "$SESSION" -d -c /home/yn441611/vaults/SSOT
+  tmux new-session -s "$SESSION" -d -c "$HOME/vaults/SSOT"
 fi
 
 PANE_COUNT=$(tmux list-panes -t "$SESSION" -F "#{pane_index}" | wc -l)
@@ -36,7 +36,7 @@ sleep 0.5
 # 5回分割して6ペインにする
 echo "6ペイン作成中..."
 for i in $(seq 5); do
-  tmux split-window -t "$SESSION:0.0" -c /home/yn441611/vaults/SSOT 2>/dev/null
+  tmux split-window -t "$SESSION:0.0" -c "$HOME/vaults/SSOT" 2>/dev/null
 done
 
 sleep 0.3

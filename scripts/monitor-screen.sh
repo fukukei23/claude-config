@@ -1,11 +1,11 @@
 #!/bin/bash
 # Periodic screenshot monitoring
 # Usage: ./monitor-screen.sh [interval_seconds] [output_dir]
-# Example: ./monitor-screen.sh 60 /home/yn441611/screenshots
+# Example: ./monitor-screen.sh 60 ~/screenshots
 
 INTERVAL="${1:-60}"
-OUTPUT_DIR="${2:-/home/yn441611/screenshots}"
-TAKE_SS="/home/yn441611/.claude/scripts/take-screenshot.sh"
+OUTPUT_DIR="${2:-$HOME/screenshots}"
+TAKE_SS="$HOME/.claude/scripts/take-screenshot.sh"
 
 mkdir -p "$OUTPUT_DIR"
 

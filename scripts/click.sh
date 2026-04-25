@@ -8,7 +8,7 @@ Y="${2:-0}"
 CLICKS="${3:-1}"
 BUTTON="${4:-left}"
 
-SCRIPT_PATH="/home/yn441611/.claude/scripts/click.ps1"
+SCRIPT_PATH="$HOME/.claude/scripts/click.ps1"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
     -ExecutionPolicy Bypass \

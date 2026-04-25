@@ -5,7 +5,7 @@
 TITLE="${1:-Claude Code}"
 MESSAGE="${2:-承認が必要です}"
 
-SCRIPT_PATH="/home/yn441611/.claude/scripts/notify.ps1"
+SCRIPT_PATH="$HOME/.claude/scripts/notify.ps1"
 
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
     -ExecutionPolicy Bypass \

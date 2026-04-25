@@ -2,15 +2,11 @@
 # Take screenshot from WSL2 using PowerShell
 # Usage: ./take-screenshot.sh [output_path]
 
-OUTPUT_PATH="${1:-/home/yn441611/screenshot.png}"
-SCRIPT_PATH="/home/yn441611/.claude/scripts/take-screenshot.ps1"
+OUTPUT_PATH="${1:-$HOME/screenshot.png}"
+SCRIPT_PATH="$HOME/.claude/scripts/take-screenshot.ps1"
 
 # Convert WSL path to Windows path for PowerShell
-if [[ "$OUTPUT_PATH" == /home/* ]]; then
-    WIN_PATH=$(echo "$OUTPUT_PATH" | sed 's|/home/yn441611|\\\\wsl.localhost\\Ubuntu\\home\\yn441611|')
-else
-    WIN_PATH="$OUTPUT_PATH"
-fi
+WIN_PATH=$(wslpath -w "$OUTPUT_PATH")
 
 # Execute PowerShell script
 /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -ExecutionPolicy Bypass -File "$(wslpath -w "$SCRIPT_PATH")" -OutputPath "$WIN_PATH"
