@@ -1,0 +1,10 @@
+{
+  "pluginId": "security-guidance@claude-plugins-official",
+  "createdAt": "2026-02-25T13:02:12.666Z",
+  "files": {
+    ".claude-plugin\\plugin.json": "614241d3ad7dbe7729a21eb4833df45a69d778368499ca8e417dc80b3b588629",
+    "hooks\\hooks.json": "79862b48a0b042009f71a8ac0c147fca5691f23f8632dec0d1376927f92e7323",
+    "hooks\\security_reminder_hook.py": "f04a1d5f02a224a100db4a8df9d4a7547f1e114e9dad6b17d8cfa159d761517c",
+    "LICENSE": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5"
+  }
+}

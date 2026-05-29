@@ -1,0 +1,14 @@
+#!/bin/bash
+# クリップボードウォッチャーの自動起動（重複防止付き）
+
+# 既存のウォッチャーを終了
+pkill -f "clipboard-watcher.sh" 2>/dev/null
+sleep 0.5
+
+# ログディレクトリ作成
+mkdir -p /tmp/clipboard
+
+# バックグラウンドで起動
+nohup bash /home/yn441611/.claude/scripts/clipboard-watcher.sh > /tmp/clipboard/watcher.log 2>&1 &
+disown $!
+echo "クリップボードウォッチャー起動 (PID: $!)"
