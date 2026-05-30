@@ -65,6 +65,10 @@ build/
 !.env.example
 !.env.template
 
+# ===== scripts/ ランタイム生成物 =====
+scripts/auto-dev/loop.log
+scripts/auto-dev/state.json
+
 # ===== ランタイム状態ファイル（Claude Codeが自動生成）=====
 security_warnings_state_*.json
 krotam_*.json
