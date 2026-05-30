@@ -30,6 +30,14 @@ DEFAULTS = {
         "end_hour": 19,
         "timezone_offset": 9,
     },
+    "thinking": {
+        "mode": "auto",
+        "budget_tokens": 8000,
+        "coding_keywords": [
+            "edit", "fix", "implement", "debug", "write", "refactor",
+            "create", "add", "modify", "update", "build", "test", "generate",
+        ],
+    },
 }
 
 
@@ -48,6 +56,7 @@ class ProxyConfig:
     thresholds: dict = field(default_factory=lambda: DEFAULTS["thresholds"].copy())
     fallback: dict = field(default_factory=lambda: DEFAULTS["fallback"].copy())
     peak_hours: dict = field(default_factory=lambda: DEFAULTS["peak_hours"].copy())
+    thinking: dict = field(default_factory=lambda: DEFAULTS["thinking"].copy())
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -88,6 +97,7 @@ def load_config(config_path: str | None = None) -> ProxyConfig:
         thresholds=merged["thresholds"],
         fallback=merged["fallback"],
         peak_hours=merged["peak_hours"],
+        thinking=merged["thinking"],
     )
     # GLM_PEAK_BLOCK=false でピークブロック無効化
     env_peak = os.environ.get("GLM_PEAK_BLOCK", "").lower()

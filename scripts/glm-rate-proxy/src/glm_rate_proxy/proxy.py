@@ -12,6 +12,19 @@ from .upstream import UpstreamClient, RateLimitError, UpstreamError
 logger = logging.getLogger("glm-rate-proxy")
 
 
+def _extract_message_text(data: dict) -> str:
+    parts = []
+    for m in data.get("messages", []):
+        content = m.get("content", "")
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            for c in content:
+                if isinstance(c, dict) and c.get("type") == "text":
+                    parts.append(c.get("text", ""))
+    return " ".join(parts)
+
+
 class ProxyServer:
     def __init__(self, config: ProxyConfig):
         self._config = config
@@ -62,6 +75,9 @@ class ProxyServer:
 
         if model != req_model and body:
             body = self._replace_model(body, model)
+
+        if body:
+            body = self._apply_thinking(body, self._config.thinking)
 
         logger.info(f"{method} {path} model={model} mode={self._router.current_mode} usage={usage_pct:.1f}%")
 
@@ -200,6 +216,32 @@ class ProxyServer:
             return data.get("model")
         except (json.JSONDecodeError, TypeError):
             return None
+
+    @staticmethod
+    def _apply_thinking(body: bytes, thinking_config: dict) -> bytes:
+        try:
+            data = json.loads(body)
+            mode = thinking_config.get("mode", "always_off")
+            budget = thinking_config.get("budget_tokens", 8000)
+            keywords = thinking_config.get("coding_keywords", [])
+
+            if mode == "always_off":
+                enable = False
+            elif mode == "always_on":
+                enable = True
+            else:
+                text = _extract_message_text(data).lower()
+                enable = any(kw in text for kw in keywords)
+
+            if enable:
+                data["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                logger.debug(f"Thinking enabled (budget={budget})")
+            else:
+                data["thinking"] = {"type": "disabled"}
+
+            return json.dumps(data).encode("utf-8")
+        except (json.JSONDecodeError, TypeError):
+            return body
 
     @staticmethod
     def _replace_model(body: bytes, new_model: str) -> bytes:
