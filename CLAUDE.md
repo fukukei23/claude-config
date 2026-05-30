@@ -16,6 +16,7 @@
 | `plugins/` | プラグイン |
 | `scheduled-tasks/` | 定期実行タスク |
 | `scripts/` | 各種スクリプト（hookスクリプト等） |
+| `scripts/glm-rate-proxy/` | GLMレートリミット対応プロキシ（Pythonパッケージ） |
 | `skills/` | スキル定義 |
 | `shared-rules/` | 共有ルール |
 | `workflows/` | ワークフロー定義 |
