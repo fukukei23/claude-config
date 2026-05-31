@@ -1,7 +1,7 @@
 #!/bin/bash
 # startup-banner.sh — 各フックのステータスを集約して1つのバナーを出力
 # SessionStart hooks の最後に配置すること
-# /dev/tty のみに出力（stdoutはClaude Codeコンテキスト用として別途送新されるため重複防止）
+# stdoutに出力（Desktop App対応 — /dev/ttyはDesktopアプリで使用不可）
 
 STATUS_DIR="/tmp/claude-startup"
 mkdir -p "$STATUS_DIR"
@@ -78,5 +78,5 @@ banner+="$(printf ' 📋 前回: %s\n' "$handoff_line")"$'\n'
 banner+="$(printf ' 📝 %s\n' "$session_info")"$'\n'
 banner+="$(printf '%s\n' "$SEP")"
 
-# --- 出力: /dev/tty のみ ---
-(bash -c 'printf "%s\n" "$0" >/dev/tty' "$banner" 2>/dev/null) || printf '%s\n' "$banner" >&2
+
+printf '%s\n' "$banner"
