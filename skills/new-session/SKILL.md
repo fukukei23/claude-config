@@ -84,19 +84,30 @@ cat ~/projects/claude-code-guide/.update-queue.md 2>/dev/null | head -20
 
 ---
 
-## Step 3: 出力
+## Step 3: 出力 & SSOT永続保存
 
 生成されたプロンプトをそのまま出力する。
+
+次に、以下のPythonで SSOT の handoff ディレクトリに永続保存する:
+
+```python
+import os, datetime
+save_dir = '/home/yn4416/projects/obsidian-ssot/00_SYSTEM/handoff'
+os.makedirs(save_dir, exist_ok=True)
+filename = datetime.datetime.now().strftime('%Y-%m-%d_%H%M') + '.md'
+save_path = os.path.join(save_dir, filename)
+with open(save_path, 'w') as f:
+    f.write(generated_prompt)  # 生成したプロンプト内容
+print(f'保存完了: {save_path}')
+```
 
 出力後に一言添える:
 ```
 このプロンプトをコピーして新セッションの最初のメッセージに貼り付けてください。
-（ファイルに保存済みにする場合: /tmp/new-session-prompt.md にも書き出します）
+SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_HHMM.md
+（ls ~/projects/obsidian-ssot/00_SYSTEM/handoff/ で履歴を確認可能）
 ```
 
-`/tmp/new-session-prompt.md` にも同内容を書き出す（次のセッションで `cat` して読める）。
-
----
 
 ## 補足: スキルが呼ばれるタイミング
 

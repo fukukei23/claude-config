@@ -1,11 +1,12 @@
 #!/bin/bash
 # Knowledge Lint CronCreate check (SessionStart hook)
-# Checks if the Knowledge Lint cron job is configured and outputs status
 
 SCHEDULED_TASKS="/home/yn4416/.claude/scheduled_tasks.json"
+STATUS_DIR="/tmp/claude-startup"
+mkdir -p "$STATUS_DIR"
 
 if grep -q "Knowledge Lint" "$SCHEDULED_TASKS" 2>/dev/null; then
-  echo "✅ Knowledge Lint cron: 設定済み"
+  echo " ✅ Knowledge Lint: cron設定済み" > "$STATUS_DIR/knowledge-lint.status"
 else
-  echo "⚠️ Knowledge Lint cron: 未設定 — CronCreate(durable:false, cron:'3 3 * * 0,2,4')で定期lintを設定してください"
+  echo " ⚠️ Knowledge Lint: cron未設定 (CronCreate推奨)" > "$STATUS_DIR/knowledge-lint.status"
 fi
