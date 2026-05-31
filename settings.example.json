@@ -349,6 +349,16 @@
             "timeout": 10000
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/yn4416/bin/claude-config-sync.sh 2>/dev/null || true",
+            "timeout": 30
+          }
+        ]
       }
     ]
   },
