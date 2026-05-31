@@ -1,11 +1,11 @@
 {
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "",
+    "ANTHROPIC_AUTH_TOKEN": "97c1***MASKED***",
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "GLM-4.5-Air",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "GLM-5.1",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "GLM-4.7",
     "API_TIMEOUT_MS": "1200000",
-    "BRAVE_API_KEY": "",
+    "BRAVE_API_KEY": "BSAW***MASKED***",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
   },
@@ -55,7 +55,7 @@
       "Bash(xargs cat:*)",
       "Bash(xargs ls:*)",
       "mcp__plugin_discord_discord__download_attachment",
-      "Bash(TOKEN=\"<DISCORD_BOT_TOKEN>\")",
+      "Bash(T***MASKED***",
       "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/users/@me/guilds\")",
       "Bash(GUILD=\"1479832235044769872\")",
       "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/guilds/$GUILD/channels\")",
@@ -137,6 +137,16 @@
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/git/detect-commit-for-ssot.sh",
             "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/projects/claude-config/scripts/config/post-tool-settings-sync.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -268,6 +278,16 @@
         "hooks": [
           {
             "type": "command",
+            "command": "/home/yn4416/projects/claude-config/scripts/config/sync-settings-to-example.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
             "command": "/home/yn4416/.claude/scripts/obsidian/auto-update-indexes.sh",
             "timeout": 30000
           }
@@ -365,7 +385,7 @@
     "brave-search": {
       "command": "/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/brave-search-mcp-server",
       "env": {
-        "BRAVE_API_KEY": ""
+        "BRAVE_API_KEY": "BSAW***MASKED***"
       }
     },
     "minimax": {
@@ -375,18 +395,18 @@
         "minimax_mcp"
       ],
       "env": {
-        "MINIMAX_API_KEY": ""
+        "MINIMAX_API_KEY": "sk-c***MASKED***"
       }
     },
     "github": {
       "command": "/home/yn4416/.local/bin/github-mcp-server",
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "gith***MASKED***"
       }
     },
     "glm": {
       "env": {
-        "GLM_API_KEY": ""
+        "GLM_API_KEY": "97c1***MASKED***"
       }
     }
   },
