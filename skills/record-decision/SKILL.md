@@ -1,9 +1,16 @@
 ---
 name: record-decision
-description: Record a session's work to the SSOT (obsidian-ssot). Trigger this skill when the user says "記録して", "ありがとう", "OK", "次", or otherwise signals they're done with a topic and want to save before moving on. Also trigger proactively before switching topics. This automates the 3-step SSOT recording process defined in CLAUDE.md.
+description: >
+  【非推奨 → record-ssot を使うこと】
+  record-ssot に統合済み。/record-decision が呼ばれた場合は record-ssot スキルに処理を委譲する。
+  トリガーワード「記録して」「書き留めて」「保存して」は record-ssot が優先的に処理する。
 disable-model-invocation: true
 user-invocable: true
 ---
+
+> ⚠️ このスキルは **record-ssot** に統合されました。
+> `/record-ssot` または「記録して」を使ってください。
+> 以下の処理は record-ssot スキルに委譲します。
 
 # Record Decision to SSOT
 
