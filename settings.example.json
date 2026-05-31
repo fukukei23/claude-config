@@ -168,7 +168,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "wsl python3 /home/yn4416/.claude/scripts/security/check-command-safety.py",
+            "command": "wsl bash -c \"python3 /home/yn4416/.claude/scripts/security/check-command-safety.py\"",
             "timeout": 5000
           }
         ]
