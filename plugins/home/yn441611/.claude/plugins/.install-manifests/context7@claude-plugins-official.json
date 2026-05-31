@@ -1,8 +1,0 @@
-{
-  "pluginId": "context7@claude-plugins-official",
-  "createdAt": "2026-02-25T13:02:30.614Z",
-  "files": {
-    ".claude-plugin\\plugin.json": "b6cd843237298528909d9c945ac800c7bdd680f0e596a02f3c7b53683a0be778",
-    ".mcp.json": "4405a929696c9a73b5042c6c19e40c258f61296ce17f432146f9af613c595c64"
-  }
-}
