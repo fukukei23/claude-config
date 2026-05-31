@@ -5,8 +5,8 @@ description: >
   ユーザーが「記録して」「書き留めて」「保存して」「メモして」「残しておいて」「忘れないようにして」
   「SSOTに入れて」「ガイドに追加して」「書いておいて」と言った時、
   または /record-ssot を呼び出した時にトリガーする。
-  record-decision の上位互換。内容をGLMで分析して最適な振り分け先を判定し、
-  フォーマット生成・リンク付与・ガイド転記提案まで一気に実行する。
+  record-decision の上位互換。内容をLLMで分析して最適な振り分け先を判定し、
+  フォーマット生成・リンク付与・ガイド転記まで一気に実行する。
 user-invocable: true
 ---
 
@@ -33,9 +33,9 @@ user-invocable: true
 
 ---
 
-## フェーズ1: GLMで分類判定
+## フェーズ1: LLMで分類判定
 
-以下のプロンプトで `glm_ask` に問い合わせる。**デフォルト値なし・全フィールドを内容から判断させること**:
+以下のプロンプトで LLM（`glm_ask` / `minimax_ask` / Sonnet 等、利用可能なもの）に問い合わせる。**デフォルト値なし・全フィールドを内容から判断させること**:
 
 ```
 以下の内容をSSOTに記録します。最適な振り分け先を判定し、JSON のみを返してください（説明文不要）。
@@ -74,9 +74,18 @@ user-invocable: true
 }
 ```
 
-**GLMがJSONを返さなかった場合（説明文が混入・エラー等）**:
+**LLMがJSONを返さなかった場合（説明文が混入・エラー等）**:
 - レスポンスから `{...}` 部分を正規表現で抽出して再パースを試みる
 - それでも失敗した場合は自分（Claude）でデフォルト判定して進み、フェーズ2でユーザーに確認する
+
+**LLMが不正なプロジェクト名を返した場合の照合**:
+- `primary: "01_DECISIONS"` のとき、返された `project` が実在するか確認する:
+  ```
+  ls /home/yn4416/projects/obsidian-ssot/01_DECISIONS/
+  ```
+  （Windows: `//wsl.localhost/Ubuntu/home/yn4416/projects/obsidian-ssot/01_DECISIONS/`）
+- 返された `project` がフォルダ一覧に**存在しない**場合はフェーズ2で「このプロジェクト名でよいですか？」と確認する
+- `primary: "10_DAILY"` が返った場合は誤判定とみなし `01_DECISIONS` にフォールバックして再判定する
 
 ---
 
@@ -190,8 +199,9 @@ tags: [tag1, tag2]
 ### 3-2. _INDEX.md への追記
 
 `01_DECISIONS/<project>/_INDEX.md` の扱い:
-- **存在する場合**: 末尾のテーブルに1行追記する
+- **存在する場合**: ファイル内の**最後のテーブルの末尾行**に1行追記する
 - **存在しない場合**: スキップ（_INDEX.md を新規作成しない）
+- 複数テーブルがある場合は必ずファイル末尾のテーブルに追記する（セクション冒頭のテーブルに誤追記しない）
 
 追記フォーマット（【要更新】マーカーは絶対に使わない）:
 ```markdown
@@ -204,7 +214,7 @@ tags: [tag1, tag2]
 
 追記先: `/home/yn4416/projects/obsidian-ssot/10_DAILY/YYYY-MM-DD.md`
 
-- **ファイルが存在する場合**: 末尾に追記
+- **ファイルが存在する場合**: 末尾に追記する。ただし末尾に `セッション終了: HH:MM` 行がある場合はその**前**（`---` の前）に挿入する
 - **ファイルが存在しない場合**: 以下のヘッダーで新規作成してから追記
   ```markdown
   # YYYY-MM-DD
@@ -230,9 +240,13 @@ tags: [tag1, tag2]
 ### 4-1. 追記先の特定
 
 ```bash
-# guide_target に応じてsource/を確認
-ls ~/projects/claude-code-guide/source/   # claude-code-guide の場合
-ls ~/projects/ssot-guide/source/          # ssot-guide の場合
+# guide_target に応じてsource/を確認（WSL CLI の場合）
+ls /home/yn4416/projects/claude-code-guide/source/
+ls /home/yn4416/projects/ssot-guide/source/
+
+# Windows Desktop Claude Code の場合（UNCパス）
+ls //wsl.localhost/Ubuntu/home/yn4416/projects/claude-code-guide/source/
+ls //wsl.localhost/Ubuntu/home/yn4416/projects/ssot-guide/source/
 ```
 
 フェーズ2で提示した追記先ファイルに直接書く。
@@ -281,7 +295,7 @@ git push
 - APIキー・シークレットの値は絶対に書かない（キー名はOK）
 - 日記に詳細を直書きしない（サマリー + リンクのみ）
 - _INDEX.md に【要更新】マーカーを残さない
-- ガイド転記はユーザー承認なしに実行しない
+- ガイド転記はフェーズ2の yes 承認をもって承認済みとみなす（追加確認は不要）
 - 1トピック = 1ファイル（複数の無関係な作業は別々のファイルに）
 - `also_daily: false` の時は 10_DAILY に何も書かない
 
