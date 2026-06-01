@@ -82,7 +82,18 @@ def collect_desktop(target_date: str) -> dict:
     input_tok = output_tok = cache_read = None
     token_source = "unavailable"
 
-    # まずセッションJSONでsessions・modelsを集計
+    # completedTurns × モデル別係数で概算トークン
+    # 係数: 1ターンあたり 平均 input/output token 概算（Desktop版はusage非保持のため推計）
+    # claude-sonnet-4-6: 1turn ≈ 3000 in + 800 out
+    # claude-haiku-4-5:  1turn ≈ 2000 in + 500 out
+    # claude-opus-4-7:  1turn ≈ 4000 in + 1000 out
+    MODEL_COEFFICIENTS = {
+        "claude-sonnet-4-6": {"input": 3000, "output": 800, "cache_read": 600},
+        "claude-haiku-4-5-20251001": {"input": 2000, "output": 500, "cache_read": 300},
+        "claude-opus-4-7": {"input": 4000, "output": 1000, "cache_read": 1000},
+    }
+
+    total_in = total_out = total_cache = 0
     for json_file in glob.glob(f"{DESKTOP_SESSIONS}/**/local_*.json", recursive=True):
         try:
             with open(json_file) as f:
@@ -93,47 +104,21 @@ def collect_desktop(target_date: str) -> dict:
             sessions += 1
             model = d.get("model", "unknown")
             models[model] = models.get(model, 0) + 1
+
+            # completedTurns から概算
+            turns = d.get("completedTurns") or 0
+            if turns > 0:
+                coef = MODEL_COEFFICIENTS.get(model, MODEL_COEFFICIENTS["claude-sonnet-4-6"])
+                total_in += turns * coef["input"]
+                total_out += turns * coef["output"]
+                total_cache += turns * coef["cache_read"]
         except Exception:
             pass
 
-    # LevelDB試行（plyvel使用、カスタムコンパレータ必要）
-    try:
-        import plyvel
-
-        def idb_cmp(a, b):
-            if a < b: return -1
-            if a > b: return 1
-            return 0
-
-        leveldb_copy = "/tmp/claude_leveldb_copy"
-        os.makedirs(leveldb_copy, exist_ok=True)
-
-        # ファイルコピー
-        for f in glob.glob(f"{DESKTOP_LEVELDB}/*.ldb"):
-            shutil.copy(f, leveldb_copy)
-        for f in ["CURRENT", "MANIFEST-000001"]:
-            p = os.path.join(DESKTOP_LEVELDB, f)
-            if os.path.exists(p):
-                shutil.copy(p, leveldb_copy)
-
-        db = plyvel.DB(leveldb_copy, create_if_missing=False,
-                       comparator=idb_cmp, comparator_name=b'idb_cmp1')
-
-        total_in = total_out = total_cache = 0
-        for k, v in db.iterator():
-            # usage関連キーをパース（Chromium IndexedDBエンコーディング）
-            # この部分は環境により異なるためフォールバック
-            pass
-
-        db.close()
-
-        if total_in > 0:
-            input_tok = total_in
-            output_tok = total_out
-            cache_read = total_cache
-            token_source = "leveldb"
-    except Exception:
-        pass  # セッションJSON already collected
+    input_tok = total_in if total_in > 0 else None
+    output_tok = total_out if total_out > 0 else None
+    cache_read = total_cache if total_cache > 0 else None
+    token_source = "estimated-from-completedTurns" if input_tok else "unavailable"
 
     return {
         "sessions": sessions,
@@ -142,7 +127,8 @@ def collect_desktop(target_date: str) -> dict:
         "output_tokens": output_tok,
         "cache_read_tokens": cache_read,
         "cost_usd_estimate": round(calc_cost(input_tok or 0, output_tok or 0, cache_read or 0), 6) if input_tok else None,
-        "token_source": token_source
+        "token_source": token_source,
+        "note": "tokens estimated from completedTurns × model coefficients" if input_tok else None
     }
 
 # ==================== C. Git 統計 ====================
@@ -176,7 +162,6 @@ def collect_git(target_date: str) -> dict:
 
 # ==================== メイン ====================
 def main():
-    import shutil
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=None)
     args = parser.parse_args()
