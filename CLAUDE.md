@@ -8,6 +8,13 @@
 - **注意**: シェルの $HOME は /c/Users/yn441 に解決されるため、WSLファイルへのアクセスは必ず `//wsl.localhost/Ubuntu/home/yn4416/` プレフィックスを使うこと
 - **シークレット管理**: `~/.secrets.env` に一元化。プロジェクトごとの `.env` は作成しない（`.env.example` のみ残す）
 
+## 実行環境の注意（Windows + WSL2の2層構造）
+
+スクリプト・ファイルはWSL側（`/home/yn4416/`）にあるが、Cronや自動実行はWindowsのbashで動く。
+`bash /home/yn4416/...` はWindowsのbashがパスを解決できずexit 127でsilentに失敗する。
+**Cronや自動実行では必ず `wsl bash -c "..."` 経由で呼ぶこと。**
+「スクリプトが存在しない」エラーが出たら、まず `wsl bash -c` で試すこと。
+
 ## 基本ルール
 - 丁寧な日本語で回答
 - 詳細はSSOT共通ルールを参照: `00_SYSTEM/共通ルール/ルール.md`
