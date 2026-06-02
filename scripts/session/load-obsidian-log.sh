@@ -54,6 +54,12 @@ if [[ -f "$BACKLOG" ]]; then
     awk '/^## P[0-2]:/{section=$0; next} /^## 完了済み/{section=""} /^\- \[ \]/{if(section) print section " → " $0; else print $0}' "$BACKLOG"
     echo "--- /バックログ ---"
   fi
+
+  # 自動確認プロンプト（7日以上経過タスク）
+  prompt=$(python3 /home/yn4416/bin/backlog-auto-check.py prompt 2>/dev/null)
+  if [[ -n "$prompt" ]]; then
+    echo "$prompt"
+  fi
 fi
 
 # --- ユーザー画面へ（/dev/tty）— サマリーのみ ---
