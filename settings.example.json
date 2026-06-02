@@ -399,11 +399,7 @@
       }
     },
     "minimax": {
-      "command": "python3",
-      "args": [
-        "-m",
-        "minimax_mcp"
-      ],
+      "command": "/home/yn4416/projects/claude-config/scripts/mcp/minimax-mcp-server.py",
       "env": {
         "MINIMAX_API_KEY": "sk-c***MASKED***"
       }
