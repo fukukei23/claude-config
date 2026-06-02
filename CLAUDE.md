@@ -43,6 +43,7 @@
 
 ## セキュリティ
 - APIキー値を会話・ファイルに書き込まない（キー名はOK、値はNG）
+- `settings.json` / `settings.local.json` / `.secrets.env` の値を出力・表示禁止。キー名確認は `python3 -c "import json; print(list(json.load(open('...'))['env'].keys()))"` でキー名のみ取得すること
 - 詳細: `01_DECISIONS/claude-code/参考資料/シークレット管理ポリシー.md`
 
 ## コーディング原則
