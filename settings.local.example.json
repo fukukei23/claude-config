@@ -59,5 +59,9 @@
       "Bash(rm /home/yn4416/projects/NexusCore/tests/api/archive/*)",
       "Bash(rmdir /home/yn4416/projects/NexusCore/tests/api/archive)"
     ]
+  },
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "97c1***MASKED***",
+    "BRAVE_API_KEY": "BSAW***MASKED***"
   }
 }
