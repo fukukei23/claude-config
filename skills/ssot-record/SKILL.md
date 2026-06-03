@@ -63,6 +63,21 @@ user-invocable: true
 - guide_needed は「他人や将来の自分が手順として再利用できる内容」の場合のみ true
 - primary が 00_SYSTEM の場合、project は "claude-code" とする
 
+【Claude Codeガイド自動判定（CC Guide Auto-sync）】
+記録内容がClaude Code機能の設定・変更の場合、CCガイドページへの追記が必要かを判定する。
+
+| 内容カテゴリ | 対象ガイドページ |
+|---|---|
+| スキル自作・登録 | `03_スキルシステム.md` |
+| MCP追加・設定変更 | `04_MCPサーバー.md` |
+| フック追加・変更 | `05_フック.md` |
+| メモリ設定変更 | `06_メモリ.md` |
+| エージェント設定 | `07_エージェント.md` |
+| settings.json変更 | `08_設定ファイル.md` |
+
+- CC機能に関係ない場合は `cc_guide_page: null` にする
+- 複数ページに該当する場合は最初の1つだけを返す
+
 返答フォーマット（JSON のみ、コードブロック不要）:
 {
   "primary": "01_DECISIONS",
@@ -71,6 +86,13 @@ user-invocable: true
   "also_daily": true or false,
   "guide_needed": true or false,
   "guide_target": null or "claude-code-guide" or "ssot-guide",
+  "cc_guide_page": "03_スキルシステム.md" or null,
+  "cc_guide_entry": {
+    "name": "<スキル/MCP/フック名>",
+    "description": "<1行説明>",
+    "trigger": "<トリガー例>",
+    "usage_section": "### `<name>`\n\n<Markdown形式の使い方説明>\n"
+  },
   "tags": ["タグ1", "タグ2", "タグ3"],
   "filename_hint": "ファイル名に使う日本語の短い説明",
   "reason": "判定理由（1行）"
