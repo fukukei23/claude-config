@@ -18,6 +18,22 @@ user-invocable: true
 
 ## 実行手順
 
+### STEP 0: SSOTマスターからの同期（CCガイドページ）
+
+ssot-record等で `00_SYSTEM/Claude-Codeガイド/` が更新された場合、マスターを公開版にコピーする:
+
+```bash
+# 差分確認
+diff /home/yn4416/projects/obsidian-ssot/00_SYSTEM/Claude-Codeガイド/<page>.md \
+     /home/yn4416/projects/claude-code-guide/source/<page>.md
+
+# 同期（差分がある場合）
+cp /home/yn4416/projects/obsidian-ssot/00_SYSTEM/Claude-Codeガイド/<page>.md \
+   /home/yn4416/projects/claude-code-guide/source/<page>.md
+```
+
+SSOTがマスター。`claude-code-guide/source/` は派生物。
+
 ### STEP 1: キュー確認
 
 ```
