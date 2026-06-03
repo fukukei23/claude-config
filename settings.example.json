@@ -5,9 +5,7 @@
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "GLM-4.7",
     "API_TIMEOUT_MS": "1200000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787",
-    "ANTHROPIC_AUTH_TOKEN": "97c1***MASKED***",
-    "BRAVE_API_KEY": "BSAW***MASKED***"
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
   },
   "permissions": {
     "allow": [
@@ -393,10 +391,10 @@
   "editorMode": "normal",
   "mcpServers": {
     "brave-search": {
-      "command": "/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/brave-search-mcp-server",
-      "env": {
-        "BRAVE_API_KEY": "BSAW***MASKED***"
-      }
+      "command": "bash",
+      "args": [
+        "/home/yn4416/.claude/scripts/mcp/start-brave-search.sh"
+      ]
     },
     "minimax": {
       "command": "bash",
@@ -405,10 +403,10 @@
       ]
     },
     "github": {
-      "command": "/home/yn4416/.local/bin/github-mcp-server",
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "gith***MASKED***"
-      }
+      "command": "bash",
+      "args": [
+        "/home/yn4416/.claude/scripts/mcp/start-github.sh"
+      ]
     }
   },
   "autoDream": {
