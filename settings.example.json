@@ -168,7 +168,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/yn4416/.claude/scripts/security/check-command-safety.py",
+            "command": "bash /home/yn4416/.claude/scripts/security/run-security-check.sh",
             "timeout": 5000
           }
         ]

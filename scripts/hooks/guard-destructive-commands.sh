@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # guard-destructive-commands.sh — 破壊的コマンドをブロックするPreToolUse Hook
 # exit 2 = ツール実行を中止 + メッセージ表示
+#
+# クロスプラットフォーム対応: python3/jq に依存せず純bashでJSON解析
 
 INPUT=$(cat)
 
-# python3でJSONパース（jq未インストール環境対応）
-tool_name=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null)
-cmd=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null)
+# --- JSON解析（python3/jq 不要）---
+# tool_name を抽出: "tool_name":"Bash" → Bash
+tool_name=$(printf '%s' "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | sed 's/^"tool_name":"//;s/"$//')
+
+# command を抽出: "command":"..." → ...
+cmd=$(printf '%s' "$INPUT" | sed -n 's/.*"command" *: *"\(.*\)".*/\1/p' | head -1)
 
 if [[ "$tool_name" != "Bash" ]]; then
   exit 0
