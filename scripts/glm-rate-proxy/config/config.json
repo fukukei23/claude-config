@@ -14,11 +14,11 @@
     },
     "economy": {
       "max_pct": 95,
-      "model": "GLM-4.7"
+      "model": "GLM-5"
     },
     "emergency": {
       "max_pct": 100,
-      "model": "GLM-4.7-Flash"
+      "model": "GLM-4.7"
     }
   },
   "fallback": {
