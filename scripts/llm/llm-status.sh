@@ -9,8 +9,6 @@
 #   2. /tmp/llm-last-used.txt（MCPツール使用時のフォールバック）
 #   3. "unknown"（データなし）
 
-INPUT=$(cat)
-
 python3 -c "
 import sys, json, datetime, os
 
@@ -44,11 +42,13 @@ if model_name == 'unknown':
 parts.append(model_name)
 
 try:
-    # --- コンテキストウィンドウ使用率 ---
+    # --- コンテキストウィンドウ使用率（毎回必ず表示） ---
     ctx = d.get('context_window', {})
     ctx_pct = ctx.get('used_percentage')
     if ctx_pct is not None:
         parts.append(f'ctx: {ctx_pct:.0f}%')
+    else:
+        parts.append('ctx: ---')
 
     # --- 5時間レート制限 ---
     rl5 = d.get('rate_limits', {}).get('five_hour', {})
