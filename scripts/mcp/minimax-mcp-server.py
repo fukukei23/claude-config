@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MiniMax MCP Server - MiniMax M2.7をMCPツールとして提供"""
+"""MiniMax MCP Server - MiniMax M3をMCPツールとして提供"""
 
 import json
 import sys
@@ -21,7 +21,7 @@ def _load_key():
 
 MINIMAX_KEY = _load_key()
 MINIMAX_URL = 'https://api.minimax.io/anthropic/v1/messages'
-MODEL = 'MiniMax-M2.7'
+MODEL = 'MiniMax-M3'
 
 
 def call_minimax(prompt, max_tokens=2000):
@@ -57,7 +57,7 @@ def call_minimax(prompt, max_tokens=2000):
 TOOLS = [
     {
         "name": "minimax_ask",
-        "description": "MiniMax M2.7に作業を依頼する。要約・翻訳・コード変換など大量処理・コスト効率が重要なタスクに使用。ClaudeのAPIトークンを消費しない。",
+        "description": "MiniMax M3に作業を依頼する。要約・翻訳・コード変換など大量処理・コスト効率が重要なタスクに使用。ClaudeのAPIトークンを消費しない。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -298,7 +298,7 @@ def handle_request(req):
         args = params.get('arguments', {})
 
         if tool_name == 'minimax_ask':
-            # M2.7はThinkingモデルのため最低2000トークン必要（それ以下だと空レスポンス）
+            # M3はThinkingモデルのため最低2000トークン必要（それ以下だと空レスポンス）
             tokens = max(args.get('max_tokens', 2000), 2000)
             text = call_minimax(args['prompt'], tokens)
             result = {"content": [{"type": "text", "text": text}]}

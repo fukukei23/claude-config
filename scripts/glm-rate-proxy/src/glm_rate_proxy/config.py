@@ -22,7 +22,7 @@ DEFAULTS = {
     },
     "fallback": {
         "provider": "minimax",
-        "model": "MiniMax-M2.7",
+        "model": "MiniMax-M3",
     },
     "peak_hours": {
         "enabled": True,
