@@ -1,14 +1,20 @@
 #!/bin/bash
-# MiniMax 公式MCP起動スクリプト（動画・音声・画像生成対応）
 set -e
+
+exec 2>>/tmp/minimax-official-mcp.log
+
+echo '[startup] Sun Jun  7 02:10:15     2026' >> /tmp/minimax-official-mcp.log
 
 # シークレット読み込み
 source ~/.secrets.env
+
+echo '[secrets loaded]' >> /tmp/minimax-official-mcp.log
 
 # 必須環境変数
 export MINIMAX_API_HOST='https://api.minimax.io'
 export MINIMAX_MCP_BASE_PATH='/home/yn4416/minimax-output'
 mkdir -p /home/yn4416/minimax-output
 
-# 公式MCPサーバー起動
+echo '[starting minimax-mcp]' >> /tmp/minimax-official-mcp.log
+
 exec /home/yn4416/.local/bin/minimax-mcp
