@@ -7,10 +7,8 @@ source ~/.secrets.env
 
 # 必須環境変数
 export MINIMAX_API_HOST='https://api.minimax.io'
-
-# 出力先ディレクトリ
-export MINIMAX_MCP_BASE_PATH="/home/yn4416/minimax-output"
-mkdir -p ""
+export MINIMAX_MCP_BASE_PATH='/home/yn4416/minimax-output'
+mkdir -p /home/yn4416/minimax-output
 
 # 公式MCPサーバー起動
 exec /home/yn4416/.local/bin/minimax-mcp
