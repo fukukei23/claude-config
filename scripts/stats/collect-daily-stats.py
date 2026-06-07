@@ -29,6 +29,9 @@ def collect_wsl_cli(target_date: str) -> dict:
 
     sessions = set()
     input_tok = output_tok = cache_read = cache_create = 0
+    prompts = 0
+    tool_uses = 0
+    models = {}
 
     for jsonl in PROJECTS_JSONL.glob("**/*.jsonl"):
         session_ids = set()
@@ -37,32 +40,42 @@ def collect_wsl_cli(target_date: str) -> dict:
                 d = json.loads(line.strip())
             except:
                 continue
-            if d.get("type") != "assistant":
-                continue
             ts = d.get("timestamp", "")
-            # ISO -> unix
             try:
                 ts_dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
             except:
                 continue
             if not (day_start_ts <= ts_dt.timestamp() < day_end_ts):
                 continue
-            msg = d.get("message", {})
-            u = msg.get("usage", {})
-            input_tok += u.get("input_tokens", 0)
-            output_tok += u.get("output_tokens", 0)
-            cache_read += u.get("cache_read_input_tokens", 0)
-            cache_create += u.get("cache_creation_input_tokens", 0)
+
             if d.get("sessionId"):
                 session_ids.add(d["sessionId"])
 
-        sessions.update(session_ids)
+            if d.get("type") == "user":
+                prompts += 1
 
-    api_calls = input_tok // 1000  # 概算
+            if d.get("type") == "assistant":
+                msg = d.get("message", {})
+                u = msg.get("usage", {})
+                input_tok += u.get("input_tokens", 0)
+                output_tok += u.get("output_tokens", 0)
+                cache_read += u.get("cache_read_input_tokens", 0)
+                cache_create += u.get("cache_creation_input_tokens", 0)
+                # モデル別集計
+                model = msg.get("model", "unknown")
+                models[model] = models.get(model, 0) + 1
+                # ツール使用回数
+                if msg.get("stop_reason") == "tool_use":
+                    tool_uses += 1
+
+        sessions.update(session_ids)
 
     return {
         "sessions": len(sessions),
-        "api_calls": api_calls,
+        "prompts": prompts,
+        "api_calls": sum(models.values()),  # assistant メッセージ総数 = API コール数
+        "tool_uses": tool_uses,
+        "models": models,
         "input_tokens": input_tok,
         "output_tokens": output_tok,
         "cache_read_tokens": cache_read,
@@ -189,9 +202,15 @@ def main():
         json.dump(result, f, indent=2, ensure_ascii=False)
 
     print(f"✅ 保存: {out_file}")
-    print(f"   WSL CLI sessions={result['wsl_cli']['sessions']} api_calls={result['wsl_cli']['api_calls']}")
-    print(f"   Desktop sessions={result['desktop']['sessions']} models={result['desktop']['models']}")
-    print(f"   Git commits={result['git']['commits_total']} repos={result['git']['repos_active']}")
+    cli = result['wsl_cli']
+    dsk = result['desktop']
+    git = result['git']
+    print(f"   WSL CLI: sessions={cli['sessions']} prompts={cli['prompts']} api_calls={cli['api_calls']} tool_uses={cli['tool_uses']}")
+    print(f"   Models: {cli['models']}")
+    print(f"   Tokens: in={cli['input_tokens']:,} out={cli['output_tokens']:,} cache_read={cli['cache_read_tokens']:,}")
+    print(f"   Cost: ${cli['cost_usd_estimate']:.4f}")
+    print(f"   Desktop: sessions={dsk['sessions']} models={dsk['models']}")
+    print(f"   Git: commits={git['commits_total']} repos={git['repos_active']}")
 
 if __name__ == "__main__":
     main()
