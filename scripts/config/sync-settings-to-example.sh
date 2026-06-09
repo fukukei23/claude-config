@@ -24,6 +24,14 @@ if command -v jq &>/dev/null; then
       .mcpServers // {} | to_entries | map(
         .value.env = (.value.env // {} | with_entries(.value = ""))
       ) | from_entries
+    ) |
+    .permissions.allow = (
+      .permissions.allow | map(
+        if (type == "string" and test("TOKEN="; "i") and length > 30)
+        then "Bash(TOKEN=\"<DISCORD_BOT_TOKEN>\")"
+        else .
+        end
+      )
     )
   ' "$SETTINGS_WSL" > "$EXAMPLE_WSL"
   [[ $? -ne 0 ]] && { echo " ❌ settings.example同期: jqエラー"; exit 1; }
