@@ -34,7 +34,6 @@
       "Bash(bun *)",
       "Bash(node *)",
       "Bash(npm *)",
-      "*",
       "Read(//etc/**)",
       "Bash(tmux -V)",
       "Bash(systemctl --user status)",
