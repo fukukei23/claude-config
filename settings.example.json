@@ -418,12 +418,6 @@
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "gith***MASKED***"
       }
-    },
-    "glm": {
-      "env": {
-        "GLM_API_KEY": "97c1***MASKED***"
-      },
-      "disabled": true
     }
   },
   "autoDream": {
