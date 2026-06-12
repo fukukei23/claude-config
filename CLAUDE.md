@@ -75,5 +75,9 @@ SessionStart hookが未設定を検知 → CronCreateで自動設定（durable:f
 ## 完了通知
 詳細: `01_DECISIONS/claude-code/2026-05-26_完了通知設定.md`
 
+## スキルトリガー（厳格）
+ユーザー発言がスキルのトリガーワード（各スキルファイル内「トリガーワード」欄）に合致する場合、必ず先に Skill ツールで該当スキルを発動してから対応せよ
+
 ## 設定ファイル同期
+CLAUDE.md・settings.json・hook変更時は `obsidian-ssot/01_DECISIONS/claude-code/設定ファイル/` も同時更新
 CLAUDE.md・settings.json変更時は `obsidian-ssot/01_DECISIONS/claude-code/設定ファイル/` も同時更新

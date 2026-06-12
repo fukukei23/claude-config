@@ -76,7 +76,34 @@ fi
 banner+="$(printf '%s\n' "$SEP")"$'\n'
 banner+="$(printf ' 📋 前回: %s\n' "$handoff_line")"$'\n'
 banner+="$(printf ' 📝 %s\n' "$session_info")"$'\n'
-banner+="$(printf '%s\n' "$SEP")"
+banner+="$(printf '%s\n' "$SEP")"$'\n'
+
+# --- スキルトリガーマップ（各スキルのトリガーワード欄から自動生成） ---
+SKILLS_DIR="$HOME/.claude/skills"
+if [ -d "$SKILLS_DIR" ]; then
+  trigger_map=""
+  for skill_entry in "$SKILLS_DIR"/*; do
+    # ディレクトリならSKILL.md、ファイルならそのまま
+    if [ -d "$skill_entry" ]; then
+      skill_file="$skill_entry/SKILL.md"
+      [ -f "$skill_file" ] || continue
+    elif [ -f "$skill_entry" ]; then
+      skill_file="$skill_entry"
+    else
+      continue
+    fi
+    skill_name=$(basename "$skill_entry" .md)
+    # トリガーワード行を抽出
+    triggers=$(grep -A3 'トリガーワード' "$skill_file" 2>/dev/null | grep -v 'トリガーワード' | grep -v '^--' | grep -v '^$' | head -2 | sed 's/^[[:space:]]*//' | tr '\n' ' ' | sed 's/  */ /g' | sed 's/ *$//')
+    if [ -n "$triggers" ]; then
+      trigger_map+="  ${skill_name}: ${triggers}"$'\n'
+    fi
+  done
+  if [ -n "$trigger_map" ]; then
+    banner+="$(printf ' 🔧 スキルトリガーマップ:\n')"$'\n'
+    banner+="$trigger_map"
+  fi
+fi
 
 
 printf '%s\n' "$banner"
