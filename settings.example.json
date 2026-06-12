@@ -423,6 +423,12 @@
       "env": {
         "GLM_API_KEY": "97c1***MASKED***"
       }
+    },
+    "zernio": {
+      "url": "https://mcp.zernio.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ZERNIO_API_KEY}"
+      }
     }
   },
   "autoDream": {
