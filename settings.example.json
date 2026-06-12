@@ -429,6 +429,13 @@
       "headers": {
         "Authorization": "Bearer ${ZERNIO_API_KEY}"
       }
+    },
+    "minimax-official": {
+      "type": "stdio",
+      "command": "bash",
+      "args": [
+        "/home/yn4416/.claude/scripts/mcp/start-minimax-official-mcp.sh"
+      ]
     }
   },
   "autoDream": {
