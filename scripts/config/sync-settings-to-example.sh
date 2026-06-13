@@ -23,6 +23,7 @@ if command -v jq &>/dev/null; then
     .mcpServers = (
       .mcpServers // {} | to_entries | map(
         .value.env = (.value.env // {} | with_entries(.value = ""))
+        | .value.headers = (.value.headers // {} | with_entries(.value = ""))
       ) | from_entries
     ) |
     .permissions.allow = (
@@ -60,6 +61,8 @@ out = sanitize(data)
 for srv in out.get('mcpServers', {}).values():
     if 'env' in srv:
         srv['env'] = {k: '' for k in srv['env']}
+    if 'headers' in srv:
+        srv['headers'] = {k: '' for k in srv['headers']}
 
 # permissions.allow 内の TOKEN=<値> をマスク（Discord Bot Token等）
 perms = out.get('permissions', {})
