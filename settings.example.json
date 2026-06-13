@@ -424,15 +424,6 @@
         "GLM_API_KEY": "97c1***MASKED***"
       }
     },
-    "zernio": {
-      "url": "https://mcp.zernio.com/mcp",
-      "headers": {
-        "Authorization": "Bearer ${ZERNIO_API_KEY}"
-      },
-      "env": {
-        "ZERNIO_API_KEY": "sk_b1320bc8990d039706f88421ce666c44edfd8fa8576743c1ca22ed8ebb7e2ddd"
-      }
-    },
     "minimax-official": {
       "type": "stdio",
       "command": "bash",
