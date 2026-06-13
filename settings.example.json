@@ -384,17 +384,9 @@
     "security-guidance@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "zernio@zernio": true
+    "typescript-lsp@claude-plugins-official": true
   },
-  "extraKnownMarketplaces": {
-    "zernio": {
-      "source": {
-        "source": "github",
-        "repo": "zernio-dev/zernio-claude-plugin"
-      }
-    }
-  },
+  "extraKnownMarketplaces": {},
   "language": "japanese",
   "effortLevel": "medium",
   "skipDangerousModePermissionPrompt": true,
