@@ -14,7 +14,7 @@
 「存在しない」エラーが出たらまず `wsl bash -c` で試すこと。
 
 ## LLM利用ポリシー
-- メイン: 🟡[GLM-5.1]（glm_ask経由）
+- メイン: 🟡[GLM-5.2]（glm_ask経由）
 - フォールバック: 🟠[MiniMax]（minimax_ask経由）— GLM失敗時・大量処理用
 - Sonnet使用: 事前ユーザー許可必須 🔵[Sonnet]
 - ⚠️ WSL CLI版はセッション自体がGLM動作中。外部LLM（glm_ask等）の呼び出しは不要・不可
