@@ -438,7 +438,8 @@
       "command": "bash",
       "args": [
         "/home/yn4416/.claude/scripts/mcp/start-minimax-official-mcp.sh"
-      ]
+      ],
+      "disabled": true
     }
   },
   "autoDream": {
