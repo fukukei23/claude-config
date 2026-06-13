@@ -22,7 +22,7 @@
 
 ## glm-rate-proxy
 - 経路: Claude Code → localhost:8787 → ZAI / MiniMax（SessionStart hookで自動起動）
-- トラブル時: Memory `glm-rate-proxy.md` 参照
+- トラブル時: SSOT `01_DECISIONS/claude-code/` 配下を参照
 
 ## セッション開始バナー（必須）
 最初の返答冒頭で必ず `wsl bash -c "bash /home/yn4416/.claude/scripts/session/startup-banner.sh"` を実行し、その出力をそのまま貼ること。
@@ -51,19 +51,10 @@
 - Think Before Coding / Surgical Changes / Simplicity First
 - 詳細: `01_DECISIONS/claude-code/参考資料/Karpathy-コーディングガイドライン.md`
 
-## ブランチ運用
-常にmainに直接コミット・push。featureブランチ禁止（CI用一時ブランチのみ例外）
-
 ## SSOT（共通知識ベース）
 - 場所: `//wsl.localhost/Ubuntu/home/yn4416/projects/obsidian-ssot/`
 - **SSOTを参照する時はまず `00_SYSTEM/全体マップ_MOC.md` から入ること**
 - バックログ: `00_SYSTEM/バックログ.md`
-
-## ユーザープロファイル
-- 40代中盤、非IT公務員、Python/TS中心に20+プロジェクトGitHub公開
-- コードは読めない素人。専門用語は初出時に説明。結論ファースト
-- 詳細: `00_SYSTEM/プロフィール/自己紹介.md`
-- ⚠️ obsidian-ssotはパブリック化禁止
 
 ## MCPツール管理
 `00_SYSTEM/MCPツール使い分けガイド.md` — settings.json変更時にガイドも更新
@@ -80,4 +71,3 @@ SessionStart hookが未設定を検知 → CronCreateで自動設定（durable:f
 
 ## 設定ファイル同期
 CLAUDE.md・settings.json・hook変更時は `obsidian-ssot/01_DECISIONS/claude-code/設定ファイル/` も同時更新
-CLAUDE.md・settings.json変更時は `obsidian-ssot/01_DECISIONS/claude-code/設定ファイル/` も同時更新
