@@ -79,7 +79,7 @@ tail -20 /tmp/glm-proxy.log
 
 | モード | 使用率 | モデル | いつ |
 |---|---|---|---|
-| normal | <80% | GLM-5.1 | 通常時 |
+| normal | <80% | GLM-5.2 | 通常時 |
 | economy | 80-95% | GLM-4.7 | 使用量が多い時 |
 | emergency | 95%+ | GLM-4.7-Flash | 使用量限界付近 |
 | fallback | 全滅時 | MiniMax-M2.7 | GLMが全モデル429の時 |
