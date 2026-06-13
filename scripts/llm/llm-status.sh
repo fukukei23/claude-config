@@ -1,39 +1,38 @@
 #!/bin/bash
 # Claude Code ステータスライン
-# stdin JSONからベースモデル名・コンテキスト使用率・レート制限を表示
+# stdin JSON（公式スキーマ）からモデル名・コスト・作業量を表示
 #
-# 表示例: GLM-5.1 | ctx: 45% | 5h: 23% (2h15m) | 7d: 12%
+# 表示例: GLM-5.1 | $0.12 | +100 -50
 #
 # LLM名の判定優先度:
-#   1. stdin JSON の model フィールド（ベースURLの実際のモデル）
+#   1. stdin JSON の model フィールド（display_name → id）
 #   2. /tmp/llm-last-used.txt（MCPツール使用時のフォールバック）
-#   3. "unknown"（データなし）
+#   3. "unknown"
 
 python3 -c "
-import sys, json, datetime, os
+import sys, json, os
 
 input_data = sys.stdin.read().strip()
 parts = []
 
 # --- LLM名（ベースモデル） ---
 model_name = 'unknown'
+d = {}
 try:
     d = json.loads(input_data) if input_data else {}
-
-    # stdin JSON の model フィールド（実際のベースURLモデル）
     m = d.get('model')
-    if m:
+    if isinstance(m, dict):
+        model_name = m.get('display_name') or m.get('id') or 'unknown'
+    elif m:
         model_name = m
 except:
-    d = {}
+    pass
 
 # MCP経由のLLM使用記録（フォールバック）
-status_file = '/tmp/llm-last-used.txt'
 if model_name == 'unknown':
     try:
-        if os.path.exists(status_file):
-            with open(status_file) as f:
-                mcp_llm = f.read().strip()
+        if os.path.exists('/tmp/llm-last-used.txt'):
+            mcp_llm = open('/tmp/llm-last-used.txt').read().strip()
             if mcp_llm:
                 model_name = mcp_llm
     except:
@@ -42,42 +41,20 @@ if model_name == 'unknown':
 parts.append(model_name)
 
 try:
-    # --- コンテキストウィンドウ使用率（毎回必ず表示） ---
-    ctx = d.get('context_window', {})
-    ctx_pct = ctx.get('used_percentage')
-    if ctx_pct is not None:
-        parts.append(f'ctx: {ctx_pct:.0f}%')
-    else:
-        parts.append('ctx: ---')
+    # --- コスト（公式JSONの cost.total_cost_usd） ---
+    cost = d.get('cost', {}).get('total_cost_usd')
+    if cost is not None:
+        parts.append(f'\${cost:.2f}')
 
-    # --- 5時間レート制限 ---
-    rl5 = d.get('rate_limits', {}).get('five_hour', {})
-    pct5 = rl5.get('used_percentage', -1)
-    if pct5 is not None and pct5 >= 0:
-        reset5 = rl5.get('reset_at', '')
-        suffix = ''
-        if reset5:
-            try:
-                rt = datetime.datetime.fromisoformat(reset5.replace('Z', '+00:00'))
-                now = datetime.datetime.now(datetime.timezone.utc)
-                diff = rt - now
-                mins = int(diff.total_seconds() / 60)
-                if mins > 60:
-                    suffix = f' ({mins // 60}h{mins % 60}m)'
-                elif mins > 0:
-                    suffix = f' ({mins}m)'
-            except:
-                pass
-        parts.append(f'5h: {pct5:.0f}%{suffix}')
-
-    # --- 7日レート制限 ---
-    rl7 = d.get('rate_limits', {}).get('seven_day', {})
-    pct7 = rl7.get('used_percentage', -1)
-    if pct7 is not None and pct7 >= 0:
-        parts.append(f'7d: {pct7:.0f}%')
-
+    # --- 行追加/削除（作業量の目安） ---
+    cost_d = d.get('cost', {})
+    added = cost_d.get('total_lines_added')
+    removed = cost_d.get('total_lines_removed')
+    if added is not None and removed is not None:
+        parts.append(f'+{added} -{removed}')
 except:
     pass
 
-print(' | '.join(parts))
-" 2>/dev/null || echo "statusline-error"
+# str() で包む: 万が一 dict が混入しても TypeError を起こさない安全策
+print(' | '.join(str(p) for p in parts))
+" 2>/dev/null || echo 'statusline-error'
