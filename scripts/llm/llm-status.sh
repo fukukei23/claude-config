@@ -55,9 +55,10 @@ try:
 except:
     pass
 
-# --- コンテキスト残量（最新assistant usage合計 / 200k閾値）---
-# stdin JSON の transcript_path から最新 usage を直接読み、auto-compact目安の%を算出。
-# 注意: Claude Code ネイティブの右下警告（動的閾値）とは厳密には一致しない近似値。
+# --- コンテキスト残量（窓使用量 / 動的窓サイズ）---
+# transcript_path から最新 assistant usage を読み、窓使用量を算出。
+# 窓使用量 = input + cache_creation + cache_read（cache_readも窓を占有する）。
+# 窓サイズは動的判定: exceeds_200k フラグ or 窓使用量>200k → 1M窓（Opus[1m]/GLM-5.2等）
 try:
     transcript_path = d.get('transcript_path')
     ctx_tokens = 0
@@ -83,7 +84,12 @@ try:
                                 + usage.get('cache_read_input_tokens', 0)
                             )
     if ctx_tokens > 0:
-        LIMIT = 200000  # auto-compact目安（固定）
+        # 窓サイズ: CLAUDE_CODE_AUTO_COMPACT_WINDOW 環境変数から（デフォルト200k）
+        LIMIT = int(os.environ.get('CLAUDE_CODE_AUTO_COMPACT_WINDOW', '200000'))
+        if LIMIT >= 1000000:
+            win_label = f'{LIMIT//1000000}M'
+        else:
+            win_label = f'{LIMIT//1000}k'
         pct = ctx_tokens / LIMIT * 100
         k_used = ctx_tokens / 1000
         # 色: >=85%赤(危険) / >=70%黄(注意) / それ以外緑(快適)
@@ -94,9 +100,9 @@ try:
         else:
             color = '\033[32m'
         reset = '\033[0m'
-        parts.append(f'{color}Ctx {pct:.0f}% ({k_used:.0f}k){reset}')
+        parts.append(f'{color}Ctx {pct:.0f}% ({k_used:.0f}k/{win_label}){reset}')
     elif d.get('exceeds_200k_tokens'):
-        parts.append('\033[31mCtx >200k!\033[0m')
+        parts.append('\033[33mCtx >200k (1M窓)\033[0m')
 except:
     pass
 
