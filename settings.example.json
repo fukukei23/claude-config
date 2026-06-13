@@ -384,7 +384,16 @@
     "security-guidance@claude-plugins-official": true,
     "skill-creator@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "zernio@zernio": true
+  },
+  "extraKnownMarketplaces": {
+    "zernio": {
+      "source": {
+        "source": "github",
+        "repo": "zernio-dev/zernio-claude-plugin"
+      }
+    }
   },
   "language": "japanese",
   "effortLevel": "medium",
@@ -435,13 +444,5 @@
   "autoDream": {
     "enabled": true,
     "intervalHours": 24
-  },
-  "extraKnownMarketplaces": {
-    "zernio": {
-      "source": {
-        "source": "github",
-        "repo": "zernio-dev/zernio-claude-plugin"
-      }
-    }
   }
 }
