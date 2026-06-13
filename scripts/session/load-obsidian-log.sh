@@ -1,6 +1,7 @@
 #!/bin/bash
-# load-obsidian-log.sh — SessionStart Hook: 直近2日分のSSOT日記をClaudeコンテキストとユーザー画面に表示
+# load-obsidian-log.sh — SessionStart Hook: SSOT日記・バックログをClaudeコンテキストに表示（軽量版）
 # stdout → Claude Codeコンテキスト, /dev/tty → ターミナル表示
+# 軽量化: 今日=直近3セッション / 昨日=サマリー1行 / バックログ=P0+P1のみ
 
 SSOT_PATH="/home/yn4416/projects/obsidian-ssot"
 TODAY=$(date +%Y-%m-%d)
@@ -29,29 +30,59 @@ last_session_task() {
   fi
 }
 
-# --- 今日の日記 ---
+# --- 今日の日記: 直近3セッションのみ ---
 if [[ -f "$DAILY_DIR/$TODAY.md" ]]; then
-  echo "--- 今日のSSOT日記 ($TODAY) ---"
-  cat "$DAILY_DIR/$TODAY.md"
-  echo "--- /今日のSSOT日記 ---"
+  TOTAL_SESSIONS=$(grep -c "^## セッションログ" "$DAILY_DIR/$TODAY.md" 2>/dev/null || echo 0)
+
+  if [[ "$TOTAL_SESSIONS" -le 3 ]]; then
+    # 3以下なら全量（そのまま）
+    echo "--- 今日のSSOT日記 ($TODAY) ---"
+    cat "$DAILY_DIR/$TODAY.md"
+    echo "--- /今日のSSOT日記 ---"
+  else
+    # 4以上なら直近3セッション分のみ
+    echo "--- 今日のSSOT日記 ($TODAY) — 直近3/${TOTAL_SESSIONS}セッション ---"
+    # ヘッダー部分（## セッションログの前まで）を取得
+    sed '/^## セッションログ/,$ d' "$DAILY_DIR/$TODAY.md"
+    echo ""
+    # 直近3セッションを取得: セッション区切り(## または --- or セッション終了)でブロック化
+    # 最後の3つの ## セッションログ から次の ## セッションログの前までを抽出
+    tac "$DAILY_DIR/$TODAY.md" | awk '
+      /^## セッションログ/ { count++ }
+      count <= 3 { lines[NR] = $0 }
+      count > 3 { next }
+      END {
+        for (i = NR; i >= 1; i--) {
+          if (i in lines) print lines[i]
+        }
+      }
+    ' | sed '/^セッション終了:/d'
+    echo ""
+    echo "（※ ${TOTAL_SESSIONS}セッション中、直近3件のみ表示。全履歴は $DAILY_DIR/$TODAY.md を参照）"
+    echo "--- /今日のSSOT日記 ---"
+  fi
 fi
 
-# --- 昨日の日記（常に入れる） ---
+# --- 昨日の日記: サマリー1行のみ（全量は不要時にRead） ---
 if [[ -n "$YESTERDAY" ]] && [[ -f "$DAILY_DIR/$YESTERDAY.md" ]]; then
-  echo "--- 昨日のSSOT日記 ($YESTERDAY) ---"
-  cat "$DAILY_DIR/$YESTERDAY.md"
-  echo "--- /昨日のSSOT日記 ---"
+  yesterday_count=$(count_sessions "$DAILY_DIR/$YESTERDAY.md")
+  last_y=$(last_session_task "$DAILY_DIR/$YESTERDAY.md")
+  echo "--- 昨日のSSOT日記 ($YESTERDAY): ${yesterday_count}セッション | 最終: ${last_y:-なし} ---"
+  echo "（※ 詳細必要時: Read $DAILY_DIR/$YESTERDAY.md）"
 fi
 
-# --- バックログ（未完了タスク） ---
+# --- バックログ: P0+P1のみ（P2は必要時にRead） ---
 BACKLOG="$SSOT_PATH/00_SYSTEM/バックログ.md"
 if [[ -f "$BACKLOG" ]]; then
-  # 未完了タスク（- [ ]）のみClaudeコンテキストに読み込み
-  backlog_content=$(grep -A0 '^\- \[ \]' "$BACKLOG" 2>/dev/null)
-  if [[ -n "$backlog_content" ]]; then
-    echo "--- バックログ（未完了タスク） ---"
-    # P0/P1/P2セクションヘッダー付きで抽出
-    awk '/^## P[0-2]:/{section=$0; next} /^## 完了済み/{section=""} /^\- \[ \]/{if(section) print section " → " $0; else print $0}' "$BACKLOG"
+  # P0+P1の未完了タスクのみ
+  backlog_p01=$(awk '/^## P[0-1]:/{section=$0; next} /^## P[2]:/{section=""} /^## 完了済み/{section=""} /^\- \[ \]/{if(section) print "  " $0}' "$BACKLOG" 2>/dev/null)
+  if [[ -n "$backlog_p01" ]]; then
+    echo "--- バックログ（P0+P1 未完了） ---"
+    echo "$backlog_p01"
+    p2_count=$(awk '/^## P[2]:/{p2=1} /^## 完了済み/{p2=0} p2 && /^\- \[ \]/{c++} END{print c+0}' "$BACKLOG")
+    if [[ "$p2_count" -gt 0 ]]; then
+      echo "（※ P2: ${p2_count}件の未完了タスクあり → 必要時: Read $BACKLOG）"
+    fi
     echo "--- /バックログ ---"
   fi
 
