@@ -10,13 +10,30 @@
 #   3. "unknown"
 
 python3 -c "
-import sys, json, os
+import sys, json, os, urllib.request, time
 
 input_data = sys.stdin.read().strip()
 parts = []
 
 # --- LLM名（ベースモデル） ---
+# 優先度:
+#   1. glm-rate-proxy の /proxy/status (実動作中のprovider/model) ← 実態を反映
+#   2. stdin JSON の model フィールド（公式statuslineスキーマ）
+#   3. /tmp/llm-last-used.txt (MCP経由)
+#   4. 'unknown'
 model_name = 'unknown'
+proxy_mode = None
+proxy_provider = None
+proxy_actual = None
+try:
+    with urllib.request.urlopen('http://localhost:8787/proxy/status', timeout=0.3) as r:
+        ps = json.loads(r.read().decode('utf-8'))
+        proxy_mode = ps.get('mode')
+        proxy_provider = ps.get('provider')
+        proxy_actual = ps.get('last_actual_model')
+except Exception:
+    pass
+
 d = {}
 try:
     d = json.loads(input_data) if input_data else {}
@@ -28,8 +45,20 @@ try:
 except:
     pass
 
+# プロキシの実情報があれば表示名に [mode] バッジを付与
+if proxy_mode == 'peak_block' and proxy_provider == 'minimax':
+    # peak時間帯は minimax フォールバック中
+    suffix = proxy_actual or 'MiniMax-M3'
+    if model_name == 'unknown' or 'GLM' in model_name or 'Sonnet' in model_name:
+        model_name = f'{model_name}→{suffix}'
+    parts.append(f'\033[33m🟠[peak→minimax]\033[0m {model_name}')
+elif proxy_provider == 'zai':
+    parts.append(f'\033[32m🟡[GLM]\033[0m {model_name}')
+else:
+    parts.append(model_name)
+
 # MCP経由のLLM使用記録（フォールバック）
-if model_name == 'unknown':
+if model_name == 'unknown' and proxy_provider != 'minimax':
     try:
         if os.path.exists('/tmp/llm-last-used.txt'):
             mcp_llm = open('/tmp/llm-last-used.txt').read().strip()
@@ -37,8 +66,6 @@ if model_name == 'unknown':
                 model_name = mcp_llm
     except:
         pass
-
-parts.append(model_name)
 
 try:
     # --- コスト（公式JSONの cost.total_cost_usd） ---
