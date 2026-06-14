@@ -13,6 +13,7 @@ description: 三国志武将のHIPHOP楽曲を、武将選択から曲+歌詞+�
 - `references/曲構成_BPM計算.md`（テンポ×曲長連動・構造タグ14種）
 - `references/固有名詞マップ.md`（読み辞書・janome限界）
 - `references/music-cover手法.md`（発音問題の公式解法）
+- `references/韻技術.md`（母音ベース韻・Phase 2 で使用）
 - `references/武将カタログ.md`（Phase 0 選択用）
 - `references/ジャンルカタログ.md`（Phase 1 選択用）
 
