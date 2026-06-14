@@ -89,6 +89,7 @@ except:
 try:
     transcript_path = d.get('transcript_path')
     ctx_tokens = 0
+    req_mb = None
     if transcript_path and os.path.exists(transcript_path):
         # JSONL を行単位で走査し、最後の assistant usage を取得（最後が最新）
         with open(transcript_path) as tf:
@@ -110,6 +111,8 @@ try:
                                 + usage.get('cache_creation_input_tokens', 0)
                                 + usage.get('cache_read_input_tokens', 0)
                             )
+        # 会話サイズ（トランスクリプト）= 32MBリクエスト上限の目安
+        req_mb = os.path.getsize(transcript_path) / 1048576
     if ctx_tokens > 0:
         # 窓サイズ: CLAUDE_CODE_AUTO_COMPACT_WINDOW 環境変数から（デフォルト200k）
         LIMIT = int(os.environ.get('CLAUDE_CODE_AUTO_COMPACT_WINDOW', '200000'))
@@ -130,6 +133,17 @@ try:
         parts.append(f'{color}Ctx {pct:.0f}% ({k_used:.0f}k/{win_label}){reset}')
     elif d.get('exceeds_200k_tokens'):
         parts.append('\033[33mCtx >200k (1M窓)\033[0m')
+    # 会話サイズ表示（32MB APIリクエスト上限の目安・トランスクリプト＋固定オーバーヘッド数MB）
+    # 実測: 31.26MBトランスクリプトで32MBエラー発生 → トランスクリプトサイズが良好な目安
+    # 色: >=30MB赤(残り実質なし・/clear推奨) / >=27MB黄(注意) / それ以外緑
+    if req_mb is not None:
+        if req_mb >= 30:
+            rcolor = '\033[31m'
+        elif req_mb >= 27:
+            rcolor = '\033[33m'
+        else:
+            rcolor = '\033[32m'
+        parts.append(f'{rcolor}Req {req_mb:.1f}MB/32\033[0m')
 except:
     pass
 
