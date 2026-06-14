@@ -71,6 +71,7 @@ description: サイバー和モダン3作品（原点廻帰/電子参拝/百鬼�
    - prompt: ジャンルカタログの英語プロンプト指針
    - lyrics: Phase 2 のひらがな歌詞（構造タグ `[Verse 1][Chorus]` 等）
 2. 🔴 **人間判断**: 聴取 → **「発音/曲調はどうですか?」**
+   - **`play_audio` ツールは使わない**（300sタイムアウト＋ユーザーが停止不能・kill必須・E2E検証で判明）。生成ファイルのパスを提示し**ユーザー手動再生**に切り替える
 3. **発音問題あれば music-cover ループ**（`music-cover手法.md`）:
    - 良い回を即 `music_cover_preprocess`（無料・直接API）→ `cover_feature_id`（24h有効）
    - 修正歌詞で `music-cover` 生成（直接API・MCP不可）
