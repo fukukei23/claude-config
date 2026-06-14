@@ -41,6 +41,10 @@ class ProxyServer:
             config.upstream_timeout,
         )
         self._last_actual_model: str | None = None
+        # 直近リクエストの実ペイロードサイズ（バイト）
+        # Claude Code -> proxy 間の生body長 = 真のAPIリクエストサイズ
+        # (ツール定義+システムプロンプト+履歴 全部入り)
+        self._last_request_bytes: int = 0
 
     async def start(self) -> None:
         await self._upstream.start()
@@ -63,6 +67,8 @@ class ProxyServer:
         status["minimax_configured"] = bool(self._config.minimax_api_key)
         status["peak_block"] = self._router.current_mode == "peak_block"
         status["last_actual_model"] = self._last_actual_model
+        # 直近リクエストの実サイズ（MB）= 32MB API上限の真の目安
+        status["last_request_mb"] = round(self._last_request_bytes / 1048576, 1)
         return web.json_response(status)
 
     async def _handle_api(self, request: web.Request) -> web.Response:
@@ -70,6 +76,9 @@ class ProxyServer:
         method = request.method
         headers = dict(request.headers)
         body = await request.read()
+
+        # 実ペイロードサイズ記録（32MB API上限の実測値）
+        self._last_request_bytes = len(body)
 
         req_model = self._default_model_from_body(body)
         usage_pct = self._tracker.get_usage()
