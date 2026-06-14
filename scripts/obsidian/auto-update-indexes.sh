@@ -3,6 +3,10 @@
 # SessionStart hook で実行。差分なしなら何もしない。
 set -uo pipefail
 
+# SessionStart hook は非ログインシェルで ~/.profile が読み込まれないため
+# ~/bin をPATHに追加（generate-decision-indexes が配置されている）
+export PATH="$HOME/bin:$PATH"
+
 STATUS_FILE="/tmp/claude-startup/indexes.status"
 
 # check-decision-indexes.sh が先に実行されている前提

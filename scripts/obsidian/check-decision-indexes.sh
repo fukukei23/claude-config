@@ -9,7 +9,8 @@ for dir in "$DECISIONS_DIR"/*/; do
     [ -d "$dir" ] || continue
     dir_name=$(basename "$dir")
 
-    md_count=$(find "$dir" -name '*.md' ! -name '_INDEX.md' ! -name 'README.md' | wc -l)
+    # 直下のmdのみ（サブディレクトリは除く）— index_count側も純粋名参照のみで比較
+    md_count=$(find "$dir" -maxdepth 1 -name '*.md' ! -name '_INDEX.md' ! -name 'README.md' | wc -l)
 
     INDEX="$dir/_INDEX.md"
     if [ ! -f "$INDEX" ]; then
@@ -19,10 +20,18 @@ for dir in "$DECISIONS_DIR"/*/; do
         continue
     fi
 
+    # index_count: 純粋なファイル名参照のみ（パス区切り/Win/チルダの外部参照は除外）
+    # md_count(直下のみ)と口径を一致させることで偽陽性を防止
     index_count=$(python3 -c "
-import re,sys
+import re
 with open('$INDEX','rb') as f: c=f.read().decode('utf-8','replace')
-print(len([m for m in re.findall(r'\x60[^\x60]+\.md\x60',c) if m.strip('\x60')!='README.md']))
+refs=set()
+for m in re.findall(r'\x60([^\x60]+\.md)\x60', c):
+    if '/' in m or '\\\\' in m or m.startswith('~'):
+        continue
+    refs.add(m.strip('\x60'))
+refs.discard('README.md')
+print(len(refs))
 ")
 
     if [ "$md_count" -ne "$index_count" ]; then
