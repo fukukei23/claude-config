@@ -8,6 +8,7 @@ from .config import ProxyConfig
 from .usage_tracker import UsageTracker
 from .model_router import ModelRouter
 from .upstream import UpstreamClient, RateLimitError, UpstreamError
+from .tool_sanitizer import sanitize_for_minimax
 
 logger = logging.getLogger("glm-rate-proxy")
 
@@ -78,6 +79,9 @@ class ProxyServer:
 
         if body:
             body = self._apply_thinking(body, self._config.thinking)
+            # フォールバック先 (minimax) の tool_use 形式に揃える
+            if provider == "minimax":
+                body = sanitize_for_minimax(body)
 
         logger.info(f"{method} {path} model={model} mode={self._router.current_mode} usage={usage_pct:.1f}%")
 
