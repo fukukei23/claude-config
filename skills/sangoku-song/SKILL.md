@@ -76,6 +76,9 @@ description: 三国志武将のHIPHOP楽曲を、武将選択から曲+歌詞+�
 
 1. MiniMax MCP `text_to_image`（image-01）で構図生成
    - 水墨画風・武将の象徴シーン（曹仁なら籠城/関羽攻撃/洪水 等）
+   - **構造化プロンプト推奨**（出典: サイバー和モダン映像分析・Gemini生成）:
+     `[スタイル] + [被写体] + [環境/小物] + [照明/色] + [構図] --ar 16:9`
+     - 例: `Chinese ink wash painting, general Cao Ren on flooded walls, rain and storm clouds, dramatic lighting indigo and crimson, cinematic --ar 16:9`
 2. 🔴 花鈿（眉間の赤点）あれば → `remove-huadian` スキルを自動呼出
 3. 🔴 **人間判断**: **「構図/花鈿除去はこれでいいですか?」**
 
@@ -84,8 +87,11 @@ description: 三国志武将のHIPHOP楽曲を、武将選択から曲+歌詞+�
 1. MiniMax MCP `generate_video`（Hailuo-2.3）で生成
    - **FL2V**（開始+終了帧）/ **S2V**（人物参照）/ **I2V**（静止画→動画）を `00_SYSTEM/AI生成メディア_ケイパビリティマップ.md` 参照で選択
    - 最大10秒。15秒は10s+5sを2本→ffmpeg結合
+   - **モーション指示**（出典: サイバー和モダン映像分析・Gemini生成）:
+     - 静（Lofi/籠城）: `perfect loop, subtle swaying smoke, slow grain, no sudden camera movement`
+     - 動（戦闘/サビ）: `fast dynamic camera panning, ink transition effect, aggressive particle motion`
 2. 🔴 **人間判断**: **「動画はこれでいいですか?」**
-   - Token Plan制限時: 従量課金($0.19~/本)を案内してスキップ可
+   - Token Plan制限時: 従量課金($0.19~/本)を案内してスキップ可、または `MINIMAX_API_KEY_VIDEO`（別アカウント）で直接API生成（`00_SYSTEM/AI生成メディア_ケイパビリティマップ.md` §2 参照）
 
 ### Phase 6: 成果物整理 + SSOT記録
 
