@@ -21,6 +21,7 @@ for dir in "$DECISIONS_DIR"/*/; do
     fi
 
     # index_count: 純粋なファイル名参照のみ（パス区切り/Win/チルダの外部参照は除外）
+    # バッククォート形式 `file.md` と リンク形式 [text](file.md) の両方を集計
     # md_count(直下のみ)と口径を一致させることで偽陽性を防止
     index_count=$(python3 -c "
 import re
@@ -30,6 +31,10 @@ for m in re.findall(r'\x60([^\x60]+\.md)\x60', c):
     if '/' in m or '\\\\' in m or m.startswith('~'):
         continue
     refs.add(m.strip('\x60'))
+for m in re.findall(r'\]\(([^)]+\.md)\)', c):
+    if '/' in m or '\\\\' in m or m.startswith('~'):
+        continue
+    refs.add(m)
 refs.discard('README.md')
 print(len(refs))
 ")
