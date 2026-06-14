@@ -206,12 +206,25 @@ class ProxyServer:
         """Extract actual model name from upstream response."""
         try:
             data = json.loads(body)
-            model = data.get("model")
-            if model:
-                self._last_actual_model = model
-                logger.debug(f"Captured actual model: {model}")
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning(f"_capture_model: JSON parse failed ({e}), body[:200]={body[:200]!r}")
+            return
+
+        if not isinstance(data, dict):
+            logger.warning(f"_capture_model: response is not a dict (type={type(data).__name__})")
+            return
+
+        model = data.get("model")
+        if model:
+            self._last_actual_model = model
+            logger.info(f"Captured actual model: {model}")
+        else:
+            # ストリーム終端イベント (message_stop) や content_block_start 等は model を持たない
+            logger.debug(f"_capture_model: no 'model' field in response, keys={list(data.keys())[:5]}")
+            # フォールバック: SSE 形式なら "data: {...}" を含む
+            if isinstance(body, bytes) and b"data: " in body:
+                logger.debug("_capture_model: detected SSE stream, skipping individual event capture")
+
 
     @staticmethod
     def _default_model_from_body(body: bytes) -> str | None:
