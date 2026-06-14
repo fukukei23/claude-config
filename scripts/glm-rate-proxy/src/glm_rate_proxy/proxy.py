@@ -1,5 +1,6 @@
 """HTTP proxy server for Claude Code -> ZAI API with rate-limit aware model routing."""
 
+import asyncio
 import json
 import logging
 from aiohttp import web
@@ -109,6 +110,11 @@ class ProxyServer:
 
     async def _handle_429(self, method: str, path: str,
                           headers: dict, orig_body: bytes) -> web.Response:
+        # peak_block (JST 15-19時) は GLM を使わない設計。
+        # MiniMax が 429 でも GLM には逃げず、MiniMax の短いリトライのみ行う。
+        if self._router.current_mode == "peak_block":
+            return await self._handle_429_peak_block(method, path, headers, orig_body)
+
         emergency_model = self._config.thresholds["emergency"]["model"]
         if emergency_model:
             body = self._replace_model(orig_body, emergency_model) if orig_body else orig_body
@@ -151,6 +157,42 @@ class ProxyServer:
             text=json.dumps({
                 "error": "all_providers_rate_limited",
                 "message": "ZAI API rate limited and MiniMax fallback also failed. Wait for reset.",
+            }),
+        )
+
+    async def _handle_429_peak_block(self, method: str, path: str,
+                                     headers: dict, orig_body: bytes) -> web.Response:
+        """peak_block 中の 429 処理: MiniMax を1回リトライ、ダメなら 503。
+
+        設計上、peak_block (JST 15-19時) は GLM を使わない（ZAI 側のピーク
+        制限を避けるため）。MiniMax が 429 でも GLM-4.7-Flash へは逃げず、
+        MiniMax の短いリトライ (1秒待ち・1回) のみを行う。
+        """
+        if self._config.minimax_api_key:
+            fb_model, _ = self._router.get_fallback()
+            body = self._replace_model(orig_body, fb_model) if orig_body else orig_body
+            await asyncio.sleep(1.0)
+            try:
+                resp = await self._upstream.request_minimax(method, path, headers, body)
+                logger.info(f"MiniMax retry succeeded in peak_block (model={fb_model})")
+                self._tracker.update_from_headers(resp["headers"])
+                self._capture_model(resp["body"])
+                return web.Response(
+                    status=resp["status"],
+                    content_type="application/json",
+                    body=resp["body"],
+                )
+            except RateLimitError:
+                logger.error("MiniMax rate limited in peak_block (GLM disabled), returning 503")
+            except UpstreamError as e:
+                logger.error(f"MiniMax error in peak_block: {e}, returning 503")
+
+        return web.Response(
+            status=503,
+            content_type="application/json",
+            text=json.dumps({
+                "error": "peak_block_minimax_limited",
+                "message": "MiniMax rate limited during peak block (GLM disabled 15-19 JST). Wait for reset.",
             }),
         )
 
@@ -203,27 +245,65 @@ class ProxyServer:
             )
 
     def _capture_model(self, body: bytes) -> None:
-        """Extract actual model name from upstream response."""
+        """Extract actual model name from upstream response.
+
+        通常の JSON レスポンスと SSE ストリーム (event:/data: 形式) の両方に対応。
+        SSE の場合は message_start イベントから model を抽出する。
+        """
+        text = body.decode("utf-8", errors="replace") if isinstance(body, (bytes, bytearray)) else str(body)
+
+        # SSE ストリーム: "event: ...\\ndata: {...}" 形式
+        stripped = text.lstrip()
+        if stripped.startswith("event:") or stripped.startswith("data:"):
+            model = self._extract_model_from_sse(text)
+            if model:
+                self._last_actual_model = model
+                logger.info(f"Captured actual model (SSE): {model}")
+            return
+
+        # 通常の JSON レスポンス
         try:
-            data = json.loads(body)
+            data = json.loads(text)
         except (json.JSONDecodeError, TypeError) as e:
-            logger.warning(f"_capture_model: JSON parse failed ({e}), body[:200]={body[:200]!r}")
+            logger.debug(f"_capture_model: non-JSON body, skipping ({e})")
             return
 
         if not isinstance(data, dict):
-            logger.warning(f"_capture_model: response is not a dict (type={type(data).__name__})")
             return
 
         model = data.get("model")
         if model:
             self._last_actual_model = model
             logger.info(f"Captured actual model: {model}")
-        else:
-            # ストリーム終端イベント (message_stop) や content_block_start 等は model を持たない
-            logger.debug(f"_capture_model: no 'model' field in response, keys={list(data.keys())[:5]}")
-            # フォールバック: SSE 形式なら "data: {...}" を含む
-            if isinstance(body, bytes) and b"data: " in body:
-                logger.debug("_capture_model: detected SSE stream, skipping individual event capture")
+
+    @staticmethod
+    def _extract_model_from_sse(text: str) -> str | None:
+        """SSE ストリームから message.model を抽出する。
+
+        message_start イベントの data ペイロード
+        {"message": {"model": "..."}} を探す。
+        """
+        for line in text.splitlines():
+            line = line.strip()
+            if not line.startswith("data:"):
+                continue
+            payload = line[5:].strip()
+            if not payload or payload == "[DONE]":
+                continue
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            # message_start: {"message": {"model": "..."}}
+            msg = data.get("message")
+            if isinstance(msg, dict) and msg.get("model"):
+                return msg["model"]
+            # 直接 model を持つイベントのフォールバック
+            if data.get("model"):
+                return data["model"]
+        return None
 
 
     @staticmethod
