@@ -196,31 +196,16 @@
     ],
     "SessionStart": [
       {
-        "matcher": "",
+        "matcher": "startup",
         "hooks": [
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/session/check-cwd.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/session/check-version.sh"
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/session/load-handoff.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/session/load-obsidian-log.sh",
-            "timeout": 5000
           },
           {
             "type": "command",
@@ -230,16 +215,6 @@
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/config/check-mcp-guide-sync.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/config/load-secrets.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/config/sync-secrets-to-settings.sh",
             "timeout": 5000
           },
           {
@@ -271,36 +246,45 @@
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/git/check-claude-config-sync.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "/home/yn4416/projects/claude-config/scripts/config/sync-settings-to-example.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/obsidian/auto-update-indexes.sh",
             "timeout": 30000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/obsidian/auto-fix-links.sh",
             "timeout": 60000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/load-handoff.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/load-obsidian-log.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/config/load-secrets.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/config/sync-secrets-to-settings.sh",
+            "timeout": 5000
           }
         ]
       }
