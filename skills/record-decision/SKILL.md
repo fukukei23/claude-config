@@ -1,16 +1,16 @@
 ---
 name: record-decision
 description: >
-  【非推奨 → record-ssot を使うこと】
-  record-ssot に統合済み。/record-decision が呼ばれた場合は record-ssot スキルに処理を委譲する。
-  トリガーワード「記録して」「書き留めて」「保存して」は record-ssot が優先的に処理する。
+  【非推奨 → ssot-record を使うこと】
+  ssot-record に統合済み。/record-decision が呼ばれた場合は ssot-record スキルに処理を委譲する。
+  トリガーワード「記録して」「書き留めて」「保存して」は ssot-record が優先的に処理する。
 disable-model-invocation: true
 user-invocable: true
 ---
 
-> ⚠️ このスキルは **record-ssot** に統合されました。
-> `/record-ssot` または「記録して」を使ってください。
-> 以下の処理は record-ssot スキルに委譲します。
+> ⚠️ このスキルは **ssot-record** に統合されました。
+> `/ssot-record` または「記録して」を使ってください。
+> 以下の処理は ssot-record スキルに委譲します。
 
 # Record Decision to SSOT
 
