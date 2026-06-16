@@ -44,7 +44,7 @@ session_info="本日初回"
 if [ -f "$DAILY_LOG" ]; then
   SESSION_COUNT=$(grep -c "^## セッションログ" "$DAILY_LOG" 2>/dev/null)
   if [ "$SESSION_COUNT" -gt 0 ]; then
-    LAST_TASK=$(grep -A1 "^## セッションログ" "$DAILY_LOG" | grep "^-" | tail -1 | sed 's/^- //')
+    LAST_TASK=$(grep "^## セッションログ" "$DAILY_LOG" | tail -1 | sed 's/.* — //; s/^## セッションログ$//' | cut -c1-30)
     END_TIME=$(grep "^セッション終了:" "$DAILY_LOG" | tail -1 | sed 's/セッション終了: //')
     session_info="本日${SESSION_COUNT}セッション | 最終: ${LAST_TASK} (${END_TIME}終了)"
   fi
