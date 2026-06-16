@@ -151,6 +151,16 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/skills/mirror-to-custom.sh",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -262,6 +272,11 @@
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/obsidian/auto-fix-links.sh",
             "timeout": 60000
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/skills/skill-guard.sh",
+            "timeout": 5000
           }
         ]
       },

@@ -483,3 +483,50 @@ Repeating one more time the core loop here for emphasis:
 Please add steps to your TodoList, if you have such a thing, to make sure you don't forget. If you're in Cowork, please specifically put "Create evals JSON and run `eval-viewer/generate_review.py` so human can review test cases" in your TodoList to make sure it happens.
 
 Good luck!
+
+
+---
+
+## Post-creation: ドキュメント化（スキル完成後に必ず実施）
+
+スキルが完成したら、以下を順番に実施する。スキップ禁止。
+
+### 1. スキルの概要を整理して伝える
+
+以下を箇条書きで出力する:
+- **スキル名** (name: フィールドの値)
+- **できること** (3〜5箇条)
+- **いつ使うか** (具体的な状況)
+- **トリガーワード** (代表的なもの)
+
+### 2. 関連ガイドに追記する
+
+このスキルの内容に最も関連する教科書・ガイドを特定して、スキルの紹介セクションを追記する。
+
+追記内容の構成:
+
+
+追記先の候補 (環境固有):
+- ~/projects/claude-code-guide/source/ 配下の関連章
+- ~/projects/obsidian-ssot/00_SYSTEM/ 配下のガイド
+
+### 3. SSOT に記録する
+
+以下の2ファイルを更新する:
+
+**詳細ファイル**: ~/projects/obsidian-ssot/01_DECISIONS/claude-code/YYYY-MM-DD_スキル名-skill-作成.md
+
+記載内容:
+- 作成経緯・目的
+- できること (パターン一覧など)
+- トリガーワード
+- ガイド更新先
+
+**日記**: ~/projects/obsidian-ssot/10_DAILY/YYYY-MM-DD.md に追記 (サマリー + 詳細ファイルへのリンク)
+
+### 4. skills-custom/ に保存 (カスタマイズした場合のみ)
+
+公式プラグインのスキルをカスタマイズした場合は必ず以下にもコピーを保存する:
+~/projects/claude-config/skills-custom/<plugin-name>/SKILL.md
+
+自作スキル (~/.claude/skills/) はプラグインに上書きされないので不要。
