@@ -8,7 +8,10 @@ description: 三国志武将のHIPHOP楽曲を、武将選択から曲+歌詞+�
 ## トリガーワード
 「武将で曲作って」「三国志」「sangoku」「/sangoku-song」
 
-## 前提知識（進行開始前に必ず読み込む）
+## 前提知識（進行開行に必ず読み込む）
+
+> 📁 **保存場所（固定・変更禁止）**: 全成果物は `/home/yn4416/projects/sangokushi-HIPHOP/songs/<武将>_<エピソード>/` 配下に保存すること。`~/Music/` には一切保存しない。スキル実行時は最初に `mkdir -p` で正規パスを事前作成し、そこ以外にファイルを作らないこと。
+
 - `references/発音ルール.md`（**硬制約**・造語/誤読再発防止・は→わ）
 - `references/曲構成_BPM計算.md`（テンポ×曲長連動・構造タグ14種）
 - `references/固有名詞マップ.md`（読み辞書・janome限界）
@@ -97,7 +100,7 @@ description: 三国志武将のHIPHOP楽曲を、武将選択から曲+歌詞+�
 
 ### Phase 6: 成果物整理 + SSOT記録
 
-1. 楽曲ディレクトリに格納（`/home/yn4416/Music/ai-music/三国志HIPHOP/<武将>_<エピソード>/`）
+1. 楽曲ディレクトリに格納（`/home/yn4416/projects/sangokushi-HIPHOP/songs/<武将>_<エピソード>/`）
    - `lyrics.md`（ひらがな＋漢字版＋修正履歴）
    - `README.md`（アートワーク・履歴表）
    - `_INDEX.md` 更新

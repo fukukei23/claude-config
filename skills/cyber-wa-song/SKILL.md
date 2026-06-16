@@ -99,7 +99,7 @@ description: サイバー和モダン3作品（原点廻帰/電子参拝/百鬼�
 
 ### Phase 6: 成果物整理 + SSOT記録
 
-1. 楽曲ディレクトリに格納（`/home/yn4416/Music/ai-music/サイバー和モダン/<作品名>_<情景>/`）
+1. 楽曲ディレクトリに格納（`/home/yn4416/projects/cyber-wa-modern/songs/<作品名>_<情景>/`）
    - `lyrics.md`（ひらがな＋漢字版＋修正履歴）
    - `README.md`（アートワーク・動画・履歴表）
    - `_INDEX.md` 更新
