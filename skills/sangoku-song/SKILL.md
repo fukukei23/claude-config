@@ -20,6 +20,14 @@ description: 三国志武将のHIPHOP楽曲を、武将選択から曲+歌詞+�
 - `references/武将カタログ.md`（Phase 0 選択用）
 - `references/ジャンルカタログ.md`（Phase 1 選択用）
 
+> **🔗 作曲エンジン共通参照**（`make-song` へ共通化済み・必ず参照）:
+> - `../make-song/references/[L1]プロンプト技法.md`（**Phase 1/3 参照**・GMIV順序・具体語推・楽器制限・括弧/コロン記法）
+> - `../make-song/references/[L1]構造理論.md`（**Phase 2 参照**・小節×BPM・ジャンル別構造・**感情曲線Emotion Arc**）
+> - `../make-song/references/[L1]楽曲制作基礎_ジャンル別.md`（**Phase 1 参照**・コード進行語彙・スケール・リズム・10ジャンルの作曲の型）
+> - `../make-song/references/[L1]日本語歌詞技法.md`（**Phase 2 参照**・韻・歌詞構成論・音節設計）
+>
+> 本スキル固有の `発音ルール.md`/`曲構成_BPM計算.md`/`武将カタログ.md`/`ジャンルカタログ.md` は三国志HIPHOP特化として残存・上記共通知識と併用すること。
+
 ---
 
 ## 進行（7フェーズ・ハイブリッド）
