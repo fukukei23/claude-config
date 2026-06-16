@@ -42,7 +42,7 @@ TODAY=$(date +%Y-%m-%d)
 DAILY_LOG="$SSOT_PATH/10_DAILY/$TODAY.md"
 session_info="本日初回"
 if [ -f "$DAILY_LOG" ]; then
-  SESSION_COUNT=$(grep -c "^## セッションログ" "$DAILY_LOG" 2>/dev/null || echo 0)
+  SESSION_COUNT=$(grep -c "^## セッションログ" "$DAILY_LOG" 2>/dev/null)
   if [ "$SESSION_COUNT" -gt 0 ]; then
     LAST_TASK=$(grep -A1 "^## セッションログ" "$DAILY_LOG" | grep "^-" | tail -1 | sed 's/^- //')
     END_TIME=$(grep "^セッション終了:" "$DAILY_LOG" | tail -1 | sed 's/セッション終了: //')
