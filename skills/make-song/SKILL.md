@@ -23,6 +23,8 @@ description: 任意のジャンル・テーマで曲＋歌詞を高品質に制�
 - `references/[L2]失敗パターンカタログ.md`（**育成**: 失敗する書き方・実測で拡充）
 - `references/[L2]発音問題_MiniMax固有.md`（**MiniMax固有**: 漢字誤読→ひらがな化・music-cover・日本語ボーカル時）
 - `references/[META]ポータビリティチェックリスト.md`（**AI変更時**: Layer 2 差し替え検証手順）
+- `references/[THEME]三国志_HIPHOP.md`（**テーマ選択時**: 三国志HIPHOP・Phase 0 で選択時のみ）
+- `references/[THEME]サイバー和モダン.md`（**テーマ選択時**: サイバー和モダン・Phase 0 で選択時のみ）
 
 ## 知見アーキテクチャ（核心・厳守）
 
@@ -38,6 +40,7 @@ description: 任意のジャンル・テーマで曲＋歌詞を高品質に制�
 - **Layer 1.5**: 潮流・サンプル参照（月更新・陳腐化リスク）→ `references/[L1.5]*`
 - **Layer 2**: MiniMax固有の実測知見（即時更新）→ `references/[L2]*`
 - **META**: ポータビリティ（AI変更時の差し替え手順）→ `references/[META]*`
+- **THEME**: テーマ固有作曲知識（三国志HIPHOP/サイバー和モダン・Phase 0 選択時のみ）→ `references/[THEME]*`（既存スキル sangoku-song/cyber-wa-song の資産を cross-reference・DRY）
 
 ### 昇格ルール（循環）
 ③④（仮説）→ 実測で効果確認 → ①②（確定/実測）へ昇格。①のうち特定AIで効かないものは②へ降格。
@@ -56,8 +59,14 @@ description: 任意のジャンル・テーマで曲＋歌詞を高品質に制�
 
 ### Phase 0: コンセプト起点
 - アイデア/テーマ/情景を聞く（フリー記述 or 選択）
+- **テーマ選択**（任意・該当する場合）:
+  - 汎用（テーマなし）
+  - 三国志HIPHOP → `references/[THEME]三国志_HIPHOP.md` 読込
+  - サイバー和モダン → `references/[THEME]サイバー和モダン.md` 読込
 - **リファレンス仕様書の持ち込み**があれば読込（`reverse-engineer-song` 経由）
 - 楽曲の目的: フックonly / 60秒 / フル3-4分
+
+> **発動の使い分け**: 「曲作って」「作曲して」等=本スキル（Phase 0 でテーマ選択可）。※「武将で曲作って」「サイバー和で曲作って（**映像まで**）」=既存スキル（sangoku-song/cyber-wa-song）が優先。**曲+詞だけ**なら本スキルで Phase 0 テーマ選択が可能。
 
 ### Phase 1: 設計パラメータ固め（Reference 3曲 → GMIV）
 1. **Reference 3曲**（業界標準）: 雰囲気を具体曲で伝える（`[L1.5]潮流` 参照可）
