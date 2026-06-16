@@ -282,6 +282,10 @@
             "type": "command",
             "command": "bash /home/yn4416/.claude/scripts/session/check-ssot-sync-staleness.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/scripts/session/generate-skill-catalog.py"
           }
         ]
       },
