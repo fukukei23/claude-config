@@ -149,8 +149,15 @@ def convert_lyrics(lyrics: str) -> None:
 
 
 if __name__ == "__main__":
-    # サンプル: 曹仁樊城v8のIntro/Verse1抜粋
-    LYRICS_SAMPLE = """[Intro]
+    import sys
+
+    if len(sys.argv) > 1:
+        # ファイルパス指定: そのファイルの歌詞をひらがな化
+        with open(sys.argv[1], encoding="utf-8") as f:
+            convert_lyrics(f.read())
+    else:
+        # サンプル: 曹仁樊城v8のIntro/Verse1抜粋
+        LYRICS_SAMPLE = """[Intro]
 樊城の 嵐…
 (いざ！)
 
@@ -158,4 +165,4 @@ if __name__ == "__main__":
 秋の 雨雲 空を 暗くら
 関羽の 軍が 迫る (迫る！)
 """
-    convert_lyrics(LYRICS_SAMPLE)
+        convert_lyrics(LYRICS_SAMPLE)
