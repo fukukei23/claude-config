@@ -277,6 +277,11 @@
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/skills/skill-guard.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash /home/yn4416/.claude/scripts/session/check-ssot-sync-staleness.sh",
+            "timeout": 3000
           }
         ]
       },

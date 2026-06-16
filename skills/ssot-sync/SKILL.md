@@ -26,6 +26,13 @@ SSOT（`/home/yn4416/projects/obsidian-ssot/`）内のファイルと実態（�
 - **フェーズ4**: commit/push を自動実行。メッセージ: `chore: SSOT整合性チェック[auto]（高重要度N件修正）`
 - **記録**: 修正した「高」と検知のみの「中・低」の**全件**を `10_DAILY/YYYY-MM-DD.md` に追記。ヘッダーは `## SSOT整合性チェック[auto] (HH:MM)` 形式（セッションログではない）。
 
+### auto 時のstate更新（必須・フェーズ4完了直後）
+SessionStart hook による日次自動実行の再発火を抑制するため、commit/push 後に必ず実行:
+```bash
+date +%Y-%m-%d > ~/.claude/state/ssot-sync-last-run
+```
+これを忘れると次セッション開始時にも再実行される。
+
 ### 安全装置（auto 時の厳格な制限）
 - 「高」でも**削除系**（リポ消失・フォルダ消失等の記述削除）は自動修正せず検知のみ。誤削除防止。
 - commit 前に `git diff --stat` で変更範囲を確認。**5ファイル超 または 100行超**の大規模変更時は commit 中止 → 日記に「要手動確認: 変更規模が想定外」と記録して終了。
