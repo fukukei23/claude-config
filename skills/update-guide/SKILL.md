@@ -1,6 +1,6 @@
 ---
 name: update-guide
-description: claude-code-guide の更新キューを処理し、変更されたスクリプト・設定ファイルに合わせてガイドのHTMLを最新化する。ユーザーが「/update-guide」を実行した時にトリガーする。
+description: claude-code-guide の更新キューを処理し、変更されたスクリプト・設定ファイルに合わせてガイドのsource Markdownを更新し convert.py で再生成する。ユーザーが「/update-guide」を実行した時にトリガーする。
 user-invocable: true
 ---
 
@@ -16,11 +16,28 @@ user-invocable: true
 
 ---
 
+## ⚠️ 核心ルール（必読）
+
+**`docs/chapters/*.html` を直接編集してはならない。** HTML は `convert.py` の**生成物**。直接編集すると次回 `convert` 実行で消える。
+
+正しいパイプライン:
+```
+source/*.md  (マスター — ここを編集)
+   ↓  python3 convert.py  (全体再生成・部分不可)
+docs/chapters/*.html  (生成物 — commit対象だが手編集禁止)
+```
+
+- `docs/` は `.gitignore` 対象だが**既存 track**（過去に force-add 済み）。commit時 `-f` 不要・更新は検知される
+- `convert.py` は **source/ 全ファイルをループして docs/ を全再生成**（1章だけ部分生成は不可）
+- 個人識別子は convert.py が自動サニタイズ: `yn4416`→`<USER>`, `fukukei23`→`<USERNAME>`, `GLM-5.1`等→`Claude`, `obsidian-ssot`→`knowledge-base` 等。source に書いても公開版で自動置換される
+
+---
+
 ## 実行手順
 
 ### STEP 0: SSOTマスターからの同期（CCガイドページ）
 
-ssot-record等で `00_SYSTEM/Claude-Codeガイド/` が更新された場合、マスターを公開版にコピーする:
+ssot-record等で `00_SYSTEM/Claude-Codeガイド/` が更新された場合、マスターを公開版 source にコピーする:
 
 ```bash
 # 差分確認
@@ -44,100 +61,68 @@ Read: ~/projects/claude-code-guide/.update-queue.md
 
 対象章のリストを抽出する（`| 日付 | 変更内容 | 章ファイル |` 形式）。
 
+**⚠️ 誤積載チェック**: キュー行の「変更内容」に書かれたファイル（例: `startup-banner.sh`）の内容が、対象 source/*.md に**既に反映済みか**を必ず確認（`grep` で検索）。反映済みなら「誤積載・対応不要」として STEP 8 へ飛び、その行だけクリアする。`queue-guide-updates.sh` はファイル変更を検知して積むが、中身の反映有無までは見ていない。
+
 ---
 
-### STEP 2: 変更ファイルを読む
+### STEP 2: 変更ファイル + 対象 source を読む
 
-対象章に対応するsourceファイルを読む:
+1. キュー行の「変更内容」列に記載された実体ファイルを読む（`~/.claude/scripts/...`, `settings.example.json`, `skills-custom/.../SKILL.md` 等）。これが「反映すべき事実」
+2. 対象章の **source Markdown** を読む（HTML ではない）:
 
 ```
 ~/projects/claude-code-guide/source/
-  00_早見表.md → 00-cheatsheet.html（なければスキップ）
-  01_基礎概念.md → 01-basics.html
-  02_コマンド一覧.md → 02-commands.html
-  03_スキルシステム.md → 03-skills.html
-  04_MCPサーバー.md → 04-mcp.html
-  05_フック.md → 05-hooks.html
-  06_メモリ.md → 06-memory.html
-  07_エージェント.md → 07-agents.html
-  08_設定ファイル.md → 08-config.html
-  09_統合.md → 09-integration.html
-  10_用語集.md → 10-glossary.html
-  11_現場の知見.md → 11-tips.html
-  12_dev-cycle.md → 12-dev-cycle.html
+  00_早見表.md    01_基礎概念.md   02_コマンド一覧.md
+  03_スキルシステム.md   04_MCPサーバー.md   05_フック.md
+  06_メモリ.md    07_エージェント.md   08_設定ファイル.md
+  09_統合.md     10_用語集.md      11_現場の知見.md
+  12_dev-cycle.md   13_glm-rate-proxy.md   15_コスト最適化構成.md
 ```
 
-また、キュー行の「変更内容」列に記載されたファイルも読む（例: `settings.json`, `scripts/hooks/`）。
+source ファイル名と slug の対応は `convert.py` の `CHAPTER_MAP` を参照（新規章を追加する場合は CHAPTER_MAP へのエントリも必要）。
 
 ---
 
-### STEP 3: 現HTMLを読む
+### STEP 3: source Markdown を編集
 
-対象章の現在の `~/projects/claude-code-guide/docs/chapters/<章>.html` を読む。
+対象の `source/<章>.md` に、実体ファイルの内容を反映する編集を加える。
 
-PROTECTED セクションを確認する:
-```html
-<!-- GUIDE:PROTECTED -->
-...ここは変更しない...
-<!-- /GUIDE:PROTECTED -->
-```
-
----
-
-### STEP 4: 🟡[GLM] で章を更新
-
-以下のプロンプトで GLM（`glm_ask`）を呼び出す:
-
-```
-以下のHTMLガイド章を最新のスクリプト・設定に合わせて更新してください。
-
-## ルール
-1. <!-- GUIDE:PROTECTED --> ～ <!-- /GUIDE:PROTECTED --> の間は絶対に変更しない
-2. <!-- GUIDE:AUTO-UPDATE --> セクションとマーカーなしセクションを更新してよい
-3. HTML構造・スタイルを維持する（タグ・クラス・id を勝手に変えない）
-4. 実際のスクリプト内容・設定値を正確に反映する
-5. 更新後の完全なHTMLを出力する（省略なし）
-
-## 現在のHTML
-<現在のHTML>
-
-## 参照するスクリプト・設定
-<変更されたファイル内容>
-```
-
-GLM の出力を受け取り、HTMLとして保存する。
+**ルール:**
+1. Markdown を編集する（HTML タグ・クラス・id は書かない — `convert.py` が付与する）
+2. 実際のスクリプト内容・設定値を正確に反映する
+3. 個人識別子（`yn4416`, `GLM-5.1`, `obsidian-ssot` 等）はそのまま書いてよい（convert.py が公開版で自動サニタイズ）
+4. Surgical Changes — 必要な箇所だけ触る
+5. 新規章追加時は `convert.py` の `CHAPTER_MAP` にもエントリを追加する
 
 ---
 
-### STEP 5: HTMLバリデーション
-
-```python
-python3 -c "
-from html.parser import HTMLParser
-try:
-    p = HTMLParser()
-    with open('docs/chapters/<章>.html') as f: p.feed(f.read())
-    print('OK')
-except Exception as e:
-    print('FAIL:', e); exit(1)
-"
-```
-
-失敗時 → エラー表示して中断。GLMの出力が不完全な場合はユーザーに報告。
-
----
-
-### STEP 6: diff表示と確認
+### STEP 4: convert.py で再生成
 
 ```bash
-git diff docs/chapters/<章>.html
+cd ~/projects/claude-code-guide
+python3 convert.py
 ```
 
-差分をユーザーに表示する。
+source/ 全章から docs/ が全再生成される。エラーが出たら source Markdown の構文を確認。
+
+---
+
+### STEP 5: diff 確認
+
+```bash
+git diff source/<章>.md          # source の変更内容
+git diff docs/chapters/<章>.html # 生成された HTML の差分
+```
 
 `--dry-run` の場合はここで終了。
 
-`--apply` でない場合はユーザーに「適用しますか？ (y/n)」と確認する。
+---
+
+### STEP 6: ユーザー承認
+
+`--apply` でない場合は、差分サマリを表示して「適用しますか？ (y/n)」と確認する。
+
+**⚠️ 未コミット作業の混入に注意**: 既に source/ や docs/ に別セッションの未コミット変更がある場合、STEP 4 の `convert.py` 実行でそれらも再生成の対象になる。commit すると前セッション作業も巻き込まれるため、混入状況は必ずユーザーに報告してから進めること。
 
 ---
 
@@ -145,10 +130,13 @@ git diff docs/chapters/<章>.html
 
 ```bash
 cd ~/projects/claude-code-guide
-git add docs/chapters/<章>.html
+git add source/<章>.md convert.py docs/
 git commit -m "update: <章> - <変更内容の要約>"
 git push origin main
 ```
+
+- `docs/` 全体を add する（convert.py が全章再生成するため、対象章以外の HTML も更新されることがある）
+- `convert.py` を編集した（CHAPTER_MAP 追加等）場合は忘れずに add
 
 ---
 
@@ -157,8 +145,10 @@ git push origin main
 処理した章をキューから削除する:
 
 ```bash
-sed -i "/| <章> |/d" ~/projects/claude-code-guide/.update-queue.md
+sed -i "/| <章ファイル名> |/d" ~/projects/claude-code-guide/.update-queue.md
 ```
+
+誤積載と判定した行もここで削除する。
 
 ---
 
