@@ -17,7 +17,11 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from lib.api_base import make_success_result, run_api  # noqa: E402
+from lib.api_base import (  # noqa: E402
+    make_error_result,
+    make_success_result,
+    run_api,
+)
 
 DEFAULT_PROMPT_FILE = (
     _REPO_ROOT
@@ -68,7 +72,10 @@ def _analyze(youtube_url: str, prompt_text: str, model: str) -> str:
             prompt_text,
         ],
     )
-    return response.text or ""
+    text = response.text or ""
+    if not text.strip():
+        raise RuntimeError("empty response from Gemini (possible safety block)")
+    return text
 
 
 def _summarize(full_response: str, cache_key: str) -> dict:
@@ -89,17 +96,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     prompt_path = Path(args.prompt_file)
     if not prompt_path.exists():
-        print(
-            json.dumps(
-                {
-                    "status": "error",
-                    "summary": None,
-                    "full_data": None,
-                    "error": f"prompt-file not found: {args.prompt_file}",
-                },
-                ensure_ascii=False,
-            )
-        )
+        result = make_error_result(f"prompt-file not found: {args.prompt_file}")
+        print(json.dumps(result, ensure_ascii=False))
         return 1
     prompt_text = prompt_path.read_text(encoding="utf-8")
 
