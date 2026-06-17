@@ -66,5 +66,7 @@ Think Before Coding / Surgical Changes / Simplicity First
 ## スキルトリガー（厳格）
 ユーザー発言がスキルのトリガーワード（各スキルファイル内「トリガーワード」欄）に合致する場合、必ず先に Skill ツールで該当スキルを発動してから対応せよ
 
+- **resume-session**: 「おはよう」「こんにちは」「こんばんは」「再開」「restart」で発動。最新5件のhandoffを読み込み文脈を復元（new-sessionの対・読込側）
+
 ## 設定ファイル同期
 CLAUDE.md・settings.json・hook変更時は `obsidian-ssot/01_DECISIONS/claude-code/設定ファイル/` も同時更新
