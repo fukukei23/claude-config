@@ -30,7 +30,7 @@ DEFAULT_PROMPT_FILE = (
     / "references"
     / "楽曲逆コンパイル_マスタープロンプト.md"
 )
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -68,7 +68,7 @@ def _analyze(youtube_url: str, prompt_text: str, model: str) -> str:
     response = client.models.generate_content(
         model=model,
         contents=[
-            types.Part.from_uri(url=youtube_url, mime_type="video/*"),
+            types.Part.from_uri(file_uri=youtube_url, mime_type="video/*"),
             prompt_text,
         ],
     )
