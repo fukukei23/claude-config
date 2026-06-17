@@ -1,6 +1,6 @@
 ---
 name: reverse-engineer-song
-description: YouTube動画（楽曲）をリバースエンジニアリングし、音楽/画像/動画の3モダリティの生成AI用プロンプト仕様書を出力する。CCはYouTubeを視聴できないため、Gemini(gemini-code)に分析を完全委任し、CCはマスタープロンプト組立＋結果の構造化・保存に専任する。ユーザーが「逆コンパイルして」「この曲から仕様書作って」「リバースエンジニアリング」「YouTubeから分析して」「YouTubeから楽曲分析」「この動画からプロンプト抜いて」等と言った時、または /reverse-engineer-song を呼んだ時にトリガー。
+description: YouTube動画（楽曲）をリバースエンジニアリングし、音楽/画像/動画の3モダリティの生成AI用プロンプト仕様書を出力する。CCはYouTubeを視聴できないため、Gemini API経由（scripts/api/gemini.py）で分析を委任し、CCは結果の構造化・保存に専任する。ユーザーが「逆コンパイルして」「この曲から仕様書作って」「リバースエンジニアリング」「YouTubeから分析して」「YouTubeから楽曲分析」「この動画からプロンプト抜いて」等と言った時、または /reverse-engineer-song を呼んだ時にトリガー。
 ---
 
 # 楽曲逆コンパイル — 生成AI用プロンプト仕様書ウィザード
@@ -34,28 +34,29 @@ description: YouTube動画（楽曲）をリバースエンジニアリングし
   60秒（ショート用）
 ```
 
-### Phase 1: マスタープロンプト組立
+### Phase 1: Gemini API 自動解析
 
-1. `references/楽曲逆コンパイル_マスタープロンプト.md` を読み込む
-2. マスタープロンプト本文の `[ここに分析したいYouTube動画のURLを記述]` に Phase 0 のURLを埋め込む
-3. ユーザーに提示 🔴:
+1. `references/楽曲逆コンパイル_マスタープロンプト.md` をマスタープロンプトとして使用
+2. CCが `scripts/api/gemini.py` を実行し、Gemini API経由でYouTube動画を真正解析する:
+   ```bash
+   cd /home/yn4416/projects/claude-config
+   set -a; source ~/.secrets.env; set +a
+   .venv/bin/python scripts/api/gemini.py --youtube "<Phase0で取得したURL>"
    ```
-   以下のマスタープロンプトを Gemini(gemini-code) に投げてください。
-   結果が出たら、そのままこのチャットに貼り戻してください。
-   
-   [埋め込み済みマスタープロンプト全文を表示]
-   ```
-4. **停止**。ユーザーがGeminiに投げ、結果を貼り戻すまで待つ。
+3. スクリプトは標準出力にJSON `{"status","summary","full_data","error"}` を返す
+   - **status=error** の場合 → ユーザーにエラー内容を提示し、手動Gemini投下（従来フロー）にフォールバックして停止 🔴
+   - **status=ok** の場合 → summary を解析結果として次Phaseへ進む
+4. CCは summary のみを文脈に読み込む（full_dataキャッシュは必要時のみ参照）
 
 ### Phase 2: Gemini結果受領・構造化 🔴
 
-1. ユーザーが貼り戻したGemini出力を読む
+1. Phase 1 の summary（Gemini解析結果）を読む。詳細が必要な場合は `full_data` キャッシュファイルを追加で読み込む
 2. **構造検証**（以下4点を確認）:
    - [ ] セクション1「楽曲構造・リファレンスデータ」にタイムライン表があるか
    - [ ] セクション2「音楽生成AI用プロンプト」に Style/Tags ＋ Lyrics制御タグがあるか
    - [ ] セクション3「画像生成AI用プロンプト」に3シチュエーション ＋ Negative Promptがあるか
    - [ ] セクション4「動画生成AI用モーション制御」に静寂/動的の2セクションがあるか
-3. **不備あり** → ユーザーに「Geminiに〇〇を追加で出力させて再投してください」と指示して停止
+3. **不備あり** → ユーザーに「gemini.py に追加指示を与えて再実行しますか？」と確認し、承認なら再実行して停止 🔴
 4. **全て揃い** → Markdown整形（見出し階層・コードブロック整理）し、ユーザーに最終確認提示 🔴
 
 ### Phase 3: 単独ファイル保存
