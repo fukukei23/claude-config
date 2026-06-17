@@ -69,6 +69,12 @@ def test_parse_top_tags_empty():
     assert parse_top_tags(resp) == []
 
 
+def test_parse_top_tags_single_dict():
+    """tag がリストでなく単一 dict の場合も処理する"""
+    resp = {"toptags": {"tag": {"name": "rock", "count": 100}}}
+    assert parse_top_tags(resp) == ["rock"]
+
+
 def test_parse_similar_artists_returns_top5_names():
     """artist.getSimilar から上位5件のアーティスト名を抽出する"""
     resp = {
@@ -97,3 +103,9 @@ def test_parse_similar_artists_empty():
     """類似なしの場合は空リスト"""
     resp = {"similarartists": {"artist": []}}
     assert parse_similar_artists(resp) == []
+
+
+def test_parse_similar_artists_single_dict():
+    """artist がリストでなく単一 dict の場合も処理する"""
+    resp = {"similarartists": {"artist": {"name": "Freddie Mercury"}}}
+    assert parse_similar_artists(resp) == ["Freddie Mercury"]
