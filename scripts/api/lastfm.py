@@ -31,6 +31,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def parse_search_response(
+    search_json: dict,
+) -> tuple[str | None, str | None]:
+    """track.search レスポンスから上位1件の (track, artist) を抽出する.
+
+    Returns:
+        (track_name, artist_name)・一致なしは (None, None)
+    """
+    matches = search_json.get("results", {}).get("trackmatches", {})
+    tracks = matches.get("track", [])
+    if not tracks:
+        return None, None
+    top = tracks[0] if isinstance(tracks, list) else tracks
+    return top.get("name"), top.get("artist")
+
+
 def main(argv: list[str] | None = None) -> int:
     """エントリポイント（スケルトン・DEBUG出力のみ）."""
     args = parse_args(argv)
