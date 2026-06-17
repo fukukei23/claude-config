@@ -53,3 +53,27 @@ def make_success_result(summary: str, full_data: Any, cache_key: str) -> dict:
         "full_data": str(cache_path),
         "error": None,
     }
+
+
+def run_api(
+    call_fn: Any,
+    summary_fn: Any,
+    cache_key: str,
+    timeout: int = 60,
+) -> dict:
+    """API呼び出しをラップし、例外を捕捉して統一JSONで返す.
+
+    Args:
+        call_fn: 引数なし・API呼び出しを行い結果を返す関数
+        summary_fn: (result, cache_key)を受け取りmake_success_resultを返す関数
+        cache_key: キャッシュファイル名の一意キー
+        timeout: タイムアウト秒（現状はドキュメント目的・将来signalで適用）
+
+    Returns:
+        成功時はsummary_fnの戻り値、例外時はmake_error_resultの戻り値
+    """
+    try:
+        result = call_fn()
+        return summary_fn(result, cache_key)
+    except Exception as exc:  # noqa: BLE001 - 共通基盤は全例外を統一形式へ
+        return make_error_result(f"{type(exc).__name__}: {exc}")
