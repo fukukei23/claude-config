@@ -108,6 +108,32 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 （ls ~/projects/obsidian-ssot/00_SYSTEM/handoff/ で履歴を確認可能）
 ```
 
+---
+
+## Step 4: 【必須・最後】3行のコピペ用サマリーを出力 🟡[GLM]
+
+ユーザーが毎回プロンプト全文をコピペするのは大変。**SSOT に保存済み**であることを明示し、
+**新セッションに貼る1行だけ**を案内する。**この3行だけ毎回必ず出力すること。**
+
+```markdown
+---
+
+✅ 引き継ぎをSSOTに保存しました: `~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_HHMM.md`
+
+📝 要約: [このセッションで完了した内容を1行で]
+
+🔜 新セッションで貼る1行:
+\`\`\`
+~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_HHMM.md を読んで再スタートして
+\`\`\`
+```
+
+**運用ルール:**
+- YYYY-MM-DD_HHMM は Step 3 で保存した実ファイル名と一致させる
+- 要約は冗長にせず「何を終えて・次は何か」が伝わる1行（30〜60字目安）
+- 新セッションの Claude はそのファイルを読んで全文脈を取得するので、ユーザーは全文を読む必要なし
+- 詳細: `~/projects/obsidian-ssot/00_SYSTEM/handoff使い方.md`
+
 
 ## 補足: スキルが呼ばれるタイミング
 
