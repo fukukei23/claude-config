@@ -176,6 +176,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 1
 
+    if bool(args.track) ^ bool(args.artist):
+        result = make_error_result("--track と --artist は同時に指定してください")
+        print(json.dumps(result, ensure_ascii=False))
+        return 1
+
     cache_key = _cache_key_for(args.youtube)
 
     def call_fn() -> dict:
