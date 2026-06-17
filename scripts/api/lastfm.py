@@ -47,6 +47,30 @@ def parse_search_response(
     return top.get("name"), top.get("artist")
 
 
+def parse_top_tags(tags_json: dict, limit: int = 5) -> list[str]:
+    """artist.getTopTags レスポンスから上位 limit 件のタグ名を抽出する.
+
+    Returns:
+        タグ名のリスト（件数不足はその分だけ）・なしは空リスト
+    """
+    tags = tags_json.get("toptags", {}).get("tag", [])
+    if isinstance(tags, dict):
+        tags = [tags]
+    return [t.get("name", "") for t in tags[:limit] if t.get("name")]
+
+
+def parse_similar_artists(similar_json: dict, limit: int = 5) -> list[str]:
+    """artist.getSimilar レスポンスから上位 limit 件のアーティスト名を抽出する.
+
+    Returns:
+        アーティスト名のリスト・なしは空リスト
+    """
+    artists = similar_json.get("similarartists", {}).get("artist", [])
+    if isinstance(artists, dict):
+        artists = [artists]
+    return [a.get("name", "") for a in artists[:limit] if a.get("name")]
+
+
 def main(argv: list[str] | None = None) -> int:
     """エントリポイント（スケルトン・DEBUG出力のみ）."""
     args = parse_args(argv)
