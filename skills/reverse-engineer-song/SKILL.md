@@ -34,14 +34,31 @@ description: YouTube動画（楽曲）をリバースエンジニアリングし
   60秒（ショート用）
 ```
 
+### Phase 0.5: Last.fm メタデータ取得 🔷
+
+1. CC が `scripts/api/lastfm.py` を実行し、Last.fm から楽曲メタデータを取得する:
+   ```bash
+   cd /home/yn4416/projects/claude-config
+   set -a; source ~/.secrets.env; set +a
+   .venv/bin/python scripts/api/lastfm.py --youtube "<Phase0で取得したURL>"
+   ```
+2. summary の「曲名/アーティスト」特定結果をユーザーに確認 🔷:
+   - **status=error** の場合（原点廻帰等の未登録楽曲・動画タイトルのノイズで特定失敗）→ メタデータなしで Phase 1 へ進む（スキップ）
+   - **曲名/アーティストが不正確**（自動特定は動画タイトルのノイズ「【高画質】」・チャンネル名等で誤認しやすい）→ ユーザーが正しい曲名/アーティストを入力→ `--track --artist` で再実行
+   - **正確** → summary を保持して Phase 1 へ
+3. CC は summary（ジャンル・タグ・類似アーティスト）を保持
+
 ### Phase 1: Gemini API 自動解析
 
-1. `references/楽曲逆コンパイル_マスタープロンプト.md` をマスタープロンプトとして使用
+1. マスタープロンプト準備:
+   - `references/楽曲逆コンパイル_マスタープロンプト.md` をベースにする
+   - Phase 0.5 で取得した Last.fm メタデータ（曲名/アーティスト/ジャンル・タグ/類似アーティスト）を「参考メタデータ」として末尾に追記した**一時 prompt-file** を `/tmp/lastfm_prompt_<曲名>.md` に生成（Phase 0.5 スキップ時は通常のマスタープロンプトを使用）
+   - この一時ファイルを `gemini.py --prompt-file` に渡す（gemini.py 本体は変更なし）
 2. CCが `scripts/api/gemini.py` を実行し、Gemini API経由でYouTube動画を真正解析する:
    ```bash
    cd /home/yn4416/projects/claude-config
    set -a; source ~/.secrets.env; set +a
-   .venv/bin/python scripts/api/gemini.py --youtube "<Phase0で取得したURL>"
+   .venv/bin/python scripts/api/gemini.py --youtube "<Phase0で取得したURL>" --prompt-file "/tmp/lastfm_prompt_<曲名>.md"
    ```
 3. スクリプトは標準出力にJSON `{"status","summary","full_data","error"}` を返す
    - **status=error** の場合 → ユーザーにエラー内容を提示し、手動Gemini投下（従来フロー）にフォールバックして停止 🔴
