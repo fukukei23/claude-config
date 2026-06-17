@@ -30,7 +30,7 @@ DEFAULT_PROMPT_FILE = (
     / "references"
     / "楽曲逆コンパイル_マスタープロンプト.md"
 )
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.5-flash"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
