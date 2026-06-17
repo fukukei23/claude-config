@@ -19,7 +19,11 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from lib.api_base import make_success_result, run_api  # noqa: E402
+from lib.api_base import (  # noqa: E402
+    make_error_result,
+    make_success_result,
+    run_api,
+)
 
 LASTFM_ENDPOINT = "https://ws.audioscrobbler.com/2.0/"
 OEMBED_ENDPOINT = "https://www.youtube.com/oembed"
@@ -125,15 +129,71 @@ def fetch_metadata(track: str, artist: str, api_key: str) -> dict:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    """エントリポイント（スケルトン・DEBUG出力のみ）."""
-    args = parse_args(argv)
-    print(
-        f"[DEBUG] youtube={args.youtube} "
-        f"track={args.track} artist={args.artist}",
-        file=sys.stderr,
+def _cache_key_for(youtube_url: str) -> str:
+    """YouTube URLからキャッシュキーを生成する."""
+    return "lastfm_" + hashlib.md5(youtube_url.encode("utf-8")).hexdigest()[:12]
+
+
+def _summarize(meta: dict, cache_key: str) -> dict:
+    """メタデータを構造化summaryにしてキャッシュ保存する.
+
+    summaryは Gemini プロンプト注入用（ジャンル=タグ・類似アーティスト中心）。
+    """
+    track_info = meta.get("track", {}).get("track", {})
+    artist_info = meta.get("artist", {}).get("artist", {})
+    track_name = track_info.get("name", "")
+    artist_name = artist_info.get(
+        "name", ""
+    ) or track_info.get("artist", {}).get("name", "")
+    tags = parse_top_tags(meta.get("tags", {}), limit=5)
+    similar = parse_similar_artists(meta.get("similar", {}), limit=5)
+
+    summary = (
+        f"曲名: {track_name} / "
+        f"アーティスト: {artist_name} / "
+        f"ジャンル・タグ: {', '.join(tags)} / "
+        f"類似アーティスト: {', '.join(similar)}"
     )
-    return 0
+    return make_success_result(
+        summary=summary,
+        full_data={
+            "track": track_name,
+            "artist": artist_name,
+            "tags": tags,
+            "similar": similar,
+            "raw": meta,
+        },
+        cache_key=cache_key,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    """エントリポイント。JSON結果を標準出力に出す."""
+    args = parse_args(argv)
+    api_key = os.environ.get("LASTFM_API_KEY", "")
+    if not api_key:
+        result = make_error_result("LASTFM_API_KEY not set in environment")
+        print(json.dumps(result, ensure_ascii=False))
+        return 1
+
+    cache_key = _cache_key_for(args.youtube)
+
+    def call_fn() -> dict:
+        if args.track and args.artist:
+            track, artist = args.track, args.artist
+        else:
+            title = fetch_youtube_title(args.youtube)
+            track, artist = search_track(title, api_key)
+            if not track or not artist:
+                raise RuntimeError(
+                    f"track.search で曲名/アーティストを特定できませんでした"
+                    f"（title={title}）"
+                )
+        return fetch_metadata(track, artist, api_key)
+
+    result = run_api(call_fn, _summarize, cache_key=cache_key)
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result["status"] == "ok" else 1
 
 
 if __name__ == "__main__":
