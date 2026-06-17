@@ -96,9 +96,9 @@ C:\Users\<ユーザー名>\AppData\Roaming\Claude\
     │
     ├── [外部LLM直接呼び出し]
     │   ├── ask-grok.py              # Grok (xAI)、X投稿検索付き
-    │   ├── ask-gemini.py            # Gemini、YouTube動画分析対応
     │   ├── ask-perplexity.py        # Perplexity、Web検索＋引用付き
-    │   └── ask-minimax.py
+    │   ├── ask-minimax.py
+    │   （Geminiは scripts/api/gemini.py へ統合移行・2026-06-17・YouTube真正解析）
     │
     ├── [Obsidian連携]
     │   ├── load-obsidian-log.sh     # セッション開始時にログ読み込み
