@@ -291,6 +291,10 @@
             "type": "command",
             "command": "~/.claude/scripts/obsidian/check-link-policy.sh",
             "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/config/check-guide-count.sh"
           }
         ]
       },
