@@ -156,12 +156,18 @@ def add_link(path, target):
 
 def load_files(ssot_dir):
     files = []
+    policy = parse_link_policy(Path(ssot_dir))
+    forbidden_prefixes = tuple(str(p) for p in policy["forbidden_dirs"])
     for d in SCAN_DIRS:
         sp = ssot_dir / d
         if not sp.exists():
             continue
         for p in sp.rglob("*.md"):
             if any(pat.search(p.name) for pat in SKIP_PATTERNS):
+                continue
+            # --- 方針違反ファイル（禁止層）はスキップ ---
+            abs_path = str(p.resolve())
+            if any(abs_path.startswith(fp) for fp in forbidden_prefixes):
                 continue
             try:
                 text = p.read_text(encoding="utf-8")
