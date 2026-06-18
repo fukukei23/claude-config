@@ -28,77 +28,6 @@ def parse_frontmatter(text):
     return fm
 
 
-def _parse_link_policy_frontmatter(text: str) -> dict:
-    """方針ファイル用の YAML 形式 frontmatter パーサ（parse_frontmatter の補助）。
-
-    parse_frontmatter は INI 風（key: "v1", "v2"）にしか対応しないため、
-    YAML のリスト形式（key:\\n  - "v1"\\n  - "v2"）を自前で解釈する。
-    """
-    if not text.startswith("---"):
-        return {}
-    end = text.find("\n---", 3)
-    if end == -1:
-        return {}
-    body = text[3:end]
-    fm: dict = {}
-    current_key = None
-    for line in body.splitlines():
-        # リスト要素行: "  - \"value\""
-        stripped = line.strip()
-        if stripped.startswith("- ") and current_key is not None:
-            v = stripped[2:].strip().strip('"').strip("'")
-            fm.setdefault(current_key, []).append(v)
-            continue
-        if ":" in line and not line.startswith(" "):
-            k, _, v = line.partition(":")
-            k = k.strip()
-            v = v.strip()
-            current_key = k
-            if v == "":
-                fm[k] = []
-            elif v.startswith("[") and v.endswith("]"):
-                # INI 風リスト
-                fm[k] = [t.strip().strip("\"'") for t in v[1:-1].split(",") if t.strip()]
-            else:
-                fm[k] = v.strip('"').strip("'")
-                # 次の行がリストの可能性に備え current_key は維持
-        else:
-            current_key = None
-    return fm
-
-
-def parse_link_policy(ssot_dir: Path) -> dict:
-    """00_SYSTEM/リンク運用方針.md の frontmatter をパース。
-
-    Returns:
-        {
-            "allowed_dirs": [Path, ...] | None,   # 許可層の絶対パス一覧
-            "forbidden_dirs": [Path, ...],        # 禁止層の絶対パス一覧
-        }
-    """
-    policy_path = ssot_dir / "00_SYSTEM" / "リンク運用方針.md"
-    if not policy_path.exists():
-        # 方針ファイルなし → 既存挙動（全ファイル許可）
-        return {"allowed_dirs": None, "forbidden_dirs": []}
-    try:
-        text = policy_path.read_text(encoding="utf-8")
-        fm = _parse_link_policy_frontmatter(text)
-        allowed = fm.get("allowed_dirs", [])
-        excluded = fm.get("excluded_subdirs", [])
-        forbidden = fm.get("forbidden_dirs", [])
-
-        allowed_paths = [ssot_dir / d for d in allowed]
-        # excluded_subdirs は allowed_paths 全体から除外
-        excluded_set = {str(ssot_dir / e) for e in excluded}
-        allowed_paths = [p for p in allowed_paths if str(p) not in excluded_set]
-
-        forbidden_paths = [ssot_dir / d for d in forbidden]
-        return {"allowed_dirs": allowed_paths, "forbidden_dirs": forbidden_paths}
-    except Exception as e:
-        print(f"[WARN] 方針ファイルパース失敗: {e} → 全ファイル許可にフォールバック")
-        return {"allowed_dirs": None, "forbidden_dirs": []}
-
-
 def extract_keywords(text):
     if text.startswith("---"):
         end = text.find("\n---", 3)
@@ -156,18 +85,12 @@ def add_link(path, target):
 
 def load_files(ssot_dir):
     files = []
-    policy = parse_link_policy(Path(ssot_dir))
-    forbidden_prefixes = tuple(str(p) for p in policy["forbidden_dirs"])
     for d in SCAN_DIRS:
         sp = ssot_dir / d
         if not sp.exists():
             continue
         for p in sp.rglob("*.md"):
             if any(pat.search(p.name) for pat in SKIP_PATTERNS):
-                continue
-            # --- 方針違反ファイル（禁止層）はスキップ ---
-            abs_path = str(p.resolve())
-            if any(abs_path.startswith(fp) for fp in forbidden_prefixes):
                 continue
             try:
                 text = p.read_text(encoding="utf-8")
