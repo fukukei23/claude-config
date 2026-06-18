@@ -38,7 +38,39 @@ PRESETS = {
         "90s Japanese mixture rock, piano-led melancholy, boom bap breakbeat, cello strings, acoustic guitar, whispered male rap, soulful female vocal, bittersweet, cinematic, raw 1990s feel",
         "90s Japanese alternative rock, heavy bass groove, funk guitar riff, boom bap drums, turntable scratch, raspy male rap, angelic female hook, street, nostalgic, gritty analog warmth",
     ],
+    "chillhiphop": [
+        "90s Japanese chill hip-hop, lo-fi boom bap beat, mellow jazz piano, warm vinyl crackle, deep bass, smooth male rap, breathy female vocal, nostalgic, laid-back, rainy night, cozy, raw 1990s production, vocal grit",
+        "lo-fi Japanese hip-hop, dusty vinyl sample, soft jazz guitar, gentle boom bap, rainy window, sleepy male rap, whispered female hook, mellow, melancholic, cozy midnight, analog warmth",
+    ],
+    "citypop": [
+        "80s Japanese city pop, bright synth lead, funky slap bass, smooth electric piano, groovy drums, clear female vocal, nostalgic summer drive, breezy, polished production",
+        "Japanese city pop, mellow synth pad, wah guitar, tight drum machine, warm bass, soulful female vocal, twilight rooftop, nostalgic, sophisticated, 1980s sheen",
+    ],
+    "boombap": [
+        "90s Japanese boom bap hip-hop, gritty drum break, jazzy piano sample, deep upright bass, turntable scratch, smooth male rap, raw street, head-nod, golden era, vocal grit",
+        "Japanese underground hip-hop, heavy boom bap beat, soulful horn sample, vinyl crackle, aggressive male rap, raw 1990s, street cipher, dusty, authentic",
+    ],
 }
+
+
+def _varied_pool() -> list[str]:
+    """全プリセットのバリエーションをフラット化して返す（variedモード用）."""
+    pool = []
+    for prompts in PRESETS.values():
+        pool.extend(prompts)
+    return pool
+
+
+def _pick_varied(count: int) -> tuple[list[str], str]:
+    """時間ベースで全バリエーションからcount件をローテーション選択する.
+
+    毎時切り替わり（同一時刻内の重複回避）。Cron毎回独立プロセスでも
+    タイムスタンプで再現可能な選択になる。
+    """
+    pool = _varied_pool()
+    base = int(time.time() // 3600)  # 現在の「時」のインデックス
+    prompts = [pool[(base + i) % len(pool)] for i in range(count)]
+    return prompts, "varied"
 
 SCAT_LYRICS = """[Verse 1]
 ららら　らーら　ららら　らー
@@ -57,7 +89,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """コマンドライン引数をパースする."""
     parser = argparse.ArgumentParser(description="MiniMax music 直接生成（メロディマイニング用）")
     parser.add_argument("--prompt", help="プロンプト（--presetと排他）")
-    parser.add_argument("--preset", choices=list(PRESETS.keys()), help="プリセット名")
+    parser.add_argument("--preset", choices=list(PRESETS.keys()) + ["varied"], help="プリセット名（varied=全ジャンル時間ローテーション）")
     parser.add_argument("--count", type=int, default=1, help="生成数（プリセットから順/ランダム選択）")
     parser.add_argument("--scat", action="store_true", help="スキャット歌詞（メロディ抽出用）")
     parser.add_argument("--lyrics-file", help="歌詞ファイルパス")
@@ -129,6 +161,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.prompt:
         prompts = [args.prompt] * args.count
         label = args.label or "custom"
+    elif args.preset == "varied":
+        prompts, label = _pick_varied(args.count)
+        label = args.label or label
     elif args.preset:
         pool = PRESETS[args.preset]
         # count が pool 超なら循環
