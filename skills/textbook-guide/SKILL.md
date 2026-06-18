@@ -48,11 +48,13 @@ index.html 1ファイル。外部依存なし。
 
 ## STEP 6: GitHub + Pages
 Initialized empty Git repository in //wsl.localhost/Ubuntu/home/yn4416/.git/
+- **ガイド一覧 `~/projects/guides/index.html`** に新ガイドの `guide-card` を追記 → push（51個のカードを手動羅列のHTML・既存カードをコピーして書き換え・公開一覧に反映）
 
 ## STEP 7: SSOT記録
 - 01_DECISIONS/career/YYYY-MM-DD_<repo>-作成.md 作成
 - 00_SYSTEM/リポジトリ索引.md + repo-index.yaml 追記
 - 10_DAILY/YYYY-MM-DD.md 追記
+- **全体マップ `00_SYSTEM/全体マップ_MOC.md`** の「ガイドサイト（N冊 + 外部3サイト）」の **N を +1**（カウント基準=index.html掲載数・`check-guide-count.sh` が次回SessionStartで整合チェック）
 
 ## add モード
 STEP1: 章構成確認 → STEP2: 内容ヒアリング → STEP3: HTML編集+push → STEP4: 日記更新のみ

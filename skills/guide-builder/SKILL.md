@@ -372,6 +372,8 @@ callout系は必ず4色セットで定義する（片方だけ定義するとダ
 - [ ] `docs/index.html` にフッターのバージョン表示あり
 - [ ] 全章ページにサイドバー・prev/nextナビあり
 - [ ] GitHub Pages の Source が `main/docs` に設定済み
+- [ ] **ガイド一覧 `~/projects/guides/index.html`** に新ガイドの `guide-card` を追記 → commit & push（51個のカードを手動羅列のHTML。既存カードをコピーして書き換え。GitHub Pagesの一覧に反映される）
+- [ ] **全体マップ `~/projects/obsidian-ssot/00_SYSTEM/全体マップ_MOC.md`** の「ガイドサイト（N冊 + 外部3サイト）」の **N を +1**（カウント基準=index.html掲載数。`check-guide-count.sh` が次回SessionStartで整合チェック＝ズレると警告）
 
 **章追加:**
 - [ ] `python3 -m pytest test_convert.py -q` 全通過
