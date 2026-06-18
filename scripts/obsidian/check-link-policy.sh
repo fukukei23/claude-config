@@ -42,6 +42,9 @@ VIOLATIONS=$(cd "$SSOT_PATH" && git diff HEAD --unified=0 -- '*.md' 2>/dev/null 
       }
       /^\+\+\+ / || /^@@/ { next }
       /^\+[^+]/ {
+          # コメント通り「[[ ]] 増分のみ」を違反とするため、
+          # [[ を含まない追加行（通常のテキスト追記など）は対象外
+          if (index($0, "[[") == 0) next
           n = split(dirs, d, " ")
           for (i=1; i<=n; i++) {
               if (index(current, d[i]) == 1) {
