@@ -34,14 +34,14 @@ if [ -z "$FORBIDDEN" ]; then
 fi
 
 # git diff で HEAD からの追加行を抽出し、forbidden_dirs 配下の .md で [[ ]] 増えてないか確認
+# awk 内で diff ヘッダ/diffマーカ/追加行を全て判定（grep 前段フィルタは使わない）
 VIOLATIONS=$(cd "$SSOT_PATH" && git diff HEAD --unified=0 -- '*.md' 2>/dev/null \
-  | grep -E "^\+[^+]" \
   | awk -v dirs="$FORBIDDEN" '
-      /^diff --git/ { current = "" }
       /^diff --git a\/[^ ]+ b\// {
-          match($0, /b\/(.+)$/, arr); current = arr[1]
+          match($0, /b\/(.+)$/, arr); current = arr[1]; next
       }
-      /\[\[/ {
+      /^\+\+\+ / || /^@@/ { next }
+      /^\+[^+]/ {
           n = split(dirs, d, " ")
           for (i=1; i<=n; i++) {
               if (index(current, d[i]) == 1) {
