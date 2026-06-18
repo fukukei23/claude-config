@@ -28,6 +28,38 @@ def parse_frontmatter(text):
     return fm
 
 
+def parse_link_policy(ssot_dir: Path) -> dict:
+    """00_SYSTEM/リンク運用方針.md の frontmatter をパース。
+
+    Returns:
+        {
+            "allowed_dirs": [Path, ...] | None,   # 許可層の絶対パス一覧
+            "forbidden_dirs": [Path, ...],        # 禁止層の絶対パス一覧
+        }
+    """
+    policy_path = ssot_dir / "00_SYSTEM" / "リンク運用方針.md"
+    if not policy_path.exists():
+        # 方針ファイルなし → 既存挙動（全ファイル許可）
+        return {"allowed_dirs": None, "forbidden_dirs": []}
+    try:
+        text = policy_path.read_text(encoding="utf-8")
+        fm = parse_frontmatter(text)
+        allowed = fm.get("allowed_dirs", [])
+        excluded = fm.get("excluded_subdirs", [])
+        forbidden = fm.get("forbidden_dirs", [])
+
+        allowed_paths = [ssot_dir / d for d in allowed]
+        # excluded_subdirs は allowed_paths 全体から除外
+        excluded_set = {str(ssot_dir / e) for e in excluded}
+        allowed_paths = [p for p in allowed_paths if str(p) not in excluded_set]
+
+        forbidden_paths = [ssot_dir / d for d in forbidden]
+        return {"allowed_dirs": allowed_paths, "forbidden_dirs": forbidden_paths}
+    except Exception as e:
+        print(f"[WARN] 方針ファイルパース失敗: {e} → 全ファイル許可にフォールバック")
+        return {"allowed_dirs": None, "forbidden_dirs": []}
+
+
 def extract_keywords(text):
     if text.startswith("---"):
         end = text.find("\n---", 3)
