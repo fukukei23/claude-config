@@ -28,6 +28,45 @@ def parse_frontmatter(text):
     return fm
 
 
+def _parse_link_policy_frontmatter(text: str) -> dict:
+    """方針ファイル用の YAML 形式 frontmatter パーサ（parse_frontmatter の補助）。
+
+    parse_frontmatter は INI 風（key: "v1", "v2"）にしか対応しないため、
+    YAML のリスト形式（key:\\n  - "v1"\\n  - "v2"）を自前で解釈する。
+    """
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}
+    body = text[3:end]
+    fm: dict = {}
+    current_key = None
+    for line in body.splitlines():
+        # リスト要素行: "  - \"value\""
+        stripped = line.strip()
+        if stripped.startswith("- ") and current_key is not None:
+            v = stripped[2:].strip().strip('"').strip("'")
+            fm.setdefault(current_key, []).append(v)
+            continue
+        if ":" in line and not line.startswith(" "):
+            k, _, v = line.partition(":")
+            k = k.strip()
+            v = v.strip()
+            current_key = k
+            if v == "":
+                fm[k] = []
+            elif v.startswith("[") and v.endswith("]"):
+                # INI 風リスト
+                fm[k] = [t.strip().strip("\"'") for t in v[1:-1].split(",") if t.strip()]
+            else:
+                fm[k] = v.strip('"').strip("'")
+                # 次の行がリストの可能性に備え current_key は維持
+        else:
+            current_key = None
+    return fm
+
+
 def parse_link_policy(ssot_dir: Path) -> dict:
     """00_SYSTEM/リンク運用方針.md の frontmatter をパース。
 
@@ -43,7 +82,7 @@ def parse_link_policy(ssot_dir: Path) -> dict:
         return {"allowed_dirs": None, "forbidden_dirs": []}
     try:
         text = policy_path.read_text(encoding="utf-8")
-        fm = parse_frontmatter(text)
+        fm = _parse_link_policy_frontmatter(text)
         allowed = fm.get("allowed_dirs", [])
         excluded = fm.get("excluded_subdirs", [])
         forbidden = fm.get("forbidden_dirs", [])
