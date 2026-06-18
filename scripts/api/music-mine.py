@@ -28,27 +28,41 @@ DEFAULT_OUTDIR = Path.home() / "projects/make-song-guide/songs/melody-mining"
 MODEL = "music-2.6"
 API_URL = "https://api.minimax.io/v1/music_generation"
 
-# プリセット: ジャンル具体語のバリエーション（多様性確保用）
+# プリセット: 2020年代の売れてるジャンル（ボーカル曲・日本語ボーカル前提）
+# 各ジャンル2バリエーション・計16（variedで全ローテーション）
+# 根拠: SoundCloud/Billboard 2026 + TikTok蔓延（01_DECISIONS/ai-music/2026-06-19_music-mine-プリセット見直し-売れるジャンル候補.md）
 PRESETS = {
-    "grateful-days": [
-        "90s Japanese mixture rock, dreamy sampled acoustic guitar riff, heavy boom bap breakbeat, turntable scratches, warm analog bass, nostalgic, bittersweet, lo-fi 1990s production, vocal grit, natural human imperfections",
-        "90s Japanese alternative hip-hop, organic trip-hop beat, acoustic guitar loop, melancholic vinyl scratch, lush strings, gospel-style female hook, smooth melodic male rap, nostalgic, street, raw 1990s recording feel, vinyl saturation",
-        "90s Japanese mixture rock, distorted guitar riffs, boom bap drums, acoustic guitar arpeggio, deep bass, energetic, nostalgic, bittersweet, raw 1990s rock production, vocal grit",
-        "90s Japanese dream-pop hip-hop, jangly acoustic guitar, laid-back trip-hop beat, vinyl crackle, airy female vocals, smooth male rap, nostalgic, ethereal, lo-fi warmth",
-        "90s Japanese mixture rock, piano-led melancholy, boom bap breakbeat, cello strings, acoustic guitar, whispered male rap, soulful female vocal, bittersweet, cinematic, raw 1990s feel",
-        "90s Japanese alternative rock, heavy bass groove, funk guitar riff, boom bap drums, turntable scratch, raspy male rap, angelic female hook, street, nostalgic, gritty analog warmth",
+    "modern-pop": [
+        "modern dance pop, catchy synth hook, punchy drums, bright production, clear female vocal, upbeat, radio-friendly, 2020s mainstream pop, polished, vocal grit",
+        "modern pop, tropical influences, smooth bass, glossy production, breathy female vocal, infectious melody, chart-topping, contemporary, natural warmth",
     ],
-    "chillhiphop": [
-        "90s Japanese chill hip-hop, lo-fi boom bap beat, mellow jazz piano, warm vinyl crackle, deep bass, smooth male rap, breathy female vocal, nostalgic, laid-back, rainy night, cozy, raw 1990s production, vocal grit",
-        "lo-fi Japanese hip-hop, dusty vinyl sample, soft jazz guitar, gentle boom bap, rainy window, sleepy male rap, whispered female hook, mellow, melancholic, cozy midnight, analog warmth",
+    "hiphop-trap": [
+        "modern trap, deep 808 bass, rolling hi-hats, dark synth pads, punchy male rap, aggressive flow, contemporary hip-hop, hard-hitting, Billboard chart style",
+        "melodic trap, atmospheric pads, auto-tuned male vocal, 808s, skittering hi-hats, emotional, modern rap, mainstream hit, vocal grit",
     ],
-    "citypop": [
-        "80s Japanese city pop, bright synth lead, funky slap bass, smooth electric piano, groovy drums, clear female vocal, nostalgic summer drive, breezy, polished production",
-        "Japanese city pop, mellow synth pad, wah guitar, tight drum machine, warm bass, soulful female vocal, twilight rooftop, nostalgic, sophisticated, 1980s sheen",
+    "kpop": [
+        "K-pop, powerful EDM drop, punchy drums, mixed group vocals, catchy hook, high energy, polished production, dance breakdown, global hit style",
+        "K-pop, lush synth layers, emotional female vocal, dramatic build, anthemic chorus, sophisticated production, modern mainstream, polished",
     ],
-    "boombap": [
-        "90s Japanese boom bap hip-hop, gritty drum break, jazzy piano sample, deep upright bass, turntable scratch, smooth male rap, raw street, head-nod, golden era, vocal grit",
-        "Japanese underground hip-hop, heavy boom bap beat, soulful horn sample, vinyl crackle, aggressive male rap, raw 1990s, street cipher, dusty, authentic",
+    "afrobeats": [
+        "afrobeats, silky guitar, groovy percussion, warm bass, smooth male vocal, infectious rhythm, danceable, West African pop, global crossover",
+        "afrobeats-pop fusion, sweet melody, shaker percussion, female vocal, breezy, romantic, contemporary African pop, crossover hit",
+    ],
+    "latin-reggaeton": [
+        "reggaeton, dembow beat, perreo rhythm, punchy synth, male vocal, danceable, Latin urban, global hit, energetic, club-ready",
+        "Latin pop, tropical beat, romantic melody, smooth male vocal, acoustic guitar accents, danceable, crossover hit, polished",
+    ],
+    "pop-edm": [
+        "pop-EDM, festival drop, euphoric synth lead, four-on-the-floor, female vocal, anthemic, build-up, mainstage energy, club crossover",
+        "future bass pop, chopped vocals, warm synth chords, trap drums, dreamy female vocal, emotional drop, modern electronic pop",
+    ],
+    "hyperpop": [
+        "hyperpop, distorted bass, pitched-up vocals, glitchy synths, maximalist, bubblegum melodies, chaotic energy, internet-native, Gen-Z",
+        "hyperpop, bubblegum bass, auto-tuned female vocal, bright synths, frantic tempo, surreal, playful, TikTok viral",
+    ],
+    "alt-rnb": [
+        "alt R&B, atmospheric synths, slow trap beat, breathy male vocal, moody, nocturnal, introspective, modern R&B, The Weeknd style",
+        "alt R&B, velvety female vocal, warm bass, minimalist beat, sensual, late-night, sophisticated, contemporary R&B",
     ],
 }
 
