@@ -1,7 +1,12 @@
 """analyze-song テスト共通 fixture。"""
+import sys
 from pathlib import Path
 
 import pytest
+
+# ハイフン入りディレクトリ名（analyze-song）は Python import 不可のため、
+# scripts パッケージを `from scripts.xxx` 形式で import できるよう親ディレクトリを sys.path に追加。
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # テスト正解音源（85BPM・Aメロ/サビ 12音中10音一致が既知）
 YOEN_V3_1 = Path(
