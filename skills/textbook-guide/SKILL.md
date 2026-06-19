@@ -3,14 +3,14 @@ name: textbook-guide
 description: >
   語彙帳・教科書・チートシート型のインタラクティブHTMLガイドサイトを新規作成・章追加するスキル。
   単一HTMLファイル・アコーディオン展開・ダーク/ライト切替・GitHub Pages公開まで一気に実行。
-  「語彙帳作って」「教科書作って」「チートシート作って」「チュートリアル作って」「/textbook-guide」でトリガー。
+  「章追加して」「/textbook-guide」でトリガー。（※新規作成は `make-guide` が受け持ち、引く系と判定されてから本スキルに振り分けられます）
 user-invocable: true
 ---
 
 # textbook-guide
 
 ## トリガーワード
-新規: 「語彙帳作って」「教科書作って」「チートシート作って」「チュートリアル作って」「/textbook-guide new」
+新規: make-guide 経由（「語彙帳作って」「教科書作って」「チートシート作って」「チュートリアル作って」は make-guide が受け持ち・引く系と判定されてから本スキルに振り分け。「/textbook-guide new」で直接 new も可）
 追加: 「章追加して」「/textbook-guide add」
 
 ## guide-builderとの使い分け
