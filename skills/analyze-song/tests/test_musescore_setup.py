@@ -9,7 +9,7 @@ def test_configure_musescore_sets_musicxml_path():
     from music21 import environment
 
     configure_musescore()
-    assert environment.UserSettings().get("musicxmlPath") == MUSESCORE
+    assert str(environment.UserSettings()["musicxmlPath"]) == MUSESCORE
 
 
 def test_configure_musescore_returns_path():
