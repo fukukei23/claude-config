@@ -59,8 +59,10 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
         log.append({"step": "score_render", "status": "ok" if score_result else "skip",
                     "sec": round(time.time() - start, 2)})
     except Exception as exc:  # noqa: BLE001
+        # 例外メッセージは切り詰めて機密情報（パス・ユーザ名等）の漏洩を防ぐ
+        reason = f"{exc.__class__.__name__}: {str(exc)[:200]}"
         log.append({"step": "score_render", "status": "skip",
-                    "reason": str(exc), "sec": round(time.time() - start, 2)})
+                    "reason": reason, "sec": round(time.time() - start, 2)})
 
     features_json = {
         "meta": {
