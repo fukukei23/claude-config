@@ -407,6 +407,21 @@ tags: [tag1, tag2]
 - ファイルをReadして該当行を特定
 - 該当セルを更新
 
+### 3-7. active-sessions ボードの自分エントリ更新（共通ファイルを触った場合）
+
+今回の記録で**共通ファイル（9種: settings.json/CLAUDE.md/SKILL.md群/hook群/自動化.md/全体マップ_MOC.md/repo-index.yaml・リポジトリ索引.md/MCPツール使い分けガイド.md/リンク運用方針.md）を触った場合**、自分のボードエントリを更新する。
+
+手順:
+1. `obsidian-ssot/00_SYSTEM/active-sessions.md` を読み、自分のセッション(環境+トピック)のエントリを特定
+   - **エントリが無い場合**（resume-sessionで追加し忘れた等）: 先頭行に追加（セッション/触る共通ファイル/方針/開始/🟢進行）
+2. 「触る共通ファイル」欄に今回触ったファイルを追記（既存なら重複回避）
+3. **即commit+push**（フェーズ5のcommitとは別に、ボードは時間感度高め）:
+   ```bash
+   cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions 更新(<セッション名>: <触ったファイル>)" && git push
+   ```
+
+**注意**: 共通ファイルを触る**前**にボードで被り確認（逆方向ならユーザー判断）。本ステップは事後の宣言更新。
+
 ---
 
 ## フェーズ4: ガイド転記（`guide_needed: true` かつユーザー承認済みの場合のみ）
