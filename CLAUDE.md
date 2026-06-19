@@ -63,6 +63,19 @@ Think Before Coding / Surgical Changes / Simplicity First
 ## Knowledge Lint
 ユーザーが「リント実行」と言った場合は即時実行。自動設定（`3 3 * * 0,2,4`・durable:false）はSessionStart hookが検知してCronCreate。
 
+## 並行セッション・共通ファイル（厳格）
+並行セッションが「共通ファイル」を同時に触る競合を防ぐため、`obsidian-ssot/00_SYSTEM/active-sessions.md` で作業を宣言・確認すること。
+
+**共通ファイル（触る前に必ず active-sessions.md で被り確認）**:
+- `~/.claude/settings.json` / `~/.claude/CLAUDE.md`
+- `SKILL.md`群 / hook群（scripts/hooks・scripts/obsidian）
+- `00_SYSTEM/` の `自動化.md` / `全体マップ_MOC.md` / `repo-index.yaml` / `リポジトリ索引.md` / `MCPツール使い分けガイド.md` / `リンク運用方針.md`
+
+**ルール**:
+- 共通ファイルを触る前にボードで被りを確認。**逆方向の変更（修正 vs 削除 等）は勝手に進めず必ずユーザー判断**
+- ボード変更時は即commit+push（5分auto-syncを待たない）
+- 開始時は resume-session、記録時は ssot-record、終了時は new-session がエントリを更新
+
 ## スキルトリガー（厳格）
 ユーザー発言がスキルのトリガーワード（各スキルファイル内「トリガーワード」欄）に合致する場合、必ず先に Skill ツールで該当スキルを発動してから対応せよ
 
