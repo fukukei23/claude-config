@@ -47,3 +47,13 @@ def test_analyze_features_phrase_repetition(midi_path):
     assert pr.get("detected") in (True, False)
     if pr.get("detected"):
         assert len(pr.get("pairs", [])) > 0
+
+
+def test_analyze_features_returns_structure(midi_path):
+    """structure（sections/form）が得られること。"""
+    result = analyze_features(str(midi_path))
+    assert "structure" in result
+    s = result["structure"]
+    assert isinstance(s["sections"], list)
+    assert len(s["sections"]) >= 2
+    assert "form" in s

@@ -102,6 +102,23 @@ def _analyze_phrase_repetition(score) -> dict:
     }
 
 
+def _analyze_structure(score) -> dict:
+    """固定長等分割で sections/form を返す（精度UPは1b/2）。"""
+    total = float(score.duration.quarterLength) if score.duration else 0.0
+    if total <= 0:
+        total = float(score.quarterLength)
+    if total <= 0:
+        return {"sections": [], "form": "?"}
+    mid = total / 2.0
+    return {
+        "sections": [
+            {"name": "first_half", "start": 0.0, "end": mid},
+            {"name": "second_half", "start": mid, "end": total},
+        ],
+        "form": "AB",
+    }
+
+
 def analyze_features(midi_path: str) -> dict:
     """MIDI からキー・コード特徴量を抽出する（メロディ/音域/構造は順次拡張）。"""
     score = _load_and_clean(midi_path)
@@ -109,4 +126,5 @@ def analyze_features(midi_path: str) -> dict:
         "key": _analyze_key(score),
         "chords": _analyze_chords(score),
         "melody": _analyze_melody(score),
+        "structure": _analyze_structure(score),
     }
