@@ -16,8 +16,8 @@ def analyze_tempo(audio_path: str) -> dict:
     """
     y, sr = librosa.load(audio_path, sr=22050, mono=True)
     tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
-    # beat_track の戻り tempo は numpy 型なので float 化
-    bpm = float(tempo)
+    # librosa 0.11+ では tempo が shape (1,) 配列で返るため item() で scalar 抽出
+    bpm = float(tempo.item() if hasattr(tempo, "item") and tempo.ndim > 0 else tempo)
 
     # テンポ安定性の簡易指標: ビート間隔の標準偏差が小さいほど安定
     beat_intervals = librosa.frames_to_time(beats, sr=sr)
