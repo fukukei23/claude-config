@@ -30,6 +30,13 @@ ls -t ~/projects/obsidian-ssot/00_SYSTEM/handoff/*.md 2>/dev/null | head -5
 
 取得したファイルパス一覧を控える。
 
+**並行セッション競合確認**: handoff取得と一緒に active-sessions ボードも読み込む（自分が触る共通ファイルを別セッションが触っていないか確認）。
+
+```bash
+# active-sessions ボード読込（並行セッション競合確認）
+cat ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | head -40
+```
+
 **フォールバック**: 一覧が空の場合は `~/.claude/state/handoff.md`（最新1件）を代わりに使う。
 
 ---
@@ -75,6 +82,27 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 
 ---
 
+## Step 4: active-sessions ボードに自分のエントリを追加 🟡[GLM]
+
+復元サマリーを出力した後、現在のセッションをボードに宣言する。
+
+手順:
+1. ユーザーが「どこから再開するか」を選んだ後、そのトピックでエントリを追加
+2. `obsidian-ssot/00_SYSTEM/active-sessions.md` の「アクティブセッション」テーブルの**先頭行**に挿入:
+   - セッション: 環境(WSL-CLI/Win)+トピック短縮名
+   - 触る共通ファイル: 当該トピックで触りそうな共通ファイル（無ければ「—」）
+   - 方針: 1行で（「調査」「修正方向」「削除検討」等）
+   - 開始: HH:MM
+   - 状態: 🟢進行
+3. **即commit+push**（ラグ回避）:
+   ```bash
+   cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions にエントリ追加(<セッション名>)" && git push
+   ```
+
+**注意**: 開始時にボードを読み、**自分が触ろうとする共通ファイルを別セッションが既に触っている場合は、作業前にユーザーに相談**（逆方向なら特に）。
+
+---
+
 ## 補足: スキルが呼ばれるタイミング
 
 - セッション開始直後の最初の挨拶（「おはよう」等）
@@ -89,6 +117,7 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 | Step 1 (ファイル取得) | Bash直実行 | LLM不要 |
 | Step 2 (Read) | Readツール | LLM不要 |
 | Step 3 (復元サマリー生成) | 🟡[GLM] | テキスト生成 |
+| Step 4 (ボードエントリ追加) | 🟡[GLM] | 宣言更新・即push |
 
 ## 関連
 
