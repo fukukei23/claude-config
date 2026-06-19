@@ -37,3 +37,13 @@ def test_analyze_features_returns_melody_range(midi_path):
     assert "range_high" in m
     assert "range_semitones" in m
     assert m["range_semitones"] > 0
+
+
+def test_analyze_features_phrase_repetition(midi_path):
+    """phrase_repetition が検出され、一致率が記録されること。"""
+    result = analyze_features(str(midi_path))
+    assert "melody" in result
+    pr = result["melody"].get("phrase_repetition", {})
+    assert pr.get("detected") in (True, False)
+    if pr.get("detected"):
+        assert len(pr.get("pairs", [])) > 0

@@ -68,6 +68,37 @@ def _analyze_melody(score) -> dict:
         "range_low": low.nameWithOctave,
         "range_high": high.nameWithOctave,
         "range_semitones": semitones,
+        "phrase_repetition": _analyze_phrase_repetition(score),
+    }
+
+
+def _analyze_phrase_repetition(score) -> dict:
+    """前半/後半の音程輪郭を比較し同一性を検出する。
+
+    固定長等分割: 全ノートを時系列で2等分し、各々の音程差列を比較。
+    """
+    melody_notes = [n for n in score.recurse().notes if isinstance(n, note.Note)]
+    if len(melody_notes) < 8:
+        return {"detected": False, "pairs": []}
+    midis = [n.pitch.midi for n in melody_notes]
+    mid = len(midis) // 2
+    part_a = midis[:mid]
+    part_b = midis[mid:mid * 2]
+
+    def intervals(seq):
+        return [seq[i + 1] - seq[i] for i in range(len(seq) - 1)]
+
+    ia = intervals(part_a)
+    ib = intervals(part_b)
+    n = min(len(ia), len(ib))
+    if n == 0:
+        return {"detected": False, "pairs": []}
+    match = sum(1 for i in range(n) if ia[i] == ib[i])
+    detected = match >= n * 0.7
+    pair = {"section_a": "first_half", "section_b": "second_half", "match": match, "total": n}
+    return {
+        "detected": detected,
+        "pairs": [pair],
     }
 
 
