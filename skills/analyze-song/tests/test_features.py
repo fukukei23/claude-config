@@ -26,3 +26,14 @@ def test_analyze_features_returns_chords(midi_path):
     assert "chords" in result
     assert isinstance(result["chords"]["progression"], list)
     assert len(result["chords"]["progression"]) > 0
+
+
+def test_analyze_features_returns_melody_range(midi_path):
+    """メロディ音域が得られること。"""
+    result = analyze_features(str(midi_path))
+    assert "melody" in result
+    m = result["melody"]
+    assert "range_low" in m
+    assert "range_high" in m
+    assert "range_semitones" in m
+    assert m["range_semitones"] > 0

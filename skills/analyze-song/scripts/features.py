@@ -50,10 +50,32 @@ def _analyze_chords(score) -> dict:
     }
 
 
+def _analyze_melody(score) -> dict:
+    """メロディ音域を抽出。"""
+    notes_flat = list(score.recurse().notes)
+    pitches = []
+    for n in notes_flat:
+        if isinstance(n, note.Note):
+            pitches.append(n.pitch)
+        elif hasattr(n, "pitches"):
+            pitches.extend(n.pitches)
+    if not pitches:
+        return {"range_low": "N/A", "range_high": "N/A", "range_semitones": 0}
+    low = min(pitches)
+    high = max(pitches)
+    semitones = int(high.midi - low.midi)
+    return {
+        "range_low": low.nameWithOctave,
+        "range_high": high.nameWithOctave,
+        "range_semitones": semitones,
+    }
+
+
 def analyze_features(midi_path: str) -> dict:
     """MIDI からキー・コード特徴量を抽出する（メロディ/音域/構造は順次拡張）。"""
     score = _load_and_clean(midi_path)
     return {
         "key": _analyze_key(score),
         "chords": _analyze_chords(score),
+        "melody": _analyze_melody(score),
     }
