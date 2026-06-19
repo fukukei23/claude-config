@@ -99,25 +99,59 @@ SCAT_LYRICS = """[Verse 1]
 ららら　らーら　ららら　らー"""
 
 
+def _apply_bpm_key(prompt: str, bpm: int | None, key: str | None) -> str:
+    """BPM/Key をプロンプト先頭に埋め込む（Music 2.6 公式仕様）.
+
+    Music 2.6 は bpm/key の独立リクエストフィールドを持たず、prompt 文字列内の
+    "<key>, <bpm> BPM, ..." 形式で指定すると 99% 精度で出力に反映される。
+    両方 None のときは prompt をそのまま返す（後方互換）。
+
+    Args:
+        prompt: 元の音楽プロンプト
+        bpm: BPM（None時は付加しない）
+        key: キー（None時は付加しない）
+
+    Returns:
+        BPM/Key 前置き付きプロンプト
+    """
+    parts: list[str] = []
+    if key:
+        parts.append(key)
+    if bpm:
+        parts.append(f"{bpm} BPM")
+    if not parts:
+        return prompt
+    return ", ".join(parts) + ", " + prompt
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """コマンドライン引数をパースする."""
     parser = argparse.ArgumentParser(description="MiniMax music 直接生成（メロディマイニング用）")
     parser.add_argument("--prompt", help="プロンプト（--presetと排他）")
     parser.add_argument("--preset", choices=list(PRESETS.keys()) + ["varied"], help="プリセット名（varied=全ジャンル時間ローテーション）")
     parser.add_argument("--count", type=int, default=1, help="生成数（プリセットから順/ランダム選択）")
-    parser.add_argument("--scat", action="store_true", help="スキャット歌詞（メロディ抽出用）")
     parser.add_argument("--lyrics-file", help="歌詞ファイルパス")
     parser.add_argument("--outdir", default=str(DEFAULT_OUTDIR), help="出力ディレクトリ")
     parser.add_argument("--label", default="", help="ファイル名ラベル（preset名がデフォルト）")
+    # 歌詞ソース排他: スキャット vs 自動生成（--lyrics-file は main 側で別途排他チェック）
+    lyrics_group = parser.add_mutually_exclusive_group()
+    lyrics_group.add_argument("--scat", action="store_true", help="スキャット歌詞（メロディ抽出用）")
+    lyrics_group.add_argument(
+        "--auto-lyrics", action="store_true",
+        help="lyrics_optimizer有効化（promptから歌詞自動生成・Music 2.6）")
+    # Music 2.6 新機能: BPM/Key（独立フィールドではなく prompt 埋め込み方式）
+    parser.add_argument("--bpm", type=int, help="BPM指定（prompt先頭に埋め込み・99%%精度で反映）")
+    parser.add_argument("--key", help="キー指定（例: 'E minor'・prompt先頭に埋め込み）")
     return parser.parse_args(argv)
 
 
-def _generate(prompt: str, lyrics: str) -> tuple[bytes, float]:
+def _generate(prompt: str, lyrics: str, auto_lyrics: bool = False) -> tuple[bytes, float]:
     """MiniMax music_generation API を直接叩き、音声bytesと経過時間を返す.
 
     Args:
-        prompt: 音楽プロンプト
-        lyrics: 歌詞（構造タグ込み）
+        prompt: 音楽プロンプト（BPM/Key 埋め込み済み）
+        lyrics: 歌詞（構造タグ込み）・auto_lyrics=True 時は無視され空文字でよい
+        auto_lyrics: True 時は lyrics_optimizer を有効化し lyrics フィールドを送信しない
 
     Returns:
         (audio_bytes, elapsed_seconds)
@@ -128,12 +162,17 @@ def _generate(prompt: str, lyrics: str) -> tuple[bytes, float]:
     api_key = os.environ.get("MINIMAX_API_KEY", "")
     if not api_key:
         raise RuntimeError("MINIMAX_API_KEY not set in environment")
-    body = json.dumps({
+    body_dict: dict = {
         "model": MODEL,
         "prompt": prompt,
-        "lyrics": lyrics,
         "audio_setting": {"sample_rate": 44100, "bitrate": 256000, "format": "mp3"},
-    }).encode()
+    }
+    if auto_lyrics:
+        # lyrics_optimizer: prompt から歌詞を自動生成（lyrics フィールドは送信しない）
+        body_dict["lyrics_optimizer"] = True
+    else:
+        body_dict["lyrics"] = lyrics
+    body = json.dumps(body_dict).encode()
     req = urllib.request.Request(
         API_URL,
         data=body,
@@ -163,8 +202,15 @@ def main(argv: list[str] | None = None) -> int:
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
+    # --auto-lyrics と --lyrics-file の矛盾チェック（両方指定は不可）
+    if args.auto_lyrics and args.lyrics_file:
+        print("error: --auto-lyrics and --lyrics-file are mutually exclusive", file=sys.stderr)
+        return 1
+
     # 歌詞決定
-    if args.lyrics_file:
+    if args.auto_lyrics:
+        lyrics = ""  # lyrics_optimizer に任せるため空（APIには送信しない）
+    elif args.lyrics_file:
         lyrics = Path(args.lyrics_file).read_text(encoding="utf-8")
     elif args.scat or (not args.prompt and not args.lyrics_file):
         lyrics = SCAT_LYRICS
@@ -191,7 +237,8 @@ def main(argv: list[str] | None = None) -> int:
     results = []
     for i, prompt in enumerate(prompts):
         try:
-            audio_bytes, elapsed = _generate(prompt, lyrics)
+            effective_prompt = _apply_bpm_key(prompt, args.bpm, args.key)
+            audio_bytes, elapsed = _generate(effective_prompt, lyrics, auto_lyrics=args.auto_lyrics)
             fname = f"{ts}_{label}_{i+1}.mp3"
             fpath = outdir / fname
             fpath.write_bytes(audio_bytes)
@@ -207,9 +254,10 @@ def main(argv: list[str] | None = None) -> int:
             except Exception:
                 pass
             meta = {
-                "file": fname, "prompt": prompt, "lyrics": lyrics,
+                "file": fname, "prompt": effective_prompt, "lyrics": lyrics,
                 "duration_sec": dur, "elapsed_sec": round(elapsed, 1),
                 "model": MODEL, "generated_at": ts,
+                "bpm": args.bpm, "key": args.key, "auto_lyrics": args.auto_lyrics,
             }
             (fpath.with_suffix(".meta.json")).write_text(
                 json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
