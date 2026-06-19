@@ -135,25 +135,20 @@ try:
         parts.append(f'{color}Ctx {pct:.0f}% ({k_used:.0f}k/{win_label}){reset}')
     elif d.get('exceeds_200k_tokens'):
         parts.append('\033[33mCtx >200k (1M窓)\033[0m')
-    # 会話サイズ表示（32MB APIリクエスト上限）
-    # 優先: proxy実測 = Claude Code→proxy間の生body長（ツール定義+システムプロンプト+履歴・全部入りの真サイズ）
-    # fallback: JSONLファイルサイズ（proxy未起動時・実サイズより過小評価されるので "(JSONL)" 明示）
-    if proxy_req_mb is not None:
-        if proxy_req_mb >= 30:
-            rcolor = '\033[31m'
-        elif proxy_req_mb >= 27:
-            rcolor = '\033[33m'
-        else:
-            rcolor = '\033[32m'
-        parts.append(f'{rcolor}Req {proxy_req_mb}MB/32\033[0m')
-    elif req_mb is not None:
+    # 会話サイズ表示（32MB APIリクエスト上限の目安）
+    # JSONLファイルサイズ（transcript_path）= 画像base64を含む実会話サイズ。
+    # proxy_req_mb（last_request_mb）は GLM送信後のCDN化サイズで常に0.4MB前後・
+    # 32MB到達を反映しないため不使用（測定ポイントが送信後なので画像が軽く見える）。
+    # ※ JSONLサイズは履歴のみ（システムプロンプト+ツール定義は含まない）で実サイズより過小評価だが、
+    #    32MBの主犯は画像蓄積なので実用的な目安として十分。
+    if req_mb is not None:
         if req_mb >= 30:
             rcolor = '\033[31m'
         elif req_mb >= 27:
             rcolor = '\033[33m'
         else:
             rcolor = '\033[32m'
-        parts.append(f'{rcolor}Req {req_mb:.1f}MB(JSONL)/32\033[0m')
+        parts.append(f'{rcolor}Req {req_mb:.1f}MB/32\033[0m')
 except:
     pass
 
