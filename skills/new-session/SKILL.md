@@ -134,6 +134,24 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 - 新セッションの Claude はそのファイルを読んで全文脈を取得するので、ユーザーは全文を読む必要なし
 - 詳細: `~/projects/obsidian-ssot/00_SYSTEM/handoff使い方.md`
 
+---
+
+## Step 5: active-sessions ボードの自分エントリを ✅終了 にする 🟡[GLM]
+
+セッションを新セッションに移行する＝現セッション終了。ボードの自分のエントリを処理する。
+
+手順:
+1. `obsidian-ssot/00_SYSTEM/active-sessions.md` を読み、自分のセッション(環境+トピック)のエントリを特定
+2. 該当エントリの「状態」を `✅終了` に変更（または行を削除）
+   - 削除基準: 完全に終わった・他セッションの参照不要 → 行削除
+   - 終了マーク基準: 成果参照の可能性 → `✅終了` を残す
+3. **即commit+push**:
+   ```bash
+   cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions 終了処理(<セッション名>)" && git push
+   ```
+4. 併せて **24h超・状態不明のstaleエントリ**があれば掃除（確認の上削除）
+
+---
 
 ## 補足: スキルが呼ばれるタイミング
 
@@ -147,3 +165,4 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 |---|---|---|
 | Step 1 (情報収集) | Bash直実行 | LLM不要 |
 | Step 2 (要約・生成) | 🟡[GLM] | テキスト生成 |
+| Step 5 (ボード終了処理) | 🟡[GLM] | 宣言更新・即push |
