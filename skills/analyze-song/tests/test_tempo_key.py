@@ -27,5 +27,5 @@ def test_analyze_tempo_octave_correction():
     """オクターブ補正（60-180範囲外は半分/2倍）が効くこと。"""
     from scripts.tempo_key import _correct_octave
     assert _correct_octave(240.0) == 120.0
-    assert _correct_octave(30.0) == 120.0
+    assert _correct_octave(30.0) == 60.0
     assert _correct_octave(100.0) == 100.0
