@@ -6,8 +6,11 @@ from scripts.score_render import render_score
 
 @pytest.fixture
 def midi_path(workdir, yoen_mp3):
+    """テスト用MIDIを生成（vocalsとして元音源をMIDI化・Phase1b）。"""
+    from pathlib import Path
     from scripts.midi_extract import extract_midi
-    return extract_midi(str(yoen_mp3), workdir)
+    stems = {"vocals": Path(str(yoen_mp3)), "other": Path(str(yoen_mp3))}
+    return extract_midi(stems, workdir)["vocals"]
 
 
 def test_render_score_produces_png(midi_path, workdir):
