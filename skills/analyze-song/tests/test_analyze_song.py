@@ -12,7 +12,7 @@ def test_run_pipeline_full(yoen_mp3, tmp_path):
 
     features = json.loads((workdir / "features.json").read_text())
     assert features["meta"]["title"] == "yoen-v3_1"
-    assert features["meta"]["phase"] == "1a"
+    assert features["meta"]["phase"] == "1b"
     assert "tempo" in features
     assert "key" in features
     assert "chords" in features

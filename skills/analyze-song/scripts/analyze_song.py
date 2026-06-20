@@ -15,6 +15,7 @@ from scripts import (
     report,
     score_render,
     source_fetch,
+    source_separate,
     tempo_key,
 )
 
@@ -47,15 +48,17 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
     log: list = []
 
     audio = _timed("source_fetch", lambda: source_fetch.fetch_source(source, workdir), log)
-    tempo = _timed("tempo_key", lambda: tempo_key.analyze_tempo(str(audio)), log)
-    midi = _timed("midi_extract", lambda: midi_extract.extract_midi(str(audio), workdir), log)
-    feat = _timed("features", lambda: features.analyze_features(str(midi)), log)
+    stems = _timed("source_separate", lambda: source_separate.separate_source(str(audio), workdir), log)
+    tempo = _timed("tempo_key", lambda: tempo_key.analyze_tempo(str(audio), str(stems["drums"])), log)
+    midis = _timed("midi_extract", lambda: midi_extract.extract_midi(stems, workdir), log)
+    feat = _timed("features", lambda: features.analyze_features(
+        str(midis["vocals"]), str(midis["accompaniment"]), tempo["duration_sec"]), log)
 
-    # 楽譜だけは失敗を許容（スキップ）
+    # 楽譜だけは失敗を許容（スキップ）。ボーカルMIDIを楽譜化する。
     score_result = None
     start = time.time()
     try:
-        score_result = score_render.render_score(str(midi), workdir)
+        score_result = score_render.render_score(str(midis["vocals"]), workdir)
         log.append({"step": "score_render", "status": "ok" if score_result else "skip",
                     "sec": round(time.time() - start, 2)})
     except Exception as exc:  # noqa: BLE001
@@ -71,7 +74,7 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
             "source_url": source if source.startswith("http") else None,
             "duration_sec": tempo["duration_sec"],
             "analyzed_at": date.today().isoformat(),
-            "phase": "1a",
+            "phase": "1b",
         },
         "tempo": tempo["tempo"],
         "key": feat["key"],
@@ -90,7 +93,7 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
 
 def main():
     """CLI エントリポイント。"""
-    parser = argparse.ArgumentParser(description="楽曲定量分析（Phase 1a）")
+    parser = argparse.ArgumentParser(description="楽曲定量分析（Phase 1b: Demucs音源分離）")
     parser.add_argument("source", help="YouTube URL またはローカル MP3 パス")
     parser.add_argument("-o", "--output", required=True, help="出力ディレクトリ")
     parser.add_argument("-t", "--title", default="(unknown)", help="曲名")

@@ -8,7 +8,7 @@ import pytest
 # scripts パッケージを `from scripts.xxx` 形式で import できるよう親ディレクトリを sys.path に追加。
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# テスト正解音源（85BPM・Aメロ/サビ 12音中10音一致が既知）
+# テスト音源（AI生成ボカロ曲・MIDIメタ85BPMだがdrums onset特殊でlibrosa推定112の外れ値）
 YOEN_V3_1 = Path(
     "/home/yn4416/projects/make-song-guide/songs/yoen-night/"
     "20260619_130406_yoen-v3_1.mp3"

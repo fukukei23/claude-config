@@ -1,36 +1,48 @@
-"""features のテスト。yoen-v3_1 を使う。"""
+"""features のテスト（Phase1b: vocals/accompaniment 2MIDI + duration_sec）。"""
+from pathlib import Path
+
 import pytest
 
 from scripts.features import analyze_features
 
 
 @pytest.fixture
-def midi_path(workdir, yoen_mp3):
-    """テスト用 MIDI を生成（basic_pitch）。重いので function scope。"""
+def stems_midi(workdir, yoen_mp3):
+    """テスト用に vocals/accompaniment の2MIDIを生成（重い・function scope）。
+
+    分離を省略するため stems には両方とも元音源を入れる（features 単体テスト用）。
+    """
     from scripts.midi_extract import extract_midi
-    return extract_midi(str(yoen_mp3), workdir)
+    stems = {"vocals": Path(str(yoen_mp3)), "other": Path(str(yoen_mp3))}
+    return extract_midi(stems, workdir)
 
 
-def test_analyze_features_returns_key(midi_path):
+def _features(stems_midi):
+    return analyze_features(
+        str(stems_midi["vocals"]), str(stems_midi["accompaniment"]), 126.92
+    )
+
+
+def test_analyze_features_returns_key(stems_midi):
     """キー推定結果に key/scale/confidence が含まれること。"""
-    result = analyze_features(str(midi_path))
+    result = _features(stems_midi)
     assert "key" in result
     assert "key" in result["key"]
     assert "scale" in result["key"]
     assert "confidence" in result["key"]
 
 
-def test_analyze_features_returns_chords(midi_path):
+def test_analyze_features_returns_chords(stems_midi):
     """コード進行リストが得られること。"""
-    result = analyze_features(str(midi_path))
+    result = _features(stems_midi)
     assert "chords" in result
     assert isinstance(result["chords"]["progression"], list)
     assert len(result["chords"]["progression"]) > 0
 
 
-def test_analyze_features_returns_melody_range(midi_path):
+def test_analyze_features_returns_melody_range(stems_midi):
     """メロディ音域が得られること。"""
-    result = analyze_features(str(midi_path))
+    result = _features(stems_midi)
     assert "melody" in result
     m = result["melody"]
     assert "range_low" in m
@@ -39,9 +51,9 @@ def test_analyze_features_returns_melody_range(midi_path):
     assert m["range_semitones"] > 0
 
 
-def test_analyze_features_phrase_repetition(midi_path):
+def test_analyze_features_phrase_repetition(stems_midi):
     """phrase_repetition が検出され、一致率が記録されること。"""
-    result = analyze_features(str(midi_path))
+    result = _features(stems_midi)
     assert "melody" in result
     pr = result["melody"].get("phrase_repetition", {})
     assert pr.get("detected") in (True, False)
@@ -49,11 +61,13 @@ def test_analyze_features_phrase_repetition(midi_path):
         assert len(pr.get("pairs", [])) > 0
 
 
-def test_analyze_features_returns_structure(midi_path):
-    """structure（sections/form）が得られること。"""
-    result = analyze_features(str(midi_path))
+def test_analyze_features_returns_structure(stems_midi):
+    """structure（sections/form）が音源durationで正規化されて得られること。"""
+    result = _features(stems_midi)
     assert "structure" in result
     s = result["structure"]
     assert isinstance(s["sections"], list)
     assert len(s["sections"]) >= 2
     assert "form" in s
+    # duration_sec(126.92) で正規化されていること
+    assert s["sections"][-1]["end"] == 126.92
