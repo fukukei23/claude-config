@@ -28,3 +28,21 @@ def test_generate_report_writes_markdown(workdir):
     assert "85.0" in text
     assert "phrase_repetition" in text or "同一性" in text
     assert "tempo_key" in text  # 工程ログ記載
+
+
+def test_generate_report_includes_vocals(workdir):
+    """features.json の vocals が report.md に反映されること。"""
+    features = {
+        "meta": {"title": "vocal-test", "source": "local", "phase": "1b"},
+        "vocals": {
+            "range_low": "G3",
+            "range_high": "D5",
+            "gender_estimate": "female",
+            "timbre": "soprano",
+        },
+        "_log": [],
+    }
+    (workdir / "features.json").write_text(json.dumps(features, ensure_ascii=False))
+    text = generate_report(workdir).read_text()
+    assert "soprano" in text
+    assert "female" in text

@@ -10,6 +10,7 @@ Phase1b 設計:
 
 ノイズ除去: chordify + 最小音長フィルタ（spec 注意点2 相当）。
 """
+import librosa
 from music21 import chord, converter, note, roman
 
 # ノイズ除去: 短音を無視（spec 注意点2 相当）
@@ -181,21 +182,82 @@ def _analyze_vocals(score) -> dict:
     }
 
 
-def analyze_features(vocals_mid: str, accomp_mid: str, duration_sec: float) -> dict:
+# Phase1b instrumentation: 4ステム構成（htdemucs の分離ラベル）と無音判定閾値
+STEM_PARTS = ("drums", "bass", "vocals", "other")
+SILENCE_RMS = 0.01
+
+
+def _stem_features(wav_path: str) -> dict:
+    """stem WAV の音響特徴量を返す（RMS/centroid/zcr/flatness）。"""
+    y, sr = librosa.load(wav_path, sr=22050, mono=True)
+    return {
+        "rms": float(librosa.feature.rms(y=y).mean()),
+        "centroid": float(librosa.feature.spectral_centroid(y=y, sr=sr).mean()),
+        "zcr": float(librosa.feature.zero_crossing_rate(y=y).mean()),
+        "flatness": float(librosa.feature.spectral_flatness(y=y).mean()),
+    }
+
+
+def _classify_part(name: str, feat: dict) -> str | None:
+    """stem 名 + 音響特徴量で楽器カテゴリを推定。無音(None)なら除外。
+
+    drums/bass/vocals は Demucs 分離ラベルで確定、other は spectral_centroid
+    （音の明るさ）で鍵盤/弦/シンセ系を大別。
+    """
+    if feat["rms"] < SILENCE_RMS:
+        return None
+    if name == "drums":
+        return "percussion"
+    if name == "bass":
+        return "bass"
+    if name == "vocals":
+        return "voice"
+    if feat["centroid"] < 1500:
+        return "low keys/strings"
+    if feat["centroid"] < 3000:
+        return "keys/strings"
+    return "bright synth/strings"
+
+
+def _analyze_instrumentation(stems_paths: dict) -> dict:
+    """4 stem WAV の音響特徴量から楽器構成を推定する（案2）。
+
+    Args:
+        stems_paths: {"drums","bass","vocals","other"} → WAV パス。
+    """
+    parts = [n for n in STEM_PARTS if n in stems_paths]
+    detected = []
+    for name in parts:
+        cat = _classify_part(name, _stem_features(stems_paths[name]))
+        if cat:
+            detected.append(cat)
+    return {"parts": parts, "instruments_detected": detected}
+
+
+def analyze_features(
+    vocals_mid: str,
+    accomp_mid: str,
+    duration_sec: float,
+    stems_paths: dict | None = None,
+) -> dict:
     """ボーカル/伴奏MIDI + 音源長から全特徴量を抽出する。
 
     Args:
-        vocals_mid: ボーカルステム由来のMIDIパス（キー/音域/phrase 用）。
+        vocals_mid: ボーカルステム由来のMIDIパス（キー/音域/phrase/vocals 用）。
         accomp_mid: 伴奏ステム由来のMIDIパス（コード 用）。
         duration_sec: 音源の長さ（構造 正規化用）。
+        stems_paths: 4ステムWAVパス辞書。渡すと instrumentation を追加（案2）。
     """
     voc_score = _load_and_clean(vocals_mid)
     acc_score = _load_and_clean(accomp_mid)
     detected_key = voc_score.analyze("key")
-    return {
+    result = {
         "key": _analyze_key(voc_score),
         "chords": _analyze_chords(acc_score, detected_key),
         "melody": _analyze_melody(voc_score),
         "vocals": _analyze_vocals(voc_score),
         "structure": _analyze_structure(duration_sec),
     }
+    if stems_paths is not None:
+        result["instrumentation"] = _analyze_instrumentation(stems_paths)
+    return result

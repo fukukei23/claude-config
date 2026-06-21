@@ -61,6 +61,32 @@ def test_analyze_features_phrase_repetition(stems_midi):
         assert len(pr.get("pairs", [])) > 0
 
 
+@pytest.fixture
+def stems_wav(yoen_mp3):
+    """テスト用: 元音源を4ステムに見立てる（Demucs分離は別テスト）。
+
+    instrumentation は stem WAV の音響特徴量を見るため、分離済みでなくても
+    特徴量計算・カテゴリ推定の検証は可能。
+    """
+    p = str(yoen_mp3)
+    return {"drums": p, "bass": p, "vocals": p, "other": p}
+
+
+def test_analyze_features_returns_instrumentation(stems_midi, stems_wav):
+    """stems WAV から instrumentation（parts + instruments_detected）が得られること。"""
+    result = analyze_features(
+        str(stems_midi["vocals"]),
+        str(stems_midi["accompaniment"]),
+        126.92,
+        stems_paths=stems_wav,
+    )
+    assert "instrumentation" in result
+    inst = result["instrumentation"]
+    assert inst["parts"] == ["drums", "bass", "vocals", "other"]
+    assert isinstance(inst["instruments_detected"], list)
+    assert len(inst["instruments_detected"]) > 0
+
+
 def test_analyze_features_returns_vocals_range(stems_midi):
     """vocals 音域（range_low/range_high）がボーカルMIDIから得られること。"""
     result = _features(stems_midi)

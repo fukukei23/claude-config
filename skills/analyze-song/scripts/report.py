@@ -19,6 +19,7 @@ def generate_report(workdir: Path) -> Path:
     chords = features.get("chords", {})
     melody = features.get("melody", {})
     pr = melody.get("phrase_repetition", {})
+    vocals = features.get("vocals", {})
     log = features.get("_log", [])
 
     lines = [
@@ -29,6 +30,10 @@ def generate_report(workdir: Path) -> Path:
         f"- キー: {key.get('key', '?')} {key.get('scale', '?')} (信頼度 {key.get('confidence', '?')})",
         f"- 音域: {melody.get('range_low', '?')} 〜 {melody.get('range_high', '?')} "
         f"({melody.get('range_semitones', '?')}半音)",
+        "",
+        "## ヴォイス",
+        f"- 音域: {vocals.get('range_low', '?')} 〜 {vocals.get('range_high', '?')}",
+        f"- 推定: {vocals.get('gender_estimate', '?')} / 声域: {vocals.get('timbre', '?')}",
         "",
         "## コード進行",
         " -> ".join(chords.get("progression", [])),

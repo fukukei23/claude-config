@@ -80,6 +80,7 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
         "key": feat["key"],
         "chords": feat["chords"],
         "melody": feat["melody"],
+        "vocals": feat["vocals"],
         "structure": feat["structure"],
         "score": score_result,
         "_log": log,
