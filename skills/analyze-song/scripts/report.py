@@ -20,6 +20,7 @@ def generate_report(workdir: Path) -> Path:
     melody = features.get("melody", {})
     pr = melody.get("phrase_repetition", {})
     vocals = features.get("vocals", {})
+    inst = features.get("instrumentation", {})
     log = features.get("_log", [])
 
     lines = [
@@ -34,6 +35,10 @@ def generate_report(workdir: Path) -> Path:
         "## ヴォイス",
         f"- 音域: {vocals.get('range_low', '?')} 〜 {vocals.get('range_high', '?')}",
         f"- 推定: {vocals.get('gender_estimate', '?')} / 声域: {vocals.get('timbre', '?')}",
+        "",
+        "## 楽器構成",
+        f"- パート: {', '.join(inst.get('parts', [])) or '?'}",
+        f"- 推定楽器: {', '.join(inst.get('instruments_detected', [])) or '?'}",
         "",
         "## コード進行",
         " -> ".join(chords.get("progression", [])),
