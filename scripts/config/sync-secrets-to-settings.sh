@@ -28,15 +28,13 @@ RESULT=$(jq \
   --arg anthropic_url "${ANTHROPIC_BASE_URL:-}" \
   --arg brave_key "${BRAVE_API_KEY:-}" \
   --arg minimax_key "${MINIMAX_API_KEY:-}" \
-  --arg github_token "${GITHUB_TOKEN:-}" \
 '
   .env.ANTHROPIC_AUTH_TOKEN = (if $anthropic_token != "" then $anthropic_token else .env.ANTHROPIC_AUTH_TOKEN end) |
   .env.ANTHROPIC_BASE_URL   = (if $anthropic_url  != "" then $anthropic_url  else .env.ANTHROPIC_BASE_URL  end) |
   .env.BRAVE_API_KEY        = (if $brave_key      != "" then $brave_key      else .env.BRAVE_API_KEY       end) |
   .mcpServers["brave-search"].env.BRAVE_API_KEY = (if $brave_key != "" then $brave_key else .mcpServers["brave-search"].env.BRAVE_API_KEY end) |
   .mcpServers.glm.env.GLM_API_KEY = (if $glm_key != "" then $glm_key else .mcpServers.glm.env.GLM_API_KEY end) |
-  .mcpServers.minimax.env.MINIMAX_API_KEY = (if $minimax_key != "" then $minimax_key else .mcpServers.minimax.env.MINIMAX_API_KEY end) |
-  .mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN = (if $github_token != "" then $github_token else .mcpServers.github.env.GITHUB_PERSONAL_ACCESS_TOKEN end)
+  .mcpServers.minimax.env.MINIMAX_API_KEY = (if $minimax_key != "" then $minimax_key else .mcpServers.minimax.env.MINIMAX_API_KEY end)
 ' "$SETTINGS_FILE")
 
 if [[ $? -ne 0 ]]; then
