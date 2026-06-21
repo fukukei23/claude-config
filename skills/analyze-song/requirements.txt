@@ -7,3 +7,6 @@ demucs>=4.0.1
 librosa
 basic-pitch
 music21
+
+# Phase2: 名曲特徴量DB
+PyYAML>=6.0
