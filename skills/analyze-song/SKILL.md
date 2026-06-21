@@ -12,6 +12,8 @@ description: 楽曲（YouTube/MP3）を音源から定量分析し、BPM/キー/
 - コード進行（music21 chordify）
 - メロディ音域（music21）
 - phrase_repetition：前半/後半の音程同一性検出（vocals.mid 単離で高精度化）
+- vocals 音域・性別推定・声域（ボーカルMIDI音域ベース・median MIDI で male/female 判定）
+- instrumentation 楽器構成（4 stem の音響特徴量で楽器カテゴリ推定）
 
 ## いつ使うか
 - 自作曲の「名曲っぽさ」を数値で確認したい時
@@ -46,6 +48,8 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - **BPM**: drums stem推定で実曲精度UP（Stayin' Alive 104→103.36）。AI生成ドラムonset特殊音源は外れ値あり（yoen-v3_1: 85指定→112推定）
 - **phrase_repetition**: vocals.mid 単離で改善済み
 - **楽譜PNG**: libpipewire-0.3-0 導入で headless WSL2 のセグフォ解消（PNG/PDF生成可能）
+- **vocals 性別推定**: ピッチ中央値のヒューリスティック（median MIDI ≤A3=male/超=female）。falsetto 判定不可（MIDI単体・倍音構造必要）
+- **instrumentation**: 楽器カテゴリ推定のみ（具象名=エレキピアノ等は Phase2+）。stem名+音響特徴量ハイブリッド
 
 ## 前提知識（進行開始前に必ず読み込む）
 - venv: `/home/yn4416/projects/claude-config/.venv`（変更禁止）
