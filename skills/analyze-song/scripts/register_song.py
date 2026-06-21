@@ -3,6 +3,7 @@
 run_pipeline() をローカル(raw)で実行し、features.json のみを SSOT へコピー。
 音源MP3・楽譜PNG・stems は workdir（ローカル）に残置し SSOT に置かない。
 """
+import argparse
 import shutil
 from datetime import date
 from pathlib import Path
@@ -75,3 +76,51 @@ def register_one(
     db_index.save_index(index_file, index)
 
     return {"id": song_id, "status": "registered", **meta}
+
+
+DEFAULT_SSOT_DB = Path.home() / "projects/obsidian-ssot/reference/名曲DB"
+DEFAULT_LOCAL_RAW = Path.home() / "Music/名曲DB_raw"
+
+
+def main() -> None:
+    """CLI エントリ: 名曲1曲を DB へ登録する。"""
+    parser = argparse.ArgumentParser(
+        description="名曲を analyze-song で解析し DB へ登録する"
+    )
+    parser.add_argument("song_id", help="曲ID (例: JPOP-001)")
+    parser.add_argument("source", help="YouTube URL or ローカル MP3 パス")
+    parser.add_argument("--title", required=True)
+    parser.add_argument("--artist", required=True)
+    parser.add_argument("--genre", required=True,
+                        choices=["JPOP", "ROCK", "HIPHOP", "WAFU", "WORLD"])
+    parser.add_argument("--commercial-rank", required=True,
+                        choices=["million", "oricon1", "billboard_top10", "long_seller"])
+    parser.add_argument("--era", required=True,
+                        choices=["1970s", "1980s", "1990s", "2000s", "2010s", "2020s"])
+    parser.add_argument("--selection-reason", required=True)
+    parser.add_argument("--ssot-db", default=str(DEFAULT_SSOT_DB))
+    parser.add_argument("--local-raw", default=str(DEFAULT_LOCAL_RAW))
+    args = parser.parse_args()
+
+    meta = {
+        "title": args.title,
+        "artist": args.artist,
+        "genre": args.genre,
+        "commercial_rank": args.commercial_rank,
+        "era": args.era,
+        "selection_reason": args.selection_reason,
+        "source_type": "youtube" if args.source.startswith("http") else "local",
+        "source_url": args.source if args.source.startswith("http") else "",
+        "analyzed_at": date.today().isoformat(),
+        "analyze_phase": "1b",
+    }
+    entry = register_one(
+        args.song_id, args.source, meta,
+        ssot_db=Path(args.ssot_db), local_raw=Path(args.local_raw),
+        index_file=Path(args.ssot_db) / "_index.yaml",
+    )
+    print(f"registered: {entry['id']} -> {entry['features_path']}")
+
+
+if __name__ == "__main__":
+    main()
