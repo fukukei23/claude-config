@@ -61,6 +61,28 @@ def test_analyze_features_phrase_repetition(stems_midi):
         assert len(pr.get("pairs", [])) > 0
 
 
+def test_analyze_features_returns_vocals_range(stems_midi):
+    """vocals 音域（range_low/range_high）がボーカルMIDIから得られること。"""
+    result = _features(stems_midi)
+    assert "vocals" in result
+    v = result["vocals"]
+    assert v["range_low"] != "N/A"
+    assert v["range_high"] != "N/A"
+
+
+def test_analyze_features_returns_vocals_gender(stems_midi):
+    """vocals 性別推定が male/female のいずれかになること。"""
+    result = _features(stems_midi)
+    assert result["vocals"]["gender_estimate"] in ("male", "female")
+
+
+def test_analyze_features_returns_vocals_timbre(stems_midi):
+    """vocals 声域（timbre）が非空文字列で得られること。"""
+    result = _features(stems_midi)
+    timbre = result["vocals"]["timbre"]
+    assert isinstance(timbre, str) and timbre
+
+
 def test_analyze_features_returns_structure(stems_midi):
     """structure（sections/form）が音源durationで正規化されて得られること。"""
     result = _features(stems_midi)
