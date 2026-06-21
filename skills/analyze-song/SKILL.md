@@ -3,7 +3,7 @@ name: analyze-song
 description: 楽曲（YouTube/MP3）を音源から定量分析し、BPM/キー/コード進行/メロディ輪郭/音域/phrase_repetitionを抽出してfeatures.json＋五線譜PNG/PDF＋report.mdを出力するスキル。reverse-engineer-song（Gemini定性）とは完全独立・数値定量分析専用。ユーザーが「楽曲分析して」「曲を定量分析」「この曲のBPM/コード抽出」「名曲っぽさ分析」「analyze-song」と言った時、または /analyze-song を呼んだ時にトリガー。
 ---
 
-# analyze-song（楽曲定量分析・Phase 1a）
+# analyze-song（楽曲定量分析・Phase 1b）
 
 ## できること
 音源（YouTube URL / ローカル MP3）から以下を数値抽出:
@@ -11,7 +11,7 @@ description: 楽曲（YouTube/MP3）を音源から定量分析し、BPM/キー/
 - キー・スケール・信頼度（music21）
 - コード進行（music21 chordify）
 - メロディ音域（music21）
-- phrase_repetition：前半/後半の音程同一性検出（Phase1aは固定長等分割・精度は1b改善）
+- phrase_repetition：前半/後半の音程同一性検出（vocals.mid 単離で高精度化）
 
 ## いつ使うか
 - 自作曲の「名曲っぽさ」を数値で確認したい時
@@ -21,7 +21,7 @@ description: 楽曲（YouTube/MP3）を音源から定量分析し、BPM/キー/
 ## トリガーワード
 「楽曲分析して」「曲を定量分析」「BPM/コード抽出」「名曲っぽさ分析」「analyze-song」「/analyze-song」
 
-## 使い方（Phase 1a）
+## 使い方（Phase 1b）
 ```bash
 cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 /home/yn4416/projects/claude-config/.venv/bin/python scripts/analyze_song.py \
@@ -38,14 +38,14 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 
 ## Phase（本スキルは 1a のみ実装済み）
 - 1a: 音源取得＋分析エンジン（librosa/basic_pitch/music21・Demucs無し）✅
-- 1b: Demucs音源分離で精度UP（phrase_repetition/楽器構成/ヴォイス）・後日
+- 1b: Demucs音源分離で精度UP（drums BPM・vocals/accompaniment別MIDI・phrase/音域改善）✅
 - 2: 名曲特徴量DB構築（後日・別spec）
 - 3: 照合エンジン＋make-song連携（後日・別spec）
 
-## 既知の制限（Phase 1a）
-- **BPM**: librosa推定限界で生成指定BPMと乖離する場合あり（yoen-v3_1は指定85→推定112）
-- **phrase_repetition**: basic_pitch生MIDIのノイズで一致率が低くなる。メロディ単離（1b）で改善
-- **楽譜PNG**: MuseScore AppImageがWSL環境依存でsegfaultする場合あり（features.jsonは正常生成）
+## 既知の制限（Phase 1b）
+- **BPM**: drums stem推定で実曲精度UP（Stayin' Alive 104→103.36）。AI生成ドラムonset特殊音源は外れ値あり（yoen-v3_1: 85指定→112推定）
+- **phrase_repetition**: vocals.mid 単離で改善済み
+- **楽譜PNG**: libpipewire-0.3-0 導入で headless WSL2 のセグフォ解消（PNG/PDF生成可能）
 
 ## 前提知識（進行開始前に必ず読み込む）
 - venv: `/home/yn4416/projects/claude-config/.venv`（変更禁止）
