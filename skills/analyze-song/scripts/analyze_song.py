@@ -52,7 +52,8 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
     tempo = _timed("tempo_key", lambda: tempo_key.analyze_tempo(str(audio), str(stems["drums"])), log)
     midis = _timed("midi_extract", lambda: midi_extract.extract_midi(stems, workdir), log)
     feat = _timed("features", lambda: features.analyze_features(
-        str(midis["vocals"]), str(midis["accompaniment"]), tempo["duration_sec"]), log)
+        str(midis["vocals"]), str(midis["accompaniment"]), tempo["duration_sec"],
+        stems_paths={k: str(v) for k, v in stems.items()}), log)
 
     # 楽譜だけは失敗を許容（スキップ）。ボーカルMIDIを楽譜化する。
     score_result = None
@@ -81,6 +82,7 @@ def run_pipeline(source: str, workdir: Path, title: str = "(unknown)") -> dict:
         "chords": feat["chords"],
         "melody": feat["melody"],
         "vocals": feat["vocals"],
+        "instrumentation": feat["instrumentation"],
         "structure": feat["structure"],
         "score": score_result,
         "_log": log,
