@@ -450,6 +450,11 @@
         "/home/yn4416/.claude/scripts/mcp/start-minimax-video-mcp.sh"
       ],
       "disabled": true
+    },
+    "github": {
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "gith***MASKED***"
+      }
     }
   },
   "autoDream": {
