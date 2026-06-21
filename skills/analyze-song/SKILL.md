@@ -14,6 +14,7 @@ description: 楽曲（YouTube/MP3）を音源から定量分析し、BPM/キー/
 - phrase_repetition：前半/後半の音程同一性検出（vocals.mid 単離で高精度化）
 - vocals 音域・性別推定・声域（ボーカルMIDI音域ベース・median MIDI で male/female 判定）
 - instrumentation 楽器構成（4 stem の音響特徴量で楽器カテゴリ推定）
+- （Phase2）名曲特徴量DB登録: analyze-song 結果を features.json として名曲DB（reference/名曲DB/）へ蓄積・_index.yaml で一覧管理
 
 ## いつ使うか
 - 自作曲の「名曲っぽさ」を数値で確認したい時
@@ -33,15 +34,29 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 ```
 ※ `scripts/analyze_song.py` は `from scripts import ...` で各モジュールを解決するため、cwd を `skills/analyze-song` にして実行すること。
 
+## 使い方（Phase 2・名曲DB登録）
+```bash
+cd /home/yn4416/projects/claude-config/skills/analyze-song && \
+/home/yn4416/projects/claude-config/.venv/bin/python -m scripts.register_song \
+  <曲ID(JPOP-001等)> <YouTube URL または MP3パス> \
+  --title <曲名> --artist <アーティスト> \
+  --genre {JPOP,ROCK,HIPHOP,WAFU,WORLD} \
+  --commercial-rank {million,oricon1,billboard_top10,long_seller} \
+  --era {1970s,1980s,1990s,2000s,2010s,2020s} --selection-reason <選定理由>
+```
+- features.json → SSOT（`reference/名曲DB/<曲ID>/`）・音源MP3/PNG/stems → ローカル（`~/Music/名曲DB_raw/<曲ID>/`）に**配置分離**（著作権安全・音源は公開側に置かない）
+- `_index.yaml` に冪等でエントリ追記（同曲ID再登録は上書き・重複なし）
+- 曲ID 命名: `<GENRE>-<3桁>`（JPOP-001/HIPHOP-010/WAFU-099）
+
 ## 出力（<出力ディレクトリ>/ 配下）
 - `features.json` — 全特徴量（機械用）
 - `score/full-1.png` `score/full.pdf` — 五線譜（人間用・MuseScore環境依存で省略の場合あり）
 - `report.md` — サマリ＋工程ログ（人間用）
 
-## Phase（本スキルは 1a のみ実装済み）
+## Phase（1a/1b/2 実装済み）
 - 1a: 音源取得＋分析エンジン（librosa/basic_pitch/music21・Demucs無し）✅
 - 1b: Demucs音源分離で精度UP（drums BPM・vocals/accompaniment別MIDI・phrase/音域改善）✅
-- 2: 名曲特徴量DB構築（後日・別spec）
+- 2: 名曲特徴量DB（features.json蓄積＋_index.yaml・登録パイプライン実装済・初期選曲は別途）✅
 - 3: 照合エンジン＋make-song連携（後日・別spec）
 
 ## 既知の制限（Phase 1b）
@@ -50,9 +65,12 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - **楽譜PNG**: libpipewire-0.3-0 導入で headless WSL2 のセグフォ解消（PNG/PDF生成可能）
 - **vocals 性別推定**: ピッチ中央値のヒューリスティック（median MIDI ≤A3=male/超=female）。falsetto 判定不可（MIDI単体・倍音構造必要）
 - **instrumentation**: 楽器カテゴリ推定のみ（具象名=エレキピアノ等は Phase2+）。stem名+音響特徴量ハイブリッド
+- **Phase2 名曲DB**: 登録パイプライン実装済・初期選曲(20-30曲)は未着手（`reference/名曲DB/_candidates.yaml` で管理予定）・Phase3照合エンジン未実装
 
 ## 前提知識（進行開始前に必ず読み込む）
 - venv: `/home/yn4416/projects/claude-config/.venv`（変更禁止）
 - MuseScore: `/home/yn4416/tools/MuseScore-Studio-4.7.3.AppImage`
 - spec: `obsidian-ssot/docs/superpowers/specs/2026-06-19-analyze-song-design.md`
 - plan: `obsidian-ssot/docs/superpowers/plans/2026-06-19-analyze-song-design.md`
+- Phase2 spec: `obsidian-ssot/docs/superpowers/specs/2026-06-21-analyze-song-phase2-famous-songs-db-design.md`
+- Phase2 plan: `obsidian-ssot/docs/superpowers/plans/2026-06-21-analyze-song-phase2-famous-songs-db.md`
