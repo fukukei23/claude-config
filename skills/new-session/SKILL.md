@@ -57,6 +57,7 @@ cat ~/projects/claude-code-guide/.update-queue.md 2>/dev/null | head -20
 - 背景の説明は最小限、「次のアクション」を明確に
 - 読むべきファイルパスを具体的に列挙
 - 現在の環境状態（シンボリックリンク、secrets等）を要約
+- **自動化機構（auto-sync/auto-push等）の記述は `00_SYSTEM/自動化.md` の記述を正典とし、憶測で修飾（「常駐」「常時」等）しないこと**。実態: claude-config の push は SessionStop hook 発火時のみ（常駐ではない）・obsidian-ssot は `*/30` cron。不明なら書かず「`00_SYSTEM/自動化.md` 参照」とすること
 
 フォーマット:
 ====== 新セッション用プロンプト（ここからコピー）======
