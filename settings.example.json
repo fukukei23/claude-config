@@ -396,7 +396,7 @@
     "code-simplifier@claude-plugins-official": true,
     "discord@claude-plugins-official": true,
     "feature-dev@claude-plugins-official": true,
-    "github@claude-plugins-official": true,
+    "github@claude-plugins-official": false,
     "playwright@claude-plugins-official": true,
     "pr-review-toolkit@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,

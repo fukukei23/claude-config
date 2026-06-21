@@ -137,6 +137,50 @@ def _analyze_structure(duration_sec: float) -> dict:
     }
 
 
+def _analyze_vocals(score) -> dict:
+    """ボーカルMIDIから音域・性別推定・声域を抽出する（Phase1b）。
+
+    性別推定: ピッチ中央値(median MIDI)で判定。A3(=57)以下=male、超=female。
+    声域(timbre): range_high に基づき male=bass/baritone/tenor、
+    female=alto/mezzo-soprano/soprano。
+    ※ falsetto 判定は倍音構造が必要でMIDI単体では不可（Phase2+課題）。
+    """
+    pitches = [n.pitch for n in score.recurse().notes if isinstance(n, note.Note)]
+    if not pitches:
+        return {
+            "range_low": "N/A",
+            "range_high": "N/A",
+            "gender_estimate": "unknown",
+            "timbre": "unknown",
+        }
+    low = min(pitches)
+    high = max(pitches)
+    midis = [p.midi for p in pitches]
+    median_midi = sorted(midis)[len(midis) // 2]
+    gender = "male" if median_midi <= 57 else "female"
+    high_midi = high.midi
+    if gender == "male":
+        if high_midi <= 55:
+            timbre = "bass"
+        elif high_midi <= 62:
+            timbre = "baritone"
+        else:
+            timbre = "tenor"
+    else:
+        if high_midi <= 69:
+            timbre = "alto"
+        elif high_midi <= 76:
+            timbre = "mezzo-soprano"
+        else:
+            timbre = "soprano"
+    return {
+        "range_low": low.nameWithOctave,
+        "range_high": high.nameWithOctave,
+        "gender_estimate": gender,
+        "timbre": timbre,
+    }
+
+
 def analyze_features(vocals_mid: str, accomp_mid: str, duration_sec: float) -> dict:
     """ボーカル/伴奏MIDI + 音源長から全特徴量を抽出する。
 
@@ -152,5 +196,6 @@ def analyze_features(vocals_mid: str, accomp_mid: str, duration_sec: float) -> d
         "key": _analyze_key(voc_score),
         "chords": _analyze_chords(acc_score, detected_key),
         "melody": _analyze_melody(voc_score),
+        "vocals": _analyze_vocals(voc_score),
         "structure": _analyze_structure(duration_sec),
     }
