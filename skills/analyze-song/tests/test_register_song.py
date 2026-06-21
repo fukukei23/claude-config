@@ -82,3 +82,39 @@ def test_register_one_end_to_end(tmp_path: Path, monkeypatch):
     assert any(s["id"] == "JPOP-001" for s in index["songs"])
     # 戻り値に features_path が含まれる
     assert entry["features_path"] == "JPOP-001/features.json"
+
+
+def test_register_one_never_leaks_media_to_ssot(tmp_path: Path, monkeypatch):
+    """register_one フルフロー後、SSOT 配下に mp3/png/wav が無いこと。"""
+    ssot_db = tmp_path / "ssot" / "名曲DB"
+    local_raw = tmp_path / "raw"
+    index_file = ssot_db / "_index.yaml"
+
+    def fake_pipeline(source, workdir, title="(unknown)"):
+        workdir = Path(workdir)
+        workdir.mkdir(parents=True, exist_ok=True)
+        (workdir / "features.json").write_text(
+            json.dumps({"meta": {"title": title}}), encoding="utf-8"
+        )
+        (workdir / "source.mp3").write_bytes(b"FAKE")
+        (workdir / "stems").mkdir()
+        (workdir / "stems" / "drums.wav").write_bytes(b"FAKE")
+        (workdir / "score").mkdir()
+        (workdir / "score" / "full.png").write_bytes(b"FAKE")
+
+    monkeypatch.setattr(register_song.analyze_song, "run_pipeline", fake_pipeline)
+    meta = {
+        "title": "x", "artist": "", "genre": "JPOP",
+        "commercial_rank": "million", "era": "1990s",
+        "selection_reason": "", "source_type": "youtube",
+        "source_url": "", "analyzed_at": "2026-06-21", "analyze_phase": "1b",
+    }
+    register_song.register_one(
+        "JPOP-001", "https://youtu.be/x", meta,
+        ssot_db=ssot_db, local_raw=local_raw, index_file=index_file,
+    )
+
+    media_exts = (".mp3", ".wav", ".png")
+    leaked = [str(p) for p in ssot_db.rglob("*")
+              if p.is_file() and p.suffix.lower() in media_exts]
+    assert not leaked, f"著作物が SSOT に漏洩: {leaked}"
