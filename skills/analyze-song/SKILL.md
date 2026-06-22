@@ -48,6 +48,7 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - features.json → SSOT（`reference/名曲DB/<曲ID>/`）・音源MP3/PNG/stems → ローカル（`~/Music/名曲DB_raw/<曲ID>/`）に**配置分離**（著作権安全・音源は公開側に置かない）
 - `_index.yaml` に冪等でエントリ追記（同曲ID再登録は上書き・重複なし）
 - 曲ID 命名: `<GENRE>-<3桁>`（JPOP-001/HIPHOP-010/WAFU-099）
+- `_candidates.yaml` が ssot_db に存在する場合、登録曲の status を自動で pending→registered に更新（ruamel.yaml でコメント保持）
 
 ## 使い方（Phase 3・照合エンジン）
 ```bash
