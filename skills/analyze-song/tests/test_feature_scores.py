@@ -9,7 +9,7 @@ def _vec(bpm=120.0, key_pc=0, scale="major", prog=None,
     return {
         "bpm": bpm, "bpm_confidence": 0.9,
         "key_pc": key_pc, "scale": scale, "key_confidence": 0.8,
-        "progression": prog or ["i", "iv", "v"],
+        "progression": ["i", "iv", "v"] if prog is None else prog,
         "range_low_midi": low, "range_high_midi": high,
         "range_valid": range_valid,
     }
@@ -75,3 +75,30 @@ def test_score_key_missing_returns_none():
     d = _vec(key_pc=0)
     d["key_pc"] = None
     assert fs.score_key(q, d) is None
+
+
+def test_score_chord_identical():
+    prog = ["i", "iv", "v", "i"]
+    assert fs.score_chord(_vec(prog=prog), _vec(prog=prog)) == 1.0
+
+
+def test_score_chord_disjoint():
+    a = ["i", "iv", "v"]
+    b = ["bII", "bV", "bVI"]
+    assert fs.score_chord(_vec(prog=a), _vec(prog=b)) == 0.0
+
+
+def test_score_chord_three_gram_heavier():
+    # 2-gram一致・3-gram不一致 vs 逆で、3-gram一致を高く評価
+    q = ["i", "iv", "v", "vi"]
+    d_match3 = ["i", "iv", "v", "iii"]   # 3-gram(i,iv,v)共有
+    d_match2 = ["iv", "v", "i", "vi"]    # 2-gram多数共有・3-gram不共有
+    s3 = fs.score_chord(_vec(prog=q), _vec(prog=d_match3))
+    s2 = fs.score_chord(_vec(prog=q), _vec(prog=d_match2))
+    assert s3 > s2
+
+
+def test_score_chord_empty_returns_none():
+    q = _vec(prog=["i", "iv"])
+    d = _vec(prog=[])
+    assert fs.score_chord(q, d) is None

@@ -61,3 +61,34 @@ def score_key(q: dict, db: dict, relative: bool = True) -> float | None:
     if relative and chroma == 3:
         return 1.0  # 相対調: 完全一致扱い
     return s_pc * 0.5
+
+
+def _ngrams(seq: list, n: int) -> set:
+    """シーケンスから n-gram の集合を生成する。"""
+    return {tuple(seq[i:i + n]) for i in range(len(seq) - n + 1)}
+
+
+def _jaccard(a: set, b: set) -> float:
+    """Jaccard 係数 |A∩B| / |A∪B|。両方空なら 0.0。"""
+    union = a | b
+    if not union:
+        return 0.0
+    return len(a & b) / len(union)
+
+
+def score_chord(q: dict, db: dict) -> float | None:
+    """コード進行軸スコア（2-gram/3-gram Jaccard の加重平均）。
+
+    Args:
+        q: query の正規化ベクトル。
+        db: DB曲の正規化ベクトル。
+
+    Returns:
+        [0,1] スコア。いずれかの progression が空の場合は None（軸無効化）。
+    """
+    pq, pd = q.get("progression") or [], db.get("progression") or []
+    if not pq or not pd:
+        return None
+    j2 = _jaccard(_ngrams(pq, 2), _ngrams(pd, 2))
+    j3 = _jaccard(_ngrams(pq, 3), _ngrams(pd, 3))
+    return 0.4 * j2 + 0.6 * j3
