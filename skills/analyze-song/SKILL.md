@@ -64,7 +64,7 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - `score/full-1.png` `score/full.pdf` — 五線譜（人間用・MuseScore環境依存で省略の場合あり）
 - `report.md` — サマリ＋工程ログ（人間用）
 
-## Phase（1a/1b/2 実装済み）
+## Phase（1a/1b/2/3 実装済み）
 - 1a: 音源取得＋分析エンジン（librosa/basic_pitch/music21・Demucs無し）✅
 - 1b: Demucs音源分離で精度UP（drums BPM・vocals/accompaniment別MIDI・phrase/音域改善）✅
 - 2: 名曲特徴量DB（features.json蓄積＋_index.yaml・登録パイプライン・30曲登録済）✅
@@ -85,3 +85,5 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - plan: `obsidian-ssot/docs/superpowers/plans/2026-06-19-analyze-song-design.md`
 - Phase2 spec: `obsidian-ssot/docs/superpowers/specs/2026-06-21-analyze-song-phase2-famous-songs-db-design.md`
 - Phase2 plan: `obsidian-ssot/docs/superpowers/plans/2026-06-21-analyze-song-phase2-famous-songs-db.md`
+- Phase3 spec: `obsidian-ssot/docs/superpowers/specs/2026-06-22-analyze-song-phase3-matching-engine-design.md`
+- Phase3 plan: `obsidian-ssot/docs/superpowers/plans/2026-06-22-analyze-song-phase3-matching-engine.md`
