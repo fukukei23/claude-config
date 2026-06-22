@@ -21,3 +21,20 @@ def load_weights(path: Path) -> dict:
     if abs(total - 1.0) > 1e-9:
         raise ValueError(f"重み合計が1.0でない: {total}")
     return data
+
+
+def weighted_total(scores: dict, weights: dict) -> float | None:
+    """各軸スコアを固定重みで加重平均する（無効軸は比例再配分）。
+
+    Args:
+        scores: 軸名→スコア(float) または None の辞書。
+        weights: 軸名→重み の辞書。
+
+    Returns:
+        [0,1] 総合類似度。有効軸が0個なら None。
+    """
+    valid = {a: s for a, s in scores.items() if s is not None}
+    total_w = sum(weights[a] for a in valid)
+    if total_w == 0:
+        return None
+    return sum(weights[a] * s for a, s in valid.items()) / total_w
