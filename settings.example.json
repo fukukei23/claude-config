@@ -409,7 +409,7 @@
   "language": "japanese",
   "effortLevel": "medium",
   "skipDangerousModePermissionPrompt": true,
-  "theme": "dark",
+  "theme": "light-daltonized",
   "editorMode": "normal",
   "mcpServers": {
     "brave-search": {

@@ -38,6 +38,11 @@ DANGEROUS_PATTERNS=(
   'wget\s+.*\|\s*(ba)?sh'
   'docker\s+system\s+prune\s+(-a|--all)'
   'docker\s+rm\s+-f\s+'
+  # --- Tier-1: インフラ破壊・スキーマ破壊（誤爆最小・明確に破壊的）---
+  'terraform\s+destroy'
+  'kubectl\s+delete\s+namespace'
+  'helm\s+uninstall'
+  'ALTER\s+TABLE\s+\w+\s+.*(DROP|RENAME)\s+COLUMN'
 )
 
 for pattern in "${DANGEROUS_PATTERNS[@]}"; do
