@@ -52,3 +52,42 @@ def test_weighted_total_all_none_returns_none():
     weights = {"bpm": 0.35, "key": 0.25}
     scores = {"bpm": None, "key": None}
     assert aggregate.weighted_total(scores, weights) is None
+
+
+def test_rank_sorts_descending_and_truncates():
+    results = [("A", 0.5), ("B", 0.9), ("C", 0.7), ("D", None)]
+    top = aggregate.rank(results, k=2)
+    assert top == [("B", 0.9), ("C", 0.7)]
+
+
+def test_rank_shrinks_k_when_fewer_valid():
+    results = [("A", 0.5), ("B", None)]
+    top = aggregate.rank(results, k=5)
+    assert top == [("A", 0.5)]
+
+
+def test_rank_all_none_returns_empty():
+    results = [("A", None), ("B", None)]
+    assert aggregate.rank(results, k=5) == []
+
+
+def test_centroid_high_confidence_only():
+    top = [("A", 0.9), ("B", 0.8)]
+    norm = {
+        "A": {"bpm": 86.0, "key_pc": 7},
+        "B": {"bpm": 92.0, "key_pc": 7},
+    }
+    c = aggregate.centroid(top, norm)
+    assert abs(c["avg_bpm"] - 89.0) < 1e-9
+    assert c["mode_key_pc"] == 7
+
+
+def test_centroid_skips_missing_bpm():
+    top = [("A", 0.9), ("B", 0.8)]
+    norm = {
+        "A": {"bpm": 86.0, "key_pc": 0},
+        "B": {"bpm": None, "key_pc": 0},
+    }
+    c = aggregate.centroid(top, norm)
+    assert c["avg_bpm"] == 86.0
+    assert c["mode_key_pc"] == 0
