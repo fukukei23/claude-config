@@ -39,6 +39,7 @@ def register_one(
     ssot_db: Path,
     local_raw: Path,
     index_file: Path,
+    candidates_file: Path | None = None,
 ) -> dict:
     """1曲を解析し DB へ登録する（run_pipeline → 配置分離 → _index 更新）。
 

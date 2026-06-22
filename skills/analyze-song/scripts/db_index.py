@@ -1,8 +1,10 @@
 """名曲DB の _index.yaml 読み書きを担う。"""
 import re
+from datetime import date
 from pathlib import Path
 
 import yaml
+from ruamel.yaml import YAML
 
 SCHEMA_VERSION = 1
 
@@ -78,3 +80,34 @@ def add_entry(index: dict, song_id: str, meta: dict) -> None:
             songs[i] = entry
             return
     songs.append(entry)
+
+
+def update_candidate_status(
+    path: Path, song_id: str, status: str = "registered"
+) -> bool:
+    """_candidates.yaml の該当曲の status を更新する（コメント保持・ラウンドトリップ）。
+
+    PyYAML ではなく ruamel.yaml で往復し、冒頭コメント・行内コメントを保持する。
+
+    Args:
+        path: _candidates.yaml のパス。
+        song_id: 曲ID。
+        status: 新しい status（デフォルト "registered"）。
+
+    Returns:
+        該当曲が見つかり更新されたら True、見つからなければ False（ファイル不変）。
+    """
+    ryaml = YAML()
+    ryaml.preserve_quotes = True
+    with open(path, encoding="utf-8") as f:
+        data = ryaml.load(f)
+    found = False
+    for c in data.get("candidates", []):
+        if c.get("id") == song_id:
+            c["status"] = status
+            found = True
+    if found:
+        data["updated"] = date.today().isoformat()
+        with open(path, "w", encoding="utf-8") as f:
+            ryaml.dump(data, f)
+    return found

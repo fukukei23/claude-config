@@ -77,3 +77,67 @@ def test_add_entry_rejects_invalid_id(tmp_path: Path):
             "analyzed_at": "2026-06-21", "analyze_phase": "1b", "artist": ""}
     with pytest.raises(ValueError):
         db_index.add_entry(index, "JPOP-1", meta)  # 桁不足
+
+
+def _write_candidates(path: Path, body: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_update_candidate_status_sets_registered(tmp_path: Path):
+    """該当曲の status を pending→registered にし、他曲は変更しない。"""
+    f = _write_candidates(
+        tmp_path / "_candidates.yaml",
+        "version: 1\n"
+        "updated: 2026-06-21\n"
+        "candidates:\n"
+        "  - id: JPOP-001\n"
+        "    title: Lemon\n"
+        "    status: pending\n"
+        "  - id: JPOP-002\n"
+        "    title: ドライフラワー\n"
+        "    status: pending\n",
+    )
+    found = db_index.update_candidate_status(f, "JPOP-001")
+    assert found is True
+    data = db_index.load_index(f)
+    statuses = {c["id"]: c["status"] for c in data["candidates"]}
+    assert statuses["JPOP-001"] == "registered"
+    assert statuses["JPOP-002"] == "pending"
+
+
+def test_update_candidate_status_preserves_comments(tmp_path: Path):
+    """冒頭コメント・行内コメントを保持したまま status を更新する。"""
+    f = _write_candidates(
+        tmp_path / "_candidates.yaml",
+        "version: 1\n"
+        "updated: 2026-06-21\n"
+        "# 選定基準: 商業指標\n"
+        "candidates:\n"
+        "  # JPOP枠\n"
+        "  - id: JPOP-001\n"
+        "    status: pending\n",
+    )
+    db_index.update_candidate_status(f, "JPOP-001")
+    content = f.read_text(encoding="utf-8")
+    assert "# 選定基準" in content
+    assert "# JPOP枠" in content
+    assert "registered" in content
+
+
+def test_update_candidate_status_unknown_id_returns_false(tmp_path: Path):
+    """候補に無い id は False を返し、ファイル(updated含)を変更しない。"""
+    f = _write_candidates(
+        tmp_path / "_candidates.yaml",
+        "version: 1\n"
+        "updated: 2026-06-21\n"
+        "candidates:\n"
+        "  - id: JPOP-001\n"
+        "    status: pending\n",
+    )
+    found = db_index.update_candidate_status(f, "UNKNOWN-999")
+    assert found is False
+    data = db_index.load_index(f)
+    assert str(data["updated"]) == "2026-06-21"
+    assert data["candidates"][0]["status"] == "pending"
