@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, re, sys
+import argparse, os, re, sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -51,7 +51,37 @@ def file_date(path):
 
 
 def existing_links(text):
-    return set(re.findall(r"\[\[([^\]]+)\]\]", text))
+    """本文中の既存リンクから「リンク先のstem」のsetを返す（[[stem]]/[[path]]/[text](path) 全形式対応）"""
+    links = set()
+    for m in re.findall(r"\[\[([^\]]+)\]\]", text):
+        links.add(Path(m.replace(".md", "")).stem)
+    for m in re.findall(r"\[[^\]]+\]\(([^)]+)\)", text):
+        links.add(Path(m.replace(".md", "")).stem)
+    return links
+
+
+def read_policy(ssot_dir):
+    """00_SYSTEM/リンク運用方針.md の frontmatter を読む（[[ ]] 許可層判定用）"""
+    p = ssot_dir / "00_SYSTEM" / "リンク運用方針.md"
+    if not p.exists():
+        return {}
+    return parse_frontmatter(p.read_text(encoding="utf-8"))
+
+
+def link_format(target_path, src_path, ssot_dir, policy):
+    """方針に従い [[stem]]（許可層）か [stem](相対path)（禁止層）かを出し分け"""
+    try:
+        rel = target_path.relative_to(ssot_dir)
+    except ValueError:
+        rel = None
+    top = rel.parts[0] if rel and rel.parts else None
+    allowed = policy.get("allowed_dirs", [])
+    excluded = policy.get("excluded_subdirs", [])
+    in_excluded = any(str(rel).startswith(e) for e in excluded) if rel else False
+    if top in allowed and not in_excluded:
+        return f"[[{target_path.stem}]]"
+    rel_link = os.path.relpath(target_path, src_path.parent)
+    return f"[{target_path.stem}]({rel_link})"
 
 
 def score_pair(a, b):
@@ -71,9 +101,9 @@ def score_pair(a, b):
     return s
 
 
-def add_link(path, target):
+def add_link(path, target_path, ssot_dir, policy):
     text = path.read_text(encoding="utf-8")
-    link = f"[[{target}]]"
+    link = link_format(target_path, path, ssot_dir, policy)
     if link in text:
         return False
     if "## 関連" in text:
