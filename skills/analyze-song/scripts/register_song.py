@@ -41,7 +41,7 @@ def register_one(
     index_file: Path,
     candidates_file: Path | None = None,
 ) -> dict:
-    """1曲を解析し DB へ登録する（run_pipeline → 配置分離 → _index 更新）。
+    """1曲を解析し DB へ登録する（run_pipeline → 配置分離 → _index 更新・候補status更新）。
 
     Args:
         song_id: 曲ID（<GENRE>-<3桁>）。
@@ -51,6 +51,8 @@ def register_one(
         ssot_db: SSOT の DB ルート。
         local_raw: ローカル raw ルート（音源/PNG/stems を置く）。
         index_file: _index.yaml のパス。
+        candidates_file: _candidates.yaml のパス（省略可・指定時は該当曲の
+            status を pending→registered に更新・コメント保持）。
 
     Returns:
         _index.yaml に追記されたエントリ辞書。
@@ -75,6 +77,9 @@ def register_one(
     db_index.add_entry(index, song_id, meta)
     index["updated"] = date.today().isoformat()
     db_index.save_index(index_file, index)
+
+    if candidates_file is not None:
+        db_index.update_candidate_status(candidates_file, song_id)
 
     return {"id": song_id, "status": "registered", **meta}
 
@@ -115,10 +120,12 @@ def main() -> None:
         "analyzed_at": date.today().isoformat(),
         "analyze_phase": "1b",
     }
+    candidates_path = Path(args.ssot_db) / "_candidates.yaml"
     entry = register_one(
         args.song_id, args.source, meta,
         ssot_db=Path(args.ssot_db), local_raw=Path(args.local_raw),
         index_file=Path(args.ssot_db) / "_index.yaml",
+        candidates_file=candidates_path if candidates_path.exists() else None,
     )
     print(f"registered: {entry['id']} -> {entry['features_path']}")
 
