@@ -102,3 +102,31 @@ def test_score_chord_empty_returns_none():
     q = _vec(prog=["i", "iv"])
     d = _vec(prog=[])
     assert fs.score_chord(q, d) is None
+
+
+def test_score_range_identical():
+    assert fs.score_range(_vec(low=48, high=84), _vec(low=48, high=84)) == 1.0
+
+
+def test_score_range_disjoint():
+    # [48,60] と [72,84] は離接 → 0.0
+    assert fs.score_range(_vec(low=48, high=60), _vec(low=72, high=84)) == 0.0
+
+
+def test_score_range_partial():
+    # [48,72] と [60,84]: overlap=12, union=36 → 0.333
+    s = fs.score_range(_vec(low=48, high=72), _vec(low=60, high=84))
+    assert abs(s - (12 / 36)) < 1e-9
+
+
+def test_score_range_invalid_returns_none():
+    q = _vec(range_valid=False)
+    d = _vec(range_valid=True)
+    assert fs.score_range(q, d) is None
+
+
+def test_score_range_missing_returns_none():
+    q = _vec(low=48, high=84)
+    d = _vec(low=48, high=84)
+    d["range_low_midi"] = None
+    assert fs.score_range(q, d) is None

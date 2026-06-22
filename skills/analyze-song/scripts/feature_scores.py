@@ -92,3 +92,28 @@ def score_chord(q: dict, db: dict) -> float | None:
     j2 = _jaccard(_ngrams(pq, 2), _ngrams(pd, 2))
     j3 = _jaccard(_ngrams(pq, 3), _ngrams(pd, 3))
     return 0.4 * j2 + 0.6 * j3
+
+
+def score_range(q: dict, db: dict) -> float | None:
+    """音域軸スコア（IoU = overlap / union）。
+
+    いずれかが range_valid=False（補正後も非現実的）または MIDI 値欠損時は None（軸無効化）。
+
+    Args:
+        q: query の正規化ベクトル。
+        db: DB曲の正規化ベクトル。
+
+    Returns:
+        [0,1] スコア。無効なら None。
+    """
+    if not q.get("range_valid") or not db.get("range_valid"):
+        return None
+    ql, qh = q.get("range_low_midi"), q.get("range_high_midi")
+    dl, dh = db.get("range_low_midi"), db.get("range_high_midi")
+    if None in (ql, qh, dl, dh):
+        return None
+    overlap = max(0, min(qh, dh) - max(ql, dl))
+    union = (qh - ql) + (dh - dl) - overlap
+    if union <= 0:
+        return None
+    return overlap / union
