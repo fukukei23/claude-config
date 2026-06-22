@@ -145,6 +145,7 @@ def main():
 
     ssot_dir = Path(args.ssot_dir)
     print(f"SSOT: {ssot_dir}")
+    policy = read_policy(ssot_dir)
     files = load_files(ssot_dir)
     print(f"対象ファイル数: {len(files)}")
 
@@ -174,27 +175,29 @@ def main():
             break
         a, b = files[i], files[j]
         as_, bs_ = a["path"].stem, b["path"].stem
+        la = link_format(b["path"], a["path"], ssot_dir, policy)
+        lb = link_format(a["path"], b["path"], ssot_dir, policy)
 
         if added_per[i] < MAX_LINKS_PER_FILE and bs_ not in a["links"]:
             if args.dry_run:
-                print(f"  [DRY] {a['path'].name} -> [[{bs_}]] ({score}pt)")
-            elif add_link(a["path"], bs_):
+                print(f"  [DRY] {a['path'].name} -> {la} ({score}pt)")
+            elif add_link(a["path"], b["path"], ssot_dir, policy):
                 a["links"].add(bs_)
                 added_per[i] += 1
                 total += 1
-                results.append(f"  {a['path'].relative_to(ssot_dir)} -> [[{bs_}]] ({score}pt)")
+                results.append(f"  {a['path'].relative_to(ssot_dir)} -> {la} ({score}pt)")
 
         if total >= MAX_LINKS_TOTAL:
             break
 
         if added_per[j] < MAX_LINKS_PER_FILE and as_ not in b["links"]:
             if args.dry_run:
-                print(f"  [DRY] {b['path'].name} -> [[{as_}]] ({score}pt)")
-            elif add_link(b["path"], as_):
+                print(f"  [DRY] {b['path'].name} -> {lb} ({score}pt)")
+            elif add_link(b["path"], a["path"], ssot_dir, policy):
                 b["links"].add(as_)
                 added_per[j] += 1
                 total += 1
-                results.append(f"  {b['path'].relative_to(ssot_dir)} -> [[{as_}]] ({score}pt)")
+                results.append(f"  {b['path'].relative_to(ssot_dir)} -> {lb} ({score}pt)")
 
     for r in results:
         print(r)
