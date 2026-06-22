@@ -37,3 +37,41 @@ def test_score_bpm_missing_returns_none():
     d = _vec(bpm=120.0)
     d["bpm"] = None
     assert fs.score_bpm(q, d) is None
+
+
+def test_score_key_perfect():
+    assert fs.score_key(_vec(key_pc=0, scale="major"),
+                        _vec(key_pc=0, scale="major")) == 1.0
+
+
+def test_score_key_perfect_fifth():
+    # C vs G は五度圏で1歩 → 1 - 1/6 ≈ 0.833
+    s = fs.score_key(_vec(key_pc=0), _vec(key_pc=7))
+    assert abs(s - (1 - 1/6)) < 1e-9
+
+
+def test_score_key_tritone_zero():
+    # C vs F# は三全音(6歩) → 0.0
+    s = fs.score_key(_vec(key_pc=0), _vec(key_pc=6))
+    assert s == 0.0
+
+
+def test_score_key_scale_mismatch():
+    # Cmaj vs Cmin: pc 同じ(1.0) × scale不一致ペナルティ0.5
+    s = fs.score_key(_vec(key_pc=0, scale="major"),
+                     _vec(key_pc=0, scale="minor"))
+    assert abs(s - 0.5) < 1e-9
+
+
+def test_score_key_relative_no_penalty():
+    # Cmaj vs Amin: 相対調(min3rd=3半音) → 完全一致扱い 1.0
+    s = fs.score_key(_vec(key_pc=0, scale="major"),
+                     _vec(key_pc=9, scale="minor"))
+    assert abs(s - 1.0) < 1e-9
+
+
+def test_score_key_missing_returns_none():
+    q = _vec(key_pc=0)
+    d = _vec(key_pc=0)
+    d["key_pc"] = None
+    assert fs.score_key(q, d) is None
