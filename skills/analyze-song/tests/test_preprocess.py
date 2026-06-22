@@ -21,6 +21,19 @@ def test_note_to_midi():
     assert preprocess.note_to_midi("hoge") is None
 
 
+def test_note_name_to_pc_flat_dash():
+    # music21 フラット表記 "-" を受理
+    assert preprocess.note_name_to_pc("B-") == 10  # Bb = A# pc
+    assert preprocess.note_name_to_pc("E-") == 3   # Eb = D# pc
+    assert preprocess.note_name_to_pc("A-") == 8   # Ab = G# pc
+
+
+def test_note_to_midi_flat_dash():
+    assert preprocess.note_to_midi("B-0") == 22  # Bb0
+    assert preprocess.note_to_midi("E-7") == 99  # Eb7
+    assert preprocess.note_to_midi("A-3") == 56  # Ab3 = (3+1)*12+8 = 56
+
+
 def _features(bpm=120.0, key="C", scale="major", prog=None,
               range_low="E3", range_high="C7"):
     return {

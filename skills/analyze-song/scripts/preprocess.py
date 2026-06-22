@@ -12,11 +12,13 @@ _RANGE_LOW_FLOOR_MIDI = 36
 # 補正後も非現実的と見なす閾値（4オクターブ=48半音）
 _RANGE_VALID_MAX_SEMITONES = 48
 
-_MIDI_RE = re.compile(r"^([A-G][#b]?)(-?\d+)$")
+_MIDI_RE = re.compile(r"^([A-G][#b]?)(\d+)$")
 
 
 def note_name_to_pc(name: str) -> int | None:
-    """音名（"C"/"F#"/"Bb" 等）をピッチクラス(0-11)に変換する。
+    """音名（"C"/"F#"/"Bb"/"B-" 等）をピッチクラス(0-11)に変換する。
+
+    music21 はフラットを "-" で出力する（例: "B-" = Bb）ため、"b" に正規化して受理する。
 
     Args:
         name: 音名。
@@ -26,14 +28,18 @@ def note_name_to_pc(name: str) -> int | None:
     """
     if not name:
         return None
-    upper = name.strip().upper()
+    # music21 フラット表記 "-" を "b" に正規化（例: "B-" → "Bb"）
+    normalized = name.strip().replace("-", "b")
+    upper = normalized.upper()
     if upper in _FLAT_TO_SHARP:
         upper = _FLAT_TO_SHARP[upper]
     return _SHARP_PC.get(upper)
 
 
 def note_to_midi(name: str) -> int | None:
-    """音名+オクターブ（"C4"/"E3" 等）を MIDI 番号に変換する。
+    """音名+オクターブ（"C4"/"E3"/"E-7" 等）を MIDI 番号に変換する。
+
+    music21 のフラット表記（例: "E-7" = Eb7）を正規化して受理する。
 
     Args:
         name: 音名+オクターブ。
@@ -43,7 +49,9 @@ def note_to_midi(name: str) -> int | None:
     """
     if not name:
         return None
-    m = _MIDI_RE.match(name.strip())
+    # music21 フラット表記 "-" を "b" に正規化してから regex マッチ
+    normalized = name.strip().replace("-", "b")
+    m = _MIDI_RE.match(normalized)
     if not m:
         return None
     pc = note_name_to_pc(m.group(1))
@@ -79,7 +87,7 @@ def preprocess(features: dict) -> dict | None:
     if low is not None and low < _RANGE_LOW_FLOOR_MIDI:
         low = _RANGE_LOW_FLOOR_MIDI
     range_valid = False
-    if low is not None and high is not None:
+    if low is not None and high is not None and high >= low:
         range_valid = (high - low) <= _RANGE_VALID_MAX_SEMITONES
 
     return {

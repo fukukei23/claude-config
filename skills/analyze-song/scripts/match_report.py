@@ -1,5 +1,4 @@
 """照合結果からスコア + 改善ヒント（make-song 連携フォーマット）を生成する。"""
-from typing import Any
 
 
 def build_report(ctx: dict) -> dict:
@@ -11,7 +10,6 @@ def build_report(ctx: dict) -> dict:
     Returns:
         score（top/centroid）と hints（改善ヒント文字列リスト）を持つ辞書。
     """
-    query = ctx["query"]
     top = ctx["top"]
     centroid = ctx["centroid"]
     scores_detail = ctx["scores_detail"]
