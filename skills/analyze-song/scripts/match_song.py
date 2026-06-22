@@ -1,4 +1,5 @@
 """名曲照合エンジンのエントリポイント（DB読込→各層→Report出力を統括）。"""
+import argparse
 import json
 from pathlib import Path
 
@@ -94,3 +95,18 @@ def main(query_path: str, db_dir: str, out_path: str | None = None) -> Path:
     out.write_text(md, encoding="utf-8")
     print(f"保存完了: {out}")
     return out
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="名曲照合エンジン: query features.json を名曲DBと照合し report.md を出力",
+    )
+    parser.add_argument("query_path", help="query 曲の features.json パス")
+    parser.add_argument(
+        "db_dir", help="名曲DB ディレクトリのパス（<ID>/features.json を格納）"
+    )
+    parser.add_argument(
+        "-o", "--out", default=None, help="出力 report.md パス（省略時は query と同階層）"
+    )
+    args = parser.parse_args()
+    main(args.query_path, args.db_dir, args.out)

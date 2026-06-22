@@ -15,6 +15,7 @@ description: 楽曲（YouTube/MP3）を音源から定量分析し、BPM/キー/
 - vocals 音域・性別推定・声域（ボーカルMIDI音域ベース・median MIDI で male/female 判定）
 - instrumentation 楽器構成（4 stem の音響特徴量で楽器カテゴリ推定）
 - （Phase2）名曲特徴量DB登録: analyze-song 結果を features.json として名曲DB（reference/名曲DB/）へ蓄積・_index.yaml で一覧管理
+- （Phase3）照合エンジン: query曲の features.json を名曲DBと照合し、類似名曲ランキング＋重心（代表型）＋改善ヒントを report.md で出力（`python -m scripts.match_song`）
 
 ## いつ使うか
 - 自作曲の「名曲っぽさ」を数値で確認したい時
@@ -48,6 +49,16 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - `_index.yaml` に冪等でエントリ追記（同曲ID再登録は上書き・重複なし）
 - 曲ID 命名: `<GENRE>-<3桁>`（JPOP-001/HIPHOP-010/WAFU-099）
 
+## 使い方（Phase 3・照合エンジン）
+```bash
+cd /home/yn4416/projects/claude-config/skills/analyze-song && \
+/home/yn4416/projects/claude-config/.venv/bin/python -m scripts.match_song \
+  <query features.json パス> <名曲DBディレクトリ> [-o <出力 report.md>]
+```
+- query 曲（自作曲等）の features.json を名曲DB（`reference/名曲DB/`）の全曲と照合し、類似度トップk + 重心（代表型）+ 改善ヒントを report.md で出力
+- 出力先省略時は query と同階層に `match_report.md`
+- スコアリング4軸: BPM・key・chord・range（重みは `scripts/weights.yaml`）。phrase_repetition はDB観察で100%Falseのため除外軸
+
 ## 出力（<出力ディレクトリ>/ 配下）
 - `features.json` — 全特徴量（機械用）
 - `score/full-1.png` `score/full.pdf` — 五線譜（人間用・MuseScore環境依存で省略の場合あり）
@@ -56,8 +67,8 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 ## Phase（1a/1b/2 実装済み）
 - 1a: 音源取得＋分析エンジン（librosa/basic_pitch/music21・Demucs無し）✅
 - 1b: Demucs音源分離で精度UP（drums BPM・vocals/accompaniment別MIDI・phrase/音域改善）✅
-- 2: 名曲特徴量DB（features.json蓄積＋_index.yaml・登録パイプライン実装済・初期選曲は別途）✅
-- 3: 照合エンジン＋make-song連携（後日・別spec）
+- 2: 名曲特徴量DB（features.json蓄積＋_index.yaml・登録パイプライン・30曲登録済）✅
+- 3: 照合エンジン実装済✅（4軸重み付けスコアリング・ランキング・重心・改善ヒント）・make-song連携は別タスク
 
 ## 既知の制限（Phase 1b）
 - **BPM**: drums stem推定で実曲精度UP（Stayin' Alive 104→103.36）。AI生成ドラムonset特殊音源は外れ値あり（yoen-v3_1: 85指定→112推定）
@@ -65,7 +76,7 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - **楽譜PNG**: libpipewire-0.3-0 導入で headless WSL2 のセグフォ解消（PNG/PDF生成可能）
 - **vocals 性別推定**: ピッチ中央値のヒューリスティック（median MIDI ≤A3=male/超=female）。falsetto 判定不可（MIDI単体・倍音構造必要）
 - **instrumentation**: 楽器カテゴリ推定のみ（具象名=エレキピアノ等は Phase2+）。stem名+音響特徴量ハイブリッド
-- **Phase2 名曲DB**: 登録パイプライン実装済・初期選曲(20-30曲)は未着手（`reference/名曲DB/_candidates.yaml` で管理予定）・Phase3照合エンジン未実装
+- **Phase2 名曲DB**: 30曲登録済（JPOP/ROCK/HIPHOP/WAFU/WORLD・`reference/名曲DB/`）。phrase_repetition はDB観察で100%FalseのためPhase3除外軸・range は低域誤検出あり
 
 ## 前提知識（進行開始前に必ず読み込む）
 - venv: `/home/yn4416/projects/claude-config/.venv`（変更禁止）
