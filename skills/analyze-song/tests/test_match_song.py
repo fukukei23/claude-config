@@ -59,3 +59,57 @@ def test_match_query_missing_required_raises(tmp_path, db_dir):
     query.write_text(json.dumps(qf), encoding="utf-8")
     with pytest.raises(ValueError):
         match_song.match(query, db_dir)
+
+
+def test_main_writes_make_song_input_json(tmp_path, monkeypatch):
+    """main 実行で make_song_input.json が report.md と同階層に書き出される。"""
+    import json
+    from scripts import match_song, db_index
+
+    db_dir = tmp_path / "名曲DB"
+    song_dir = db_dir / "JPOP-004"
+    song_dir.mkdir(parents=True)
+    (song_dir / "features.json").write_text(
+        json.dumps({
+            "meta": {"title": "ドライフラワー"},
+            "tempo": {"bpm": 95.0},
+            "key": {"key": "F", "scale": "major"},
+            "chords": {"progression": ["F", "G", "Am"], "unique_progressions": 1},
+            "melody": {"range_low": "F3", "range_high": "A4",
+                       "range_semitones": 14, "phrase_repetition": {"detected": False, "pairs": []}},
+            "vocals": {"range_low": "F3", "range_high": "A4",
+                       "gender_estimate": "female", "timbre": "pop"},
+        }, ensure_ascii=False), encoding="utf-8")
+    db_index.save_index(db_dir / "_index.yaml", {
+        "version": 1, "updated": "2026-06-23",
+        "songs": [{"id": "JPOP-004", "status": "registered", "title": "ドライフラワー",
+                   "artist": "優里", "genre": "JPOP", "commercial_rank": "long_seller",
+                   "era": "2020s", "selection_reason": "test", "source_type": "youtube",
+                   "source_url": "", "features_path": "JPOP-004/features.json",
+                   "analyzed_at": "2026-06-23", "analyze_phase": "1b"}],
+    })
+    query_dir = tmp_path / "query"
+    query_dir.mkdir()
+    query_feat = {
+        "meta": {"title": "MySong"},
+        "tempo": {"bpm": 90.0},
+        "key": {"key": "C", "scale": "major"},
+        "chords": {"progression": ["C", "G", "Am"], "unique_progressions": 1},
+        "melody": {"range_low": "C3", "range_high": "E4",
+                   "range_semitones": 16, "phrase_repetition": {"detected": False, "pairs": []}},
+        "vocals": {"range_low": "C3", "range_high": "E4",
+                   "gender_estimate": "male", "timbre": "pop"},
+    }
+    query_path = query_dir / "features.json"
+    query_path.write_text(json.dumps(query_feat, ensure_ascii=False), encoding="utf-8")
+
+    match_song.main(str(query_path), str(db_dir))
+
+    msi_path = query_dir / "make_song_input.json"
+    assert msi_path.exists(), "make_song_input.json が書き出されていない"
+    msi = json.loads(msi_path.read_text(encoding="utf-8"))
+    assert msi["schema_version"] == 1
+    assert msi["query"]["title"] == "MySong"
+    assert msi["query"]["gender_estimate"] == "male"
+    assert any(r["id"] == "JPOP-004" for r in msi["reference_songs"])
+    assert msi["recommended"]["bpm"] == 95

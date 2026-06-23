@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 
-from scripts import aggregate, feature_scores as fs, match_report, preprocess
+from scripts import aggregate, db_index, feature_scores as fs, match_report, preprocess
 
 _DEFAULT_WEIGHTS = Path(__file__).parent / "weights.yaml"
 _REQUIRED_AXES = ("bpm", "key", "chord", "range")
@@ -35,7 +35,8 @@ def match(query_path: Path, db_dir: Path,
         weights_path: weights.yaml パス。
 
     Returns:
-        match_report.build_report 形式の辞書。
+        build_report 形式(score/hints) + 集約生フィールド
+        (top/centroid/normalized_db/scores_detail) を併格した辞書。
 
     Raises:
         ValueError: query の必須軸が欠損している場合。
@@ -67,13 +68,16 @@ def match(query_path: Path, db_dir: Path,
 
     top = aggregate.rank(results, k)
     centr = aggregate.centroid(top, norm_db)
-    return match_report.build_report({
+    raw_ctx = {
         "query": query_v,
         "top": top,
         "normalized_db": norm_db,
         "centroid": centr,
         "scores_detail": scores_detail,
-    })
+    }
+    # build_report の出力(score/hints)に raw_ctx の生フィールドを併格し、
+    # render_markdown と build_make_song_input の両方から使えるようにする。
+    return {**raw_ctx, **match_report.build_report(raw_ctx)}
 
 
 def main(query_path: str, db_dir: str, out_path: str | None = None) -> Path:
@@ -88,12 +92,28 @@ def main(query_path: str, db_dir: str, out_path: str | None = None) -> Path:
         曫き出した report.md のパス。
     """
     rep = match(Path(query_path), Path(db_dir))
-    query_meta = _load_features(Path(query_path)).get("meta", {})
+    query_features = _load_features(Path(query_path))
+    query_meta = query_features.get("meta", {})
     md = match_report.render_markdown(rep, query_meta)
     out = Path(out_path) if out_path else Path(query_path).parent / "match_report.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(md, encoding="utf-8")
     print(f"保存完了: {out}")
+
+    # make-song 連携用の構造化 JSON（report.md とは別ファイル）
+    index_file = Path(db_dir) / "_index.yaml"
+    if index_file.exists():
+        index = db_index.load_index(index_file)
+        db_meta = {s["id"]: s for s in index.get("songs", [])}
+    else:
+        db_meta = {}
+    query_id = Path(query_path).parent.name
+    msi = match_report.build_make_song_input(rep, db_meta, query_features, query_id)
+    msi_path = out.parent / "make_song_input.json"
+    msi_path.write_text(
+        json.dumps(msi, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"保存完了: {msi_path}")
     return out
 
 
