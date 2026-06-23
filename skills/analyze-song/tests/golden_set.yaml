@@ -1,0 +1,20 @@
+# ゴールドセット — analyze-song Phase3 照合エンジンの回帰指標（spec 3.2 推奨3例）
+# 現エンジンは chord 軸機能不全（progression の music21 ノイズ表記で Jaccard≈0）のため
+# 3ペアとも spec 期待を満たさない → テストは xfail。
+# features改善（progression正規化・別タスク）後に green 化予定。
+k: 5
+pairs:
+  - query_id: JPOP-001          # Lemon
+    type: exact_song
+    expected_song_id: JPOP-002  # ドライフラワー（同系JPOPバラード）
+    note: 同系JPOPバラードが上位に来るべき
+  - query_id: ROCK-006          # Bohemian Rhapsody
+    type: genre_affinity
+    expected_genre: ROCK
+    min_count: 3                # 上位5件中 ROCK が >=3
+    note: 他ROCKが上位・構造的特徴で混ざることを許容
+  - query_id: HIPHOP-004        # HUMBLE.
+    type: genre_affinity
+    expected_genre: HIPHOP
+    min_count: 3
+    note: 他HIPHOPが上位
