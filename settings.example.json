@@ -440,16 +440,14 @@
       "command": "bash",
       "args": [
         "/home/yn4416/.claude/scripts/mcp/start-minimax-official-mcp.sh"
-      ],
-      "disabled": true
+      ]
     },
     "minimax-video": {
       "type": "stdio",
       "command": "bash",
       "args": [
         "/home/yn4416/.claude/scripts/mcp/start-minimax-video-mcp.sh"
-      ],
-      "disabled": true
+      ]
     }
   },
   "autoDream": {
