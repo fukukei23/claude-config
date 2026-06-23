@@ -71,6 +71,17 @@ if [[ -n "$YESTERDAY" ]] && [[ -f "$DAILY_DIR/$YESTERDAY.md" ]]; then
   echo "（※ 詳細必要時: Read $DAILY_DIR/$YESTERDAY.md）"
 fi
 
+# --- 🟢進行中タスク（他セッションの占有・着手前確認用）---
+ACTIVE_SESSIONS="$SSOT_PATH/00_SYSTEM/active-sessions.md"
+if [[ -f "$ACTIVE_SESSIONS" ]]; then
+  active_tasks=$(awk '/^## 🟢/{flag=1; next} /^## /{if(flag) exit} flag && /^\| / && !/^\| タスク/ && !/^\|-/' "$ACTIVE_SESSIONS" 2>/dev/null)
+  if [[ -n "$active_tasks" ]]; then
+    echo "--- 🟢進行中タスク（他セッションが占有中・着手前に確認） ---"
+    echo "$active_tasks"
+    echo "--- /🟢進行中タスク ---"
+  fi
+fi
+
 # --- バックログ: P0+P1のみ（P2は必要時にRead） ---
 BACKLOG="$SSOT_PATH/00_SYSTEM/バックログ.md"
 if [[ -f "$BACKLOG" ]]; then
