@@ -58,18 +58,20 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 ```
 - query 曲（自作曲等）の features.json を名曲DB（`reference/名曲DB/`）の全曲と照合し、類似度トップk + 重心（代表型）+ 改善ヒントを report.md で出力
 - 出力先省略時は query と同階層に `match_report.md`
+- 併せて `make_song_input.json`（機械向け構造化JSON・make-song の Phase 0.5/1 参照用）も同階層に出力
 - スコアリング4軸: BPM・key・chord・range（重みは `scripts/weights.yaml`）。phrase_repetition はDB観察で100%Falseのため除外軸
 
 ## 出力（<出力ディレクトリ>/ 配下）
 - `features.json` — 全特徴量（機械用）
 - `score/full-1.png` `score/full.pdf` — 五線譜（人間用・MuseScore環境依存で省略の場合あり）
 - `report.md` — サマリ＋工程ログ（人間用）
+- `make_song_input.json` — make-song 連携用構造化JSON（query特徴・類似名曲ランキング・重心・推奨パラメータ・ジャンル分布）※Phase3照合時のみ
 
 ## Phase（1a/1b/2/3 実装済み）
 - 1a: 音源取得＋分析エンジン（librosa/basic_pitch/music21・Demucs無し）✅
 - 1b: Demucs音源分離で精度UP（drums BPM・vocals/accompaniment別MIDI・phrase/音域改善）✅
 - 2: 名曲特徴量DB（features.json蓄積＋_index.yaml・登録パイプライン・30曲登録済）✅
-- 3: 照合エンジン実装済✅（4軸重み付けスコアリング・ランキング・重心・改善ヒント）・make-song連携は別タスク
+- 3: 照合エンジン実装済✅（4軸重み付けスコアリング・ランキング・重心・改善ヒント・make-song連携JSON出力）
 
 ## 既知の制限（Phase 1b）
 - **BPM**: drums stem推定で実曲精度UP（Stayin' Alive 104→103.36）。AI生成ドラムonset特殊音源は外れ値あり（yoen-v3_1: 85指定→112推定）
