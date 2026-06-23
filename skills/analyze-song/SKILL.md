@@ -80,6 +80,7 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - **vocals 性別推定**: ピッチ中央値のヒューリスティック（median MIDI ≤A3=male/超=female）。falsetto 判定不可（MIDI単体・倍音構造必要）
 - **instrumentation**: 楽器カテゴリ推定のみ（具象名=エレキピアノ等は Phase2+）。stem名+音響特徴量ハイブリッド
 - **Phase2 名曲DB**: 30曲登録済（JPOP/ROCK/HIPHOP/WAFU/WORLD・`reference/名曲DB/`）。phrase_repetition はDB観察で100%FalseのためPhase3除外軸・range は低域誤検出あり
+- **ゴールドセット3組**（Lemon→ドライフラワー/Bohemian→ROCK/HUMBLE.→HIPHOP・spec 3.2推奨）: 現エンジンは chord 軸機能不全のため3組とも **xfail**（features改善タスクで green 化予定）。詳細 `tests/golden_set.yaml` + spec 2.3
 
 ## 前提知識（進行開始前に必ず読み込む）
 - venv: `/home/yn4416/projects/claude-config/.venv`（変更禁止）
