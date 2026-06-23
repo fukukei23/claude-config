@@ -98,6 +98,9 @@ def test_build_make_song_input_excludes_self():
     ids = [r["id"] for r in result["reference_songs"]]
     assert "JPOP-001" not in ids
     assert ids == ["JPOP-004", "ROCK-003"]
+    # 除外後に rank は 1 から再連番（make-song の reference_songs[:3] で rank=1,2,3 を想定）
+    ranks = [r["rank"] for r in result["reference_songs"]]
+    assert ranks == [1, 2]
 
 
 def test_build_make_song_input_meta_missing():

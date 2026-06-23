@@ -93,9 +93,11 @@ def build_make_song_input(
     centroid = ctx["centroid"]
 
     references = []
-    for rank, (sid, total) in enumerate(top, start=1):
+    rank = 0
+    for sid, total in top:
         if query_id and sid == query_id:
             continue
+        rank += 1
         entry: dict = {"rank": rank, "id": sid, "total": round(total, 3)}
         meta = db_meta.get(sid, {})
         for key in ("title", "artist", "genre"):
