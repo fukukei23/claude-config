@@ -73,3 +73,72 @@ def render_markdown(report: dict, query_meta: dict | None = None) -> str:
     for h in report["hints"]:
         lines.append(f"- {h}")
     return "\n".join(lines) + "\n"
+
+
+def build_make_song_input(
+    ctx: dict, db_meta: dict, query_features: dict, query_id: str | None = None
+) -> dict:
+    """照合結果から make-song 連携用の構造化 dict を構築する。
+
+    Args:
+        ctx: match() の戻り値（top/centroid/scores_detail/normalized_db）。
+        db_meta: _index.yaml の songs を id→meta 辞書化したもの。
+        query_features: query 曲の features.json dict。
+        query_id: query 曲のID（自分除外用・未設定可）。
+
+    Returns:
+        make_song_input.json の dict。
+    """
+    top = ctx["top"]
+    centroid = ctx["centroid"]
+
+    references = []
+    for rank, (sid, total) in enumerate(top, start=1):
+        if query_id and sid == query_id:
+            continue
+        entry: dict = {"rank": rank, "id": sid, "total": round(total, 3)}
+        meta = db_meta.get(sid, {})
+        for key in ("title", "artist", "genre"):
+            if key in meta:
+                entry[key] = meta[key]
+        references.append(entry)
+
+    genre_dist: dict = {}
+    for r in references:
+        g = r.get("genre")
+        if g:
+            genre_dist[g] = genre_dist.get(g, 0) + 1
+
+    q_meta = query_features.get("meta", {})
+    query_info: dict = {}
+    if query_id:
+        query_info["id"] = query_id
+    if "title" in q_meta:
+        query_info["title"] = q_meta["title"]
+    tempo = query_features.get("tempo", {})
+    if "bpm" in tempo:
+        query_info["bpm"] = tempo["bpm"]
+    key = query_features.get("key", {})
+    if "key" in key:
+        query_info["key"] = key["key"]
+    vocals = query_features.get("vocals", {})
+    if "gender_estimate" in vocals:
+        query_info["gender_estimate"] = vocals["gender_estimate"]
+
+    avg_bpm = centroid.get("avg_bpm")
+    mode_key_pc = centroid.get("mode_key_pc")
+    recommended: dict = {}
+    if avg_bpm is not None:
+        recommended["bpm"] = round(avg_bpm)
+    if mode_key_pc is not None:
+        recommended["key_pc"] = mode_key_pc
+
+    return {
+        "schema_version": 1,
+        "query": query_info,
+        "reference_songs": references,
+        "centroid": {"avg_bpm": avg_bpm, "mode_key_pc": mode_key_pc},
+        "recommended": recommended,
+        "genre_distribution": genre_dist,
+        "notes": build_report(ctx)["hints"],
+    }
