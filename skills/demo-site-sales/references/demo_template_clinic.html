@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{店舗名}} | {{業種}}</title>
+<style>
+  :root {
+    --primary: #0f766e;
+    --primary-dark: #115e59;
+    --accent: #b45309;
+    --bg: #fafaf9;
+    --text: #1c1917;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Hiragino Mincho ProN", "Noto Serif JP", serif; color: var(--text); background: var(--bg); line-height: 1.8; }
+
+  header {
+    background: #fff;
+    border-bottom: 3px solid var(--primary);
+    padding: 50px 20px 40px;
+    text-align: center;
+  }
+  header .badge-row { display: flex; justify-content: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  header .qual-badge {
+    background: var(--primary); color: #fff; font-size: 0.78rem;
+    padding: 5px 14px; border-radius: 4px; font-weight: bold;
+  }
+  header h1 { font-size: 1.9rem; margin-bottom: 10px; color: var(--primary-dark); }
+  header p.lead { font-size: 1.05rem; color: #44403c; max-width: 600px; margin: 0 auto; }
+
+  .cta-row { margin-top: 26px; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .cta-button {
+    padding: 13px 30px; border-radius: 4px; text-decoration: none; font-weight: bold;
+  }
+  .cta-primary { background: var(--primary); color: #fff; }
+  .cta-secondary { background: #fff; color: var(--primary); border: 1.5px solid var(--primary); }
+
+  section { max-width: 880px; margin: 0 auto; padding: 50px 20px; }
+  section h2 {
+    font-size: 1.4rem; margin-bottom: 24px; color: var(--primary-dark);
+    border-bottom: 2px solid #e7e5e4; padding-bottom: 10px;
+  }
+
+  .profile { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+  .profile .qual-list { flex: 1; min-width: 260px; background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; padding: 22px; }
+  .profile .qual-list li { margin-bottom: 8px; list-style: none; padding-left: 20px; position: relative; }
+  .profile .qual-list li::before { content: "◆"; color: var(--primary); position: absolute; left: 0; font-size: 0.8rem; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 18px; }
+  .stat-card { background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; padding: 22px; text-align: center; }
+  .stat-card .num { font-size: 2rem; font-weight: bold; color: var(--accent); }
+  .stat-card .label { font-size: 0.85rem; color: #57534e; margin-top: 4px; }
+
+  .services-list { display: flex; flex-direction: column; gap: 14px; }
+  .service-row { background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; padding: 18px 22px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .service-row h3 { color: var(--primary-dark); font-size: 1.05rem; }
+  .service-row .fee { color: var(--accent); font-weight: bold; }
+
+  .booking-box {
+    background: var(--primary); color: #fff; border-radius: 8px; padding: 36px 24px; text-align: center;
+  }
+  .booking-box h2 { color: #fff; border: none; margin-bottom: 14px; }
+  .booking-box .cta-primary { background: #fff; color: var(--primary-dark); }
+
+  .info-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; overflow: hidden; }
+  .info-table td { padding: 14px 18px; border-bottom: 1px solid #e7e5e4; }
+  .info-table td:first-child { font-weight: bold; width: 130px; background: #f5f5f4; }
+
+  .map { margin-top: 20px; border-radius: 6px; overflow: hidden; }
+  .map iframe { width: 100%; height: 280px; border: 0; }
+
+  footer { text-align: center; padding: 36px 20px; background: #1c1917; color: #a8a29e; font-size: 0.85rem; }
+
+  .demo-badge {
+    position: fixed; top: 10px; right: 10px;
+    background: #facc15; color: #1c1917; font-weight: bold;
+    padding: 6px 14px; border-radius: 999px; font-size: 0.8rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 999;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-badge">DEMO（試作版・未公開）</div>
+
+<header>
+  <div class="badge-row">
+    <span class="qual-badge">{{資格・専門名1}}</span>
+    <span class="qual-badge">{{資格・専門名2}}</span>
+  </div>
+  <h1>{{店舗名}}</h1>
+  <p class="lead">{{専門性を伝える一文（例：{{専門分野}}を専門とし、{{経験年数}}年の臨床経験を持つ{{資格名}}が担当します）}}</p>
+  <div class="cta-row">
+    <a class="cta-button cta-primary" href="tel:{{電話番号}}">電話で相談する</a>
+    <a class="cta-button cta-secondary" href="#booking">予約フォームへ</a>
+  </div>
+</header>
+
+<section>
+  <h2>専門性・資格</h2>
+  <div class="profile">
+    <ul class="qual-list">
+      <li>{{資格・専門名1}}</li>
+      <li>{{資格・専門名2}}</li>
+      <li>{{専門分野・対応領域}}</li>
+      <li>{{所属学会・団体（任意）}}</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <h2>実績</h2>
+  <div class="stats">
+    <div class="stat-card">
+      <div class="num">{{経験年数}}年</div>
+      <div class="label">経験年数</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{累計対応件数}}件</div>
+      <div class="label">累計対応件数</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">{{リピート率等の数値}}%</div>
+      <div class="label">{{指標名（例：リピート率）}}</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>対応内容</h2>
+  <div class="services-list">
+    <div class="service-row">
+      <h3>{{サービス名1}}</h3>
+      <span class="fee">{{料金1}}〜</span>
+    </div>
+    <div class="service-row">
+      <h3>{{サービス名2}}</h3>
+      <span class="fee">{{料金2}}〜</span>
+    </div>
+    <div class="service-row">
+      <h3>{{サービス名3}}</h3>
+      <span class="fee">{{料金3}}〜</span>
+    </div>
+  </div>
+</section>
+
+<section id="booking">
+  <div class="booking-box">
+    <h2>ご予約・お問い合わせ</h2>
+    <p>まずはお気軽にお電話・お問い合わせください。</p>
+    <div class="cta-row">
+      <a class="cta-button cta-primary" href="tel:{{電話番号}}">{{電話番号}}</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>店舗情報</h2>
+  <table class="info-table">
+    <tr><td>名称</td><td>{{店舗名}}</td></tr>
+    <tr><td>住所</td><td>{{住所}}</td></tr>
+    <tr><td>電話番号</td><td>{{電話番号}}</td></tr>
+    <tr><td>診療・営業時間</td><td>{{営業時間}}</td></tr>
+    <tr><td>休診・定休日</td><td>{{定休日}}</td></tr>
+    <tr><td>最寄駅</td><td>{{最寄駅}}</td></tr>
+  </table>
+  <div class="map">
+    <iframe src="{{GoogleマップEmbedURL}}" loading="lazy"></iframe>
+  </div>
+</section>
+
+<footer>
+  &copy; {{年}} {{店舗名}} — このページはデモ用試作サイトです。許可なく転載・公開しないでください。
+</footer>
+
+</body>
+</html>
