@@ -203,101 +203,19 @@
             "command": "atuin hook claude-code"
           }
         ]
-      }
-    ],
-    "SessionStart": [
+      },
       {
-        "matcher": "startup",
+        "matcher": "Grep|Glob",
         "hooks": [
           {
             "type": "command",
-            "command": "/home/yn4416/.claude/scripts/session/check-cwd.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/session/check-version.sh"
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/input/start-clipboard-watcher.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/config/check-mcp-guide-sync.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/obsidian/check-decision-indexes.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/git/check-submodule-sync.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash /home/yn4416/projects/obsidian-ssot/00_SYSTEM/claude-config/scripts/sync-claude-md.sh --push 2>/dev/null",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/security/check-secrets-leak.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/config/check-knowledge-lint.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/git/check-claude-config-sync.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/projects/claude-config/scripts/config/sync-settings-to-example.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/obsidian/auto-update-indexes.sh",
-            "timeout": 30000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/obsidian/auto-fix-links.sh",
-            "timeout": 60000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/skills/skill-guard.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash /home/yn4416/.claude/scripts/session/check-ssot-sync-staleness.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 ~/.claude/scripts/session/generate-skill-catalog.py"
-          },
-          {
-            "type": "command",
-            "command": "~/.claude/scripts/obsidian/check-link-policy.sh",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/config/check-guide-count.sh"
+            "command": "~/.claude/hooks/cbm-code-discovery-gate",
+            "timeout": 5
           }
         ]
-      },
+      }
+    ],
+    "SessionStart": [
       {
         "hooks": [
           {
@@ -319,6 +237,42 @@
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/config/sync-secrets-to-settings.sh",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/cbm-session-reminder"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/cbm-session-reminder"
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/cbm-session-reminder"
+          }
+        ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/cbm-session-reminder"
           }
         ]
       }
