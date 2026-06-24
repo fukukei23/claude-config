@@ -1,7 +1,10 @@
 """ゴールドセット — Phase3 照合エンジンの回帰指標（spec 3.2 推奨3例）。
 
-現エンジンは chord 軸機能不全（progression の music21 ノイズ表記で Jaccard≈0）のため
-3ペアとも spec 期待を満たさない → xfail。features改善（progression正規化・別タスク）後に green 化。
+progression 正規化（2026-06-24）で chord 軸の progression はクリーンな三和音
+ラベルになりスコアも実効値を持つようになったが、n-gram Jaccard 指標では同ジャンルと
+異ジャンルで chord スコアに有意差がなく（むしろ逆転）、ジャンル判別に寄与しないことが
+判明した。bpm+key の重み支配が続き 3ペアとも spec 期待を満たさない → xfail。
+chord 指標見直し（度和音頻度分布のコサイン類似度等・別タスク）後に green 化予定。
 """
 from pathlib import Path
 
@@ -31,7 +34,7 @@ def _cases():
 @pytest.mark.skipif(not _REAL_DB.exists(), reason="実DB不在")
 @pytest.mark.parametrize("query_id,pair", _cases())
 @pytest.mark.xfail(
-    reason="chord軸機能不全（features改善タスクで解消予定）",
+    reason="chord軸正規化済みだがn-gram Jaccard指標ではジャンル判別不可（指標見直しタスクで解消予定）",
     strict=False,
 )
 def test_golden_pair(query_id: str, pair: dict) -> None:
