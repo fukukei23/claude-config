@@ -3,7 +3,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from daily_triage import collect_backlog, collect_active_green, collect_handoff_latest  # まだ無い -> ImportError(RED)
+from daily_triage import (
+    collect_backlog,
+    collect_active_green,
+    collect_handoff_latest,
+    build_context,
+)
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -51,3 +56,24 @@ def test_collect_handoff_latest_picks_newest():
 def test_collect_handoff_latest_empty_dir():
     """ディレクトリが無い/空なら None。"""
     assert collect_handoff_latest(FIX / "no-such-dir") is None
+
+
+def test_build_context_has_all_sections():
+    """収集データを3セクション構造のテキストに組み立てる。"""
+    ctx = build_context(
+        backlog=["オールブルー応募 — v2完成済み"],
+        green=["| analyze-song | WSL | 07:40 | 正規化 |"],
+        handoff="## 次のタスク\n- Phase1実装",
+    )
+    assert "## バックログ" in ctx
+    assert "オールブルー応募" in ctx
+    assert "## 🟢進行中タスク" in ctx
+    assert "analyze-song" in ctx
+    assert "## 最新handoff" in ctx
+    assert "Phase1実装" in ctx
+
+
+def test_build_context_empty_inputs():
+    """空入力は（なし）で埋める（クラッシュしない）。"""
+    ctx = build_context(backlog=[], green=[], handoff=None)
+    assert "（なし）" in ctx
