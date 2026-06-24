@@ -91,3 +91,29 @@ def test_centroid_skips_missing_bpm():
     c = aggregate.centroid(top, norm)
     assert c["avg_bpm"] == 86.0
     assert c["mode_key_pc"] == 0
+
+
+def test_weighted_total_symmetry():
+    """全軸対称な入力なら weighted_total(A,B) == weighted_total(B,A)。"""
+    from scripts import feature_scores as fs
+
+    weights = {"bpm": 0.35, "key": 0.25, "chord": 0.25, "range": 0.15}
+    a = {
+        "bpm": 120.0, "key_pc": 0, "scale": "major",
+        "progression": ["i", "iv", "v"],
+        "range_low_midi": 48, "range_high_midi": 84, "range_valid": True,
+    }
+    b = {
+        "bpm": 140.0, "key_pc": 7, "scale": "minor",
+        "progression": ["IV", "V", "vi"],
+        "range_low_midi": 55, "range_high_midi": 72, "range_valid": True,
+    }
+    sa = {
+        "bpm": fs.score_bpm(a, b), "key": fs.score_key(a, b),
+        "chord": fs.score_chord(a, b), "range": fs.score_range(a, b),
+    }
+    sb = {
+        "bpm": fs.score_bpm(b, a), "key": fs.score_key(b, a),
+        "chord": fs.score_chord(b, a), "range": fs.score_range(b, a),
+    }
+    assert aggregate.weighted_total(sa, weights) == aggregate.weighted_total(sb, weights)

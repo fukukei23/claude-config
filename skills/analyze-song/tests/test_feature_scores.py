@@ -130,3 +130,53 @@ def test_score_range_missing_returns_none():
     d = _vec(low=48, high=84)
     d["range_low_midi"] = None
     assert fs.score_range(q, d) is None
+
+
+# --- プロパティ: 対称性 sim(A,B) = sim(B,A) ---
+def test_score_bpm_symmetry():
+    a = _vec(bpm=120.0)
+    b = _vec(bpm=128.0)
+    assert fs.score_bpm(a, b) == fs.score_bpm(b, a)
+
+
+def test_score_key_symmetry():
+    # scale 不一致 + 五度圏距離 で対称性を確認
+    a = _vec(key_pc=0, scale="major")
+    b = _vec(key_pc=7, scale="minor")
+    assert fs.score_key(a, b) == fs.score_key(b, a)
+
+
+def test_score_chord_symmetry():
+    a = _vec(prog=["i", "iv", "v", "vi"])
+    b = _vec(prog=["iv", "v", "iii"])
+    assert fs.score_chord(a, b) == fs.score_chord(b, a)
+
+
+def test_score_range_symmetry():
+    a = _vec(low=48, high=84)
+    b = _vec(low=55, high=72)
+    assert fs.score_range(a, b) == fs.score_range(b, a)
+
+
+# --- プロパティ: BPM 距離の単調減少（同オクターブ近傍）---
+def test_score_bpm_monotonic():
+    # 120 基準。Δ=0,4,8,12 は全てオクターブ救済(×2/÷2)が効かない近傍
+    base = _vec(bpm=120.0)
+    s0 = fs.score_bpm(base, _vec(bpm=120.0))   # Δ=0
+    s4 = fs.score_bpm(base, _vec(bpm=124.0))   # Δ=4
+    s8 = fs.score_bpm(base, _vec(bpm=128.0))   # Δ=8
+    s12 = fs.score_bpm(base, _vec(bpm=132.0))  # Δ=12
+    assert s0 > s4 > s8 > s12
+
+
+# --- プロパティ: 全軸スコア ∈ [0,1] ---
+def test_all_scores_in_unit_range():
+    a = _vec(bpm=120, key_pc=0, scale="major", prog=["i", "iv", "v"], low=48, high=84)
+    b = _vec(bpm=140, key_pc=7, scale="minor", prog=["IV", "V", "vi"], low=55, high=72)
+    for s in (fs.score_bpm(a, b), fs.score_key(a, b),
+              fs.score_chord(a, b), fs.score_range(a, b)):
+        assert s is None or 0.0 <= s <= 1.0
+    # 自己比較も範囲内（bpm/key/chord は 1.0、range も 1.0）
+    for s in (fs.score_bpm(a, a), fs.score_key(a, a),
+              fs.score_chord(a, a), fs.score_range(a, a)):
+        assert s is None or 0.0 <= s <= 1.0
