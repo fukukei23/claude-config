@@ -5,6 +5,8 @@
 Claude判定は claude --print の外部APIのため手動検証（--collect-only/--no-llm で検証可能）。
 """
 import argparse
+import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
