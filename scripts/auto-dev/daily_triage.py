@@ -169,6 +169,36 @@ def judge_with_claude(context: str, date_str: str) -> str:
     return result.stdout.strip()
 
 
+DISCORD_WEBHOOK_ENV = "DISCORD_CLAUDE_WEBHOOK"
+DISCORD_MAX_CHARS = 2000
+
+
+def send_discord(content: str, webhook_url: str, max_chars: int = DISCORD_MAX_CHARS) -> bool:
+    """Discord webhook にメッセージを送信する。
+
+    2000文字（Discord上限）超は切り詰めて送信。外部通信のため pytest では
+    urllib.request.urlopen を monkeypatch して検証。
+
+    Args:
+        content: 送信するメッセージ本文。
+        webhook_url: Discord webhook URL。
+        max_chars: メッセージ文字数上限（Discord仕様で2000）。
+
+    Returns:
+        送信成功なら True、失敗・例外時は False。
+    """
+    import urllib.request
+    payload = json.dumps({"content": content[:max_chars]}).encode("utf-8")
+    req = urllib.request.Request(
+        webhook_url, data=payload, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return 200 <= resp.status < 300
+    except Exception:
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Daily Triage — タスク候補生成")
     parser.add_argument(
@@ -180,6 +210,10 @@ def main() -> int:
         help="収集データをそのまま today-tasks.md へ（LLM不使用・検証用）",
     )
     parser.add_argument("--output", type=Path, default=TODAY_TASKS, help="出力先")
+    parser.add_argument(
+        "--notify-discord", action="store_true",
+        help="today-tasks.md 生成後、Discord webhook に候補を通知",
+    )
     args = parser.parse_args()
 
     backlog = collect_backlog(SSOT / "00_SYSTEM" / "バックログ.md")
@@ -198,6 +232,15 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(body, encoding="utf-8")
     print(f"✅ today-tasks.md 生成: {args.output}")
+
+    if args.notify_discord:
+        webhook_url = os.environ.get(DISCORD_WEBHOOK_ENV, "")
+        if not webhook_url:
+            print(f"⚠️ {DISCORD_WEBHOOK_ENV} 未設定・Discord通知スキップ")
+        elif send_discord(body, webhook_url):
+            print(f"✅ Discord通知送信完了")
+        else:
+            print(f"⚠️ Discord通知失敗（webhook送信エラー）")
     return 0
 
 
