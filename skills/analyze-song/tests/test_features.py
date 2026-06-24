@@ -119,3 +119,23 @@ def test_analyze_features_returns_structure(stems_midi):
     assert "form" in s
     # duration_sec(126.92) で正規化されていること
     assert s["sections"][-1]["end"] == 126.92
+
+
+@pytest.mark.parametrize("figure,expected", [
+    ("IV654", "IV"),
+    ("i74", "i"),
+    ("viob642", "viio"),
+    ("V632", "V"),
+    ("IV", "IV"),
+    ("vi", "vi"),
+    ("#i", "#i"),
+    ("biv+6#3", "bIV+"),
+    ("iio6b5b3", "iio"),
+])
+def test_roman_to_triad_label(figure, expected):
+    """RomanNumeral から三和音クリーンラベルへの正規化。"""
+    from music21 import key, roman
+    from scripts.features import _roman_to_triad_label
+
+    rn = roman.RomanNumeral(figure, key.Key("C"))
+    assert _roman_to_triad_label(rn) == expected

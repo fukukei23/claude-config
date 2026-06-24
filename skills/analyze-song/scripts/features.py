@@ -38,6 +38,44 @@ def _analyze_key(score) -> dict:
     }
 
 
+# 三和音ラベル組み立て用: scaleDegree(1-7) → 小文字ローマ数字
+_ROMAN_DEGREES = ["i", "ii", "iii", "iv", "v", "vi", "vii"]
+
+
+def _roman_to_triad_label(rn) -> str:
+    """RomanNumeral から転回形・テンションを除いた三和音ラベルを組み立てる。
+
+    impliedQuality（転回形/テンションを無視した基本クオリティ）と scaleDegree、
+    前置 accidentals から音楽標準表記の三和音ラベルを作る。figure 文字列の
+    ノイズ表記（IV654 等）をクリーン化し、曲間共通 n-gram を出現させる目的。
+
+    Args:
+        rn: music21 の RomanNumeral オブジェクト。
+
+    Returns:
+        三和音ラベル（例: "IV", "vi", "viio", "bIV+", "#i"）。
+    """
+    base = _ROMAN_DEGREES[rn.scaleDegree - 1]
+    quality = rn.impliedQuality
+    if quality == "major":
+        label = base.upper()
+    elif quality == "minor":
+        label = base
+    elif quality == "diminished":
+        label = base + "o"
+    elif quality == "augmented":
+        label = base.upper() + "+"
+    else:
+        label = base  # 未知品質のフォールバック（impliedQuality で大半は救済済み）
+    acc = rn.frontAlterationAccidental
+    if acc is not None:
+        if acc.alter < 0:
+            label = "b" + label
+        elif acc.alter > 0:
+            label = "#" + label
+    return label
+
+
 def _analyze_chords(score, detected_key) -> dict:
     """chordify でコード進行を抽出し、検出キー相対のローマ数字で表記する。
 
