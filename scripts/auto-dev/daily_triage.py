@@ -5,6 +5,7 @@
 Claude判定は claude --print の外部APIのため手動検証（--collect-only/--no-llm で検証可能）。
 """
 import argparse
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -110,7 +111,22 @@ def build_context(backlog: list[str], green: list[str], handoff: str | None) -> 
 SSOT = Path("/home/yn4416/projects/obsidian-ssot")
 STATE_DIR = Path("/home/yn4416/.claude/state")
 TODAY_TASKS = STATE_DIR / "today-tasks.md"
-CLAUDE_BIN = "/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/claude"
+def _resolve_claude_bin() -> str:
+    """claude CLI のパスを解決。fnmハードコード優先、なければPATHから探す。
+
+    fnmのバージョン固有パスは既存(start.sh等)と一貫させるため優先。
+    バージョンアップでパスが消えた場合はPATH上のclaudeにフォールバック。
+    """
+    hardcoded = "/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/claude"
+    if Path(hardcoded).exists():
+        return hardcoded
+    found = shutil.which("claude")
+    if found:
+        return found
+    raise RuntimeError("claude CLI が見つかりません（fnmパス・PATHいずれにもなし）")
+
+
+CLAUDE_BIN = _resolve_claude_bin()
 
 JUDGE_PROMPT = """あなたは Daily Triage エージェント。以下の収集データから「今日取り組むべきタスク候補」を優先度順に最大5つ選び、指定フォーマットで出力せよ。
 
