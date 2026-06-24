@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: run-issue.sh <issue_number>
-# next-issue.py および start.sh から呼ばれる wrapper
+# next_issue.py および start.sh から呼ばれる wrapper
 ISSUE="$1"
 CLAUDE="/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/claude"
 LOG="/home/yn4416/.claude/scripts/auto-dev/loop.log"
