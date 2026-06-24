@@ -55,3 +55,23 @@ def collect_active_green(path: Path) -> list[str]:
         if in_green and line.startswith("| ") and not line.startswith("| タスク") and not line.startswith("|-"):
             rows.append(line)
     return rows
+
+
+def collect_handoff_latest(handoff_dir: Path) -> str | None:
+    """handoff/ から最新1件（ファイル名降順）の全文を返す。
+
+    ファイル名は YYYY-MM-DD_HHMM.md 形式で、文字列降順が最新。
+    次タスク・未解決の解釈は Claude判定に委ねる（全文をそのまま渡す）。
+
+    Args:
+        handoff_dir: handoff ディレクトリのパス
+
+    Returns:
+        最新handoffの全文。ファイルが無ければ None。
+    """
+    if not handoff_dir.exists():
+        return None
+    files = sorted(handoff_dir.glob("*.md"), key=lambda p: p.name, reverse=True)
+    if not files:
+        return None
+    return files[0].read_text(encoding="utf-8")

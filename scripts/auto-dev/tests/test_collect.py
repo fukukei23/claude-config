@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from daily_triage import collect_backlog, collect_active_green  # まだ無い -> ImportError(RED)
+from daily_triage import collect_backlog, collect_active_green, collect_handoff_latest  # まだ無い -> ImportError(RED)
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -37,3 +37,17 @@ def test_collect_active_green_rows_only():
     assert not any(t.startswith("|---") for t in result)
     # 別セクション（アクティブセッション表）の行は含まれない
     assert "WSL-hoge" not in joined
+
+
+def test_collect_handoff_latest_picks_newest():
+    """ファイル名降順で最新1件の全文を返す。"""
+    result = collect_handoff_latest(FIX / "handoff")
+    assert result is not None
+    # 2023 > 0703（文字列比較）で最新が選ばれる
+    assert "loop engineering 構築 Phase1" in result
+    assert "zenn ランキング自動更新" not in result
+
+
+def test_collect_handoff_latest_empty_dir():
+    """ディレクトリが無い/空なら None。"""
+    assert collect_handoff_latest(FIX / "no-such-dir") is None
