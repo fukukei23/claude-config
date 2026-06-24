@@ -82,6 +82,14 @@ if [[ -f "$ACTIVE_SESSIONS" ]]; then
   fi
 fi
 
+# --- 今日のタスク候補（daily-triage.sh生成・承認後にGO）---
+TODAY_TASKS="$HOME/.claude/state/today-tasks.md"
+if [[ -f "$TODAY_TASKS" ]]; then
+  echo "--- 📋 今日のタスク候補（daily-triage生成・承認後にGO） ---"
+  cat "$TODAY_TASKS"
+  echo "--- /今日のタスク候補 ---"
+fi
+
 # --- バックログ: P0+P1のみ（P2は必要時にRead） ---
 BACKLOG="$SSOT_PATH/00_SYSTEM/バックログ.md"
 if [[ -f "$BACKLOG" ]]; then
