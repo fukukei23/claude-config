@@ -75,3 +75,31 @@ def collect_handoff_latest(handoff_dir: Path) -> str | None:
     if not files:
         return None
     return files[0].read_text(encoding="utf-8")
+
+
+def build_context(backlog: list[str], green: list[str], handoff: str | None) -> str:
+    """収集データを Claude判定用プロンプトに組み立てる。
+
+    Args:
+        backlog: collect_backlog() の結果
+        green: collect_active_green() の結果
+        handoff: collect_handoff_latest() の結果（None 可）
+
+    Returns:
+        3セクション（バックログ/🟢進行中/handoff）のテキスト
+    """
+    lines: list[str] = ["## バックログ（P0/P1未完了）"]
+    if backlog:
+        lines.extend(f"- {t}" for t in backlog)
+    else:
+        lines.append("（なし）")
+    lines.append("")
+    lines.append("## 🟢進行中タスク（他セッション占有・参考）")
+    if green:
+        lines.extend(green)
+    else:
+        lines.append("（なし）")
+    lines.append("")
+    lines.append("## 最新handoff")
+    lines.append(handoff if handoff else "（なし）")
+    return "\n".join(lines)
