@@ -20,7 +20,7 @@ from pathlib import Path
 
 STATE        = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
 LOG          = Path("/home/yn4416/.claude/scripts/auto-dev/loop.log")
-RUN_SCRIPT   = Path("/home/yn4416/.claude/scripts/auto-dev/run-issue.sh")
+RUN_SCRIPT   = Path("/home/yn4416/.claude/scripts/auto-dev/run-task.sh")
 NOTIFY       = Path("/home/yn4416/.claude/scripts/hooks/notify-done.sh")
 VERIFY_RESULT = Path("/home/yn4416/.claude/scripts/auto-dev/verify-result.txt")
 
