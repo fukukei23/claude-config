@@ -108,6 +108,7 @@ def main() -> int:
     state = load_or_init_state()
     state["pending"] = [build_task_entry(t, repo) for t in selected]
     state["active"] = True
+    state["running"] = False
     state["current"] = None
     state["completed"] = []
     state["blocked"] = []

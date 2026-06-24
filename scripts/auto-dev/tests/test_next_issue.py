@@ -58,3 +58,32 @@ def test_read_verify_result_ng(tmp_path):
 
 def test_read_verify_result_missing_returns_true(tmp_path):
     assert read_verify_result(tmp_path / "nofile.txt") is True
+
+
+def test_main_ignores_stop_hook_while_running(tmp_path, monkeypatch):
+    """running=True の時は next_issue.main は即 return（run-task 実行中の claude
+    Stop hook 発火を無視）。state 変更・起動を行わない。"""
+    import json
+    import next_issue
+
+    state_file = tmp_path / "state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "active": True,
+                "running": True,
+                "current": {"title": "x", "prompt": "p", "repo": "/r", "issue": None},
+                "pending": [],
+                "completed": [],
+                "blocked": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(next_issue, "STATE", state_file)
+
+    next_issue.main()  # Popen が呼ばれると例外→running ガードで即 return を検証
+
+    after = json.loads(state_file.read_text(encoding="utf-8"))
+    assert after["running"] is True
+    assert after["current"]["title"] == "x"
