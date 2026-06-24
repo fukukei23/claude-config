@@ -60,3 +60,71 @@ def build_task_entry(task: dict, repo: str) -> dict:
         "repo": repo,
         "issue": None,
     }
+
+
+def load_or_init_state() -> dict:
+    """state.json を読むか空テンプレを返す。"""
+    if STATE.exists():
+        return json.loads(STATE.read_text(encoding="utf-8"))
+    return {
+        "active": True,
+        "pending": [],
+        "current": None,
+        "completed": [],
+        "blocked": [],
+    }
+
+
+def main() -> int:
+    """対話的に候補を選択→state.json 登録→最初のタスクを起動。"""
+    if not TODAY_TASKS.exists():
+        print(f"❌ {TODAY_TASKS} がありません。先に daily-triage.sh を実行してください。")
+        return 1
+
+    tasks = parse_today_tasks(TODAY_TASKS.read_text(encoding="utf-8"))
+    if not tasks:
+        print("候補がありません。")
+        return 0
+
+    print("=== 今日のタスク候補 ===")
+    for t in tasks:
+        cost = f" [{t['cost']}]" if t["cost"] else ""
+        print(f"  {t['n']}. {t['title']}{cost} — {t['reason']}")
+    print("\n承認する番号をカンマ区切りで入力（例: 1 または 1,2）")
+    print("⚠️ 大量一括は非推奨（ch12① agentic trap）。今日やる分だけ。")
+
+    raw = input("> ").strip()
+    nums = [int(x.strip()) for x in raw.split(",") if x.strip().isdigit()]
+    if not nums:
+        print("未選択・中止します。")
+        return 0
+
+    repo = input("実行先リポジトリパス (例: /home/yn4416/projects/<repo>): ").strip()
+    if not repo:
+        print("リポジトリ未指定・中止。")
+        return 1
+
+    selected = [t for t in tasks if t["n"] in nums]
+    state = load_or_init_state()
+    state["pending"] = [build_task_entry(t, repo) for t in selected]
+    state["active"] = True
+    state["current"] = None
+    state["completed"] = []
+    state["blocked"] = []
+    state["project"] = Path(repo).name
+    state["repo_path"] = repo
+    STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"✅ キュー登録: {[t['title'] for t in selected]}")
+
+    first = state["pending"][0]
+    subprocess.Popen(
+        ["setsid", "bash", str(RUN_SCRIPT), first["title"]],
+        cwd=repo,
+        start_new_session=True,
+    )
+    print(f"🚀 最初のタスク起動: {first['title']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
