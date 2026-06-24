@@ -124,7 +124,7 @@ def test_analyze_features_returns_structure(stems_midi):
 @pytest.mark.parametrize("figure,expected", [
     ("IV654", "IV"),
     ("i74", "i"),
-    ("viob642", "viio"),
+    ("viob642", "vio"),
     ("V632", "V"),
     ("IV", "IV"),
     ("vi", "vi"),

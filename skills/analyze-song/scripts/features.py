@@ -87,7 +87,7 @@ def _analyze_chords(score, detected_key) -> dict:
     for c in chordified.recurse().getElementsByClass(chord.Chord):
         try:
             rn = roman.romanNumeralFromChord(c, detected_key)
-            name = rn.figure
+            name = _roman_to_triad_label(rn)
         except Exception:  # noqa: BLE001
             name = "N.C."
         progression.append(name)
