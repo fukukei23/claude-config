@@ -127,7 +127,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"$TOOL_INPUT\" | python3 -c \"import sys,json; data=json.load(sys.stdin); p=data.get('file_path',''); exit(0) if 'バックログ' in p else exit(1)\" && python3 /home/yn4416/bin/archive-backlog-done.py",
+            "command": "input=$(cat); p=$(echo \"$input\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); [[ \"$p\" == *バックログ* ]] && python3 /home/yn4416/bin/archive-backlog-done.py",
             "timeout": 5000
           }
         ]
