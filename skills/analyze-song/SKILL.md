@@ -80,7 +80,7 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - **vocals 性別推定**: ピッチ中央値のヒューリスティック（median MIDI ≤A3=male/超=female）。falsetto 判定不可（MIDI単体・倍音構造必要）
 - **instrumentation**: 楽器カテゴリ推定のみ（具象名=エレキピアノ等は Phase2+）。stem名+音響特徴量ハイブリッド
 - **Phase2 名曲DB**: 30曲登録済（JPOP/ROCK/HIPHOP/WAFU/WORLD・`reference/名曲DB/`）。phrase_repetition はDB観察で100%FalseのためPhase3除外軸・range は低域誤検出あり
-- **ゴールドセット3組**（Lemon→ドライフラワー/Bohemian→ROCK/HUMBLE.→HIPHOP・spec 3.2推奨）: chord 指標見直し（2026-06-24）で 3指標（n-gram Jaccard / 度和音頻度コサイン / 機能和声×クオリティコサイン）× 重み調整（chord 最重視 0.70 まで）の**全組合せで3組とも判別不可を実証**。根本原因は指標ではなく DB選曲と和音分布のミスマッチ（Lemon=短調は期待曲ドライフラワーよりHIPHOP-005の方が和音近い）。3組とも **xfail**（データ/評価設計の限界・選曲見直しは別P1）。詳細 `tests/golden_set.yaml` + `01_DECISIONS/ai-music/2026-06-24_analyze-song-chord指標見直し-不可能性証明.md`
+- **テスト戦略**: 正解定義型ゴールドセット（ジャンル判別を想定）は、3指標×重み調整の全組合せで判別不可を実証し廃止（`01_DECISIONS/ai-music/2026-06-24_analyze-song-chord指標見直し-不可能性証明.md`）。代わりに**プロパティベーステスト**（対称性 `sim(A,B)=sim(B,A)`・スコア∈[0,1]・BPM単調減少）でエンジン健全性を保証。ジャンル/主観に依存しない・本体コード不変。
 
 ## 前提知識（進行開始前に必ず読み込む）
 - venv: `/home/yn4416/projects/claude-config/.venv`（変更禁止）
