@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from next_issue import advance_state  # noqa: E402
+from next_issue import advance_state, read_verify_result  # noqa: E402
 
 
 def _initial_state():
@@ -42,3 +42,19 @@ def test_advance_ng_moves_current_to_blocked_and_stops():
         {"title": "task-A", "prompt": "do A", "repo": "/r", "issue": None},
         {"title": "task-B", "prompt": "do B", "repo": "/r", "issue": None},
     ]
+
+
+def test_read_verify_result_ok(tmp_path):
+    f = tmp_path / "verify-result.txt"
+    f.write_text("OK\nコード品質良好", encoding="utf-8")
+    assert read_verify_result(f) is True
+
+
+def test_read_verify_result_ng(tmp_path):
+    f = tmp_path / "verify-result.txt"
+    f.write_text("NG\n関数が長すぎる", encoding="utf-8")
+    assert read_verify_result(f) is False
+
+
+def test_read_verify_result_missing_returns_true(tmp_path):
+    assert read_verify_result(tmp_path / "nofile.txt") is True

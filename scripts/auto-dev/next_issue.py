@@ -18,10 +18,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-STATE      = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
-LOG        = Path("/home/yn4416/.claude/scripts/auto-dev/loop.log")
-RUN_SCRIPT = Path("/home/yn4416/.claude/scripts/auto-dev/run-issue.sh")
-NOTIFY     = Path("/home/yn4416/.claude/scripts/hooks/notify-done.sh")
+STATE        = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
+LOG          = Path("/home/yn4416/.claude/scripts/auto-dev/loop.log")
+RUN_SCRIPT   = Path("/home/yn4416/.claude/scripts/auto-dev/run-issue.sh")
+NOTIFY       = Path("/home/yn4416/.claude/scripts/hooks/notify-done.sh")
+VERIFY_RESULT = Path("/home/yn4416/.claude/scripts/auto-dev/verify-result.txt")
 
 
 def log(msg: str) -> None:
@@ -32,7 +33,8 @@ def log(msg: str) -> None:
 
 def notify_complete(project: str, completed: list) -> None:
     """全完了時のWindowsトースト通知（非同期）"""
-    msg = f"dev-cycle 完了: {project} / Issues {completed}"
+    titles = [c.get("title", "?") if isinstance(c, dict) else str(c) for c in completed]
+    msg = f"dev-cycle 完了: {project} / {titles}"
     log(f"[通知] {msg}")
 
     # ターミナルベル
@@ -44,7 +46,7 @@ def notify_complete(project: str, completed: list) -> None:
         "$n = New-Object System.Windows.Forms.NotifyIcon; "
         "$n.Icon = [System.Drawing.SystemIcons]::Information; "
         f"$n.BalloonTipTitle = 'dev-cycle 完了'; "
-        f"$n.BalloonTipText = '{project} Issues {completed} 全完了'; "
+        f"$n.BalloonTipText = '{project} {titles} 全完了'; "
         "$n.BalloonTipIcon = 'Info'; "
         "$n.Visible = $true; "
         "$n.ShowBalloonTip(8000); "
@@ -56,6 +58,30 @@ def notify_complete(project: str, completed: list) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def notify_blocked(project: str, blocked: list) -> None:
+    """検証NGで停止した時の通知（人間エスカレーション）。"""
+    msg = f"⚠️ dev-loop 検証NG停止: {project} / blocked {len(blocked)}件"
+    log(f"[通知] {msg}")
+    print("\a", flush=True)
+
+
+def read_verify_result(path: Path) -> bool:
+    """verify-result.txt の先頭行が 'OK' で始まれば True、それ以外は False。
+
+    ファイルが無い場合は True（実装のみで検証無しの後方互換）。
+
+    Args:
+        path: verify-result.txt のパス。
+
+    Returns:
+        検証OK なら True。
+    """
+    if not path.exists():
+        return True
+    first = path.read_text(encoding="utf-8").strip().splitlines()
+    return bool(first) and first[0].upper().startswith("OK")
 
 
 def advance_state(state: dict, verify_ok: bool) -> dict:
@@ -104,48 +130,56 @@ def save_state(path: Path, state: dict) -> None:
     path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def main() -> None:
-    if not STATE.exists():
-        return
-
-    state = json.loads(STATE.read_text())
-
-    if not state.get("active"):
-        return  # 誤爆防止
-
-    project   = state.get("project", "unknown")
-    repo_path = state.get("repo_path", "/home/yn4416/projects/atelier-kyo-manager")
-
-    # 直前の current を completed に移動
-    if state.get("current") is not None:
-        state["completed"].append(state["current"])
-        log(f"[{project}] Issue #{state['current']} 完了 → completed: {state['completed']}")
-        state["current"] = None
-
-    if not state["pending"]:
-        # ── 全完了 ──
-        state["active"] = False
-        STATE.write_text(json.dumps(state, indent=2))
-        log(f"[{project}] ✅ 全 Issue 完了: {state['completed']}")
-        notify_complete(project, state["completed"])
-        return
-
-    # 次の issue を取り出す
-    next_issue = state["pending"].pop(0)
-    state["current"] = next_issue
-    STATE.write_text(json.dumps(state, indent=2))
-    log(f"[{project}] 🚀 Issue #{next_issue} 起動 (残り: {state['pending']})")
-
+def _launch_current(current: dict, repo_path: str) -> None:
+    """run-task.sh を current タスクでバックグラウンド起動。"""
+    title = current.get("title", "")
     subprocess.Popen(
-        ["setsid", "bash", str(RUN_SCRIPT), str(next_issue)],
+        ["setsid", "bash", str(RUN_SCRIPT), title],
         cwd=repo_path,
         start_new_session=True,
     )
+
+
+def main() -> None:
+    state = load_state(STATE)
+    if not state or not state.get("active"):
+        return  # 誤爆防止・state 無し
+
+    project = state.get("project", "unknown")
+    repo_path = state.get("repo_path", "/home/yn4416/projects/atelier-kyo-manager")
+
+    # 初回起動（current=None・pending あり）は検証結果を見ずに最初を取り出し
+    if state.get("current") is None and state.get("pending"):
+        state["current"] = state["pending"].pop(0)
+        save_state(STATE, state)
+        log(f"[{project}] 🚀 最初のタスク起動: {state['current'].get('title')}")
+        _launch_current(state["current"], repo_path)
+        return
+
+    # 2回目以降: 検証結果で遷移
+    verify_ok = read_verify_result(VERIFY_RESULT)
+    state = advance_state(state, verify_ok=verify_ok)
+    save_state(STATE, state)
+
+    if verify_ok:
+        log(f"[{project}] 完了→completed。blocked={len(state['blocked'])}")
+    else:
+        log(f"[{project}] ⚠️ 検証NG→blocked・停止")
+        notify_blocked(project, state["blocked"])
+        return
+
+    if not state["active"]:
+        log(f"[{project}] ✅ 全タスク完了: {state['completed']}")
+        notify_complete(project, state["completed"])
+        return
+
+    log(f"[{project}] 🚀 次タスク起動: {state['current'].get('title')}")
+    _launch_current(state["current"], repo_path)
 
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        log(f"[ERROR] next-issue.py 例外: {e}")
+        log(f"[ERROR] next_issue.py 例外: {e}")
     sys.exit(0)  # Stop フックは必ず 0 で終了
