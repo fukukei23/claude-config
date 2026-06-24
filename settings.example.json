@@ -318,7 +318,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /home/yn4416/.claude/scripts/auto-dev/next-issue.py >> /home/yn4416/.claude/scripts/auto-dev/loop.log 2>&1",
+            "command": "python3 /home/yn4416/.claude/scripts/auto-dev/next_issue.py >> /home/yn4416/.claude/scripts/auto-dev/loop.log 2>&1",
             "timeout": 10000
           }
         ]
