@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Stop hook: 次の GitHub Issue をキューから取り出して claude CLI で起動する。
+Stop hook: 次のタスクをキューから取り出して claude CLI で起動する。
 ~/.claude/settings.json の Stop フックから呼ばれる。
 
-state.json スキーマ:
-  active    bool      - false なら何もしない（誤爆防止）
-  pending   list[int] - 未着手 issue 番号
-  current   int|null  - 実行中 issue 番号
-  completed list[int] - 完了済み issue 番号
-  project   str       - プロジェクト名（ログ用）
-  repo_path str       - リポジトリの絶対パス
+state.json スキーマ（タスク本文ベース・Loop Engineering Phase3）:
+  active    bool        - false なら何もしない（誤爆防止）
+  pending   list[dict]  - 未着手タスク {title, prompt, repo, issue}
+  current   dict|null   - 実行中タスク
+  completed list[dict]  - 完了済み（検証OK）{title}
+  blocked   list[dict]  - 検証NG停止 {title, reason}
+  project   str         - プロジェクト名（ログ用）
+  repo_path str         - リポジトリの絶対パス
 """
 import json
 import subprocess
@@ -55,6 +56,49 @@ def notify_complete(project: str, completed: list) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def advance_state(state: dict, verify_ok: bool) -> dict:
+    """直前の current を completed(OK) または blocked(NG) に移動し、
+    次の current に pending 先頭を取り出す。
+
+    Args:
+        state: state.json の内容（ミューテートせず複製を返す）。
+        verify_ok: 検証フェーズの結果。True=completed / False=blocked。
+
+    Returns:
+        遷移後の state。pending 空で次が無ければ active=False。
+    """
+    import copy
+    s = copy.deepcopy(state)
+
+    if s.get("current") is not None:
+        cur = s["current"]
+        if verify_ok:
+            s["completed"].append({"title": cur.get("title")})
+        else:
+            s["blocked"].append({"title": cur.get("title"), "reason": "verify NG"})
+        s["current"] = None
+
+    if not s.get("pending"):
+        s["active"] = False
+        return s
+
+    s["current"] = s["pending"].pop(0)
+    return s
+
+
+def load_state(path: Path) -> dict:
+    """state.json を読む。存在しなければ空 dict。"""
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_state(path: Path, state: dict) -> None:
+    """state.json を書く（インデント付き）。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def main() -> None:
