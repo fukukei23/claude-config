@@ -144,6 +144,8 @@ def main() -> None:
     state = load_state(STATE)
     if not state or not state.get("active"):
         return  # 誤爆防止・state 無し
+    if state.get("running"):
+        return  # run-task.sh 実行中の claude Stop hook 発火を無視（二重発火・検証前完了扱い対策）
 
     project = state.get("project", "unknown")
     repo_path = state.get("repo_path", "/home/yn4416/projects/atelier-kyo-manager")

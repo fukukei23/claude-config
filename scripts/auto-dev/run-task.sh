@@ -28,6 +28,18 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] === run-task: '$TITLE' repo=$REPO issue=$IS
 
 cd "$REPO" || { echo "repo不在: $REPO" >> "$LOG"; echo "NG" > "$VERIFY"; echo "repo不存在" >> "$VERIFY"; exit 1; }
 
+# run-task 実行中フラグ（実装/検証 claude の Stop hook 発火を next_issue.py で無視させる）
+python3 -c "import json; s=json.load(open('$STATE')); s['running']=True; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+
+# 終了時（exit パス問わず）: running=false にして next_issue.py を直接呼ぶ
+# Stop hook 二重発火回避・run-task 末尾で1回だけ状態遷移（ch6 証明可能な完了）
+NEXT_ISSUE="/home/yn4416/.claude/scripts/auto-dev/next_issue.py"
+finalize() {
+  python3 -c "import json; s=json.load(open('$STATE')); s['running']=False; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+  python3 "$NEXT_ISSUE" >> "$LOG" 2>&1
+}
+trap finalize EXIT
+
 # ① 実装フェーズ（作るAI）
 IMPL_PROMPT="以下のタスクを実装してください。完了したらテストを通し、git commit してください。タスク: $PROMPT"
 "$CLAUDE" --print "$IMPL_PROMPT" >> "$LOG" 2>&1
