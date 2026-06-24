@@ -28,3 +28,30 @@ def collect_backlog(path: Path) -> list[str]:
         elif line.startswith("- [ ]") and section:
             tasks.append(line[5:].strip())  # "- [ ]" (5文字) を除去
     return tasks
+
+
+def collect_active_green(path: Path) -> list[str]:
+    """active-sessions.md の 🟢進行中タスク表の行を抽出。
+
+    ヘッダー行（| タスク）・区切り行（|---）・別セクションは除外。
+    セクションは "## 🟢" で開始し次の "## " で終了。
+
+    Args:
+        path: active-sessions.md のパス
+
+    Returns:
+        テーブル行（"|" 始まり）のリスト
+    """
+    if not path.exists():
+        return []
+    rows: list[str] = []
+    in_green = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## 🟢"):
+            in_green = True
+            continue
+        if in_green and line.startswith("## "):
+            break
+        if in_green and line.startswith("| ") and not line.startswith("| タスク") and not line.startswith("|-"):
+            rows.append(line)
+    return rows
