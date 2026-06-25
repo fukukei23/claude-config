@@ -18,7 +18,14 @@ def test_parse_today_tasks_extracts_numbered_candidates():
 """
     tasks = parse_today_tasks(text)
     assert len(tasks) == 2
-    assert tasks[0] == {"n": 1, "title": "Python基礎学習", "reason": "キャリア最優先", "cost": "M"}
+    assert tasks[0] == {
+        "n": 1,
+        "title": "Python基礎学習",
+        "reason": "キャリア最優先",
+        "cost": "M",
+        "repo": None,
+        "manual": False,
+    }
     assert tasks[1]["title"] == "NexusCore デモ撮影"
 
 
@@ -28,6 +35,33 @@ def test_parse_today_tasks_ignores_non_candidate_lines():
     tasks = parse_today_tasks(text)
     assert len(tasks) == 1
     assert tasks[0]["title"] == "A"
+
+
+def test_parse_today_tasks_extracts_repo_marker():
+    """'（repo: name）' マーカーを抽出。"""
+    text = "1. **NexusCore設定** — 理由（想定コスト: M）（repo: NexusCore）\n"
+    tasks = parse_today_tasks(text)
+    assert len(tasks) == 1
+    assert tasks[0]["repo"] == "NexusCore"
+    assert tasks[0]["manual"] is False
+
+
+def test_parse_today_tasks_extracts_manual_marker():
+    """'（手動）' マーカーを抽出。"""
+    text = "1. **オールブルー応募** — 理由（想定コスト: S）（手動）\n"
+    tasks = parse_today_tasks(text)
+    assert len(tasks) == 1
+    assert tasks[0]["repo"] is None
+    assert tasks[0]["manual"] is True
+
+
+def test_parse_today_tasks_no_marker_defaults_none():
+    """マーカー無し→repo=None・manual=False（後方互換）。"""
+    text = "1. **タスク** — 理由（想定コスト: S）\n"
+    tasks = parse_today_tasks(text)
+    assert len(tasks) == 1
+    assert tasks[0]["repo"] is None
+    assert tasks[0]["manual"] is False
 
 
 def test_build_task_entry_creates_pending_item():

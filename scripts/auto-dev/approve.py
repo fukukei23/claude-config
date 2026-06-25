@@ -16,30 +16,44 @@ TODAY_TASKS = Path("/home/yn4416/.claude/state/today-tasks.md")
 RUN_SCRIPT = Path("/home/yn4416/.claude/scripts/auto-dev/run-task.sh")
 
 LINE_RE = re.compile(
-    r"^\s*(\d+)\.\s*\*\*(.+?)\*\*\s*[—-]\s*(.+?)(?:（想定コスト:\s*([SML])）)?\s*$"
+    r"^\s*(\d+)\.\s*\*\*(.+?)\*\*\s*[—-]\s*(.+?)"
+    r"(?:（想定コスト:\s*([SML])）)?"
+    r"\s*(?:（(repo:\s*.+?|手動)）)?\s*$"
 )
 
 
 def parse_today_tasks(text: str) -> list[dict]:
-    """today-tasks.md から 'N. **<タスク>** — <理由>（コスト）' を抽出。
+    """today-tasks.md から 'N. **<タスク>** — <理由>（コスト）（marker）' を抽出。
+
+    marker は 'repo: <name>' または '手動'。無ければ repo=None・manual=False。
 
     Args:
         text: today-tasks.md の全文。
 
     Returns:
-        [{n, title, reason, cost}, ...]。cost は無ければ None。
+        [{n, title, reason, cost, repo, manual}, ...]。
+        repo は名前 or None。cost は無ければ None。manual は bool。
     """
     tasks: list[dict] = []
     for line in text.splitlines():
         m = LINE_RE.match(line)
         if not m:
             continue
-        n, title, reason, cost = m.groups()
+        n, title, reason, cost, marker = m.groups()
+        repo: str | None = None
+        manual = False
+        if marker:
+            if marker.startswith("repo:"):
+                repo = marker[len("repo:"):].strip()
+            elif marker.strip() == "手動":
+                manual = True
         tasks.append({
             "n": int(n),
             "title": title.strip(),
             "reason": reason.strip(),
             "cost": cost,
+            "repo": repo,
+            "manual": manual,
         })
     return tasks
 
