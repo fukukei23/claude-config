@@ -150,15 +150,11 @@ def main() -> None:
     project = state.get("project", "unknown")
     repo_path = state.get("repo_path", "/home/yn4416/projects/atelier-kyo-manager")
 
-    # 初回起動（current=None・pending あり）は検証結果を見ずに最初を取り出し
-    if state.get("current") is None and state.get("pending"):
-        state["current"] = state["pending"].pop(0)
-        save_state(STATE, state)
-        log(f"[{project}] 🚀 最初のタスク起動: {state['current'].get('title')}")
-        _launch_current(state["current"], repo_path)
-        return
+    # 初回起動ロジック削除: approve.py が current を直接セットする（E2E 二重実行防止）
+    if state.get("current") is None:
+        return  # approve.py 未起動（承認前）・何もしない
 
-    # 2回目以降: 検証結果で遷移
+    # 検証結果で遷移
     verify_ok = read_verify_result(VERIFY_RESULT)
     state = advance_state(state, verify_ok=verify_ok)
     save_state(STATE, state)

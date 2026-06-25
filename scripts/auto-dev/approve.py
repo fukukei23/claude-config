@@ -109,7 +109,9 @@ def main() -> int:
     state["pending"] = [build_task_entry(t, repo) for t in selected]
     state["active"] = True
     state["running"] = False
-    state["current"] = None
+    # 最初のタスクを current に直接セット（next_issue.py の初回起動ロジックと競合させない・E2E 二重実行防止）
+    first_task = state["pending"].pop(0) if state["pending"] else None
+    state["current"] = first_task
     state["completed"] = []
     state["blocked"] = []
     state["project"] = Path(repo).name
@@ -117,12 +119,12 @@ def main() -> int:
     STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"✅ キュー登録: {[t['title'] for t in selected]}")
 
-    first = state["pending"][0]
-    subprocess.Popen(
-        ["setsid", "bash", str(RUN_SCRIPT), first["title"]],
-        cwd=repo,
-        start_new_session=True,
-    )
+    if first_task:
+        subprocess.Popen(
+            ["setsid", "bash", str(RUN_SCRIPT), first_task["title"]],
+            cwd=repo,
+            start_new_session=True,
+        )
     print(f"🚀 最初のタスク起動: {first['title']}")
     return 0
 

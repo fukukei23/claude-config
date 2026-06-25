@@ -41,6 +41,7 @@ finalize() {
 trap finalize EXIT
 
 # ① 実装フェーズ（作るAI）
+HEAD_BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "")
 IMPL_PROMPT="以下のタスクを実装してください。完了したらテストを通し、git commit してください。タスク: $PROMPT"
 "$CLAUDE" --print "$IMPL_PROMPT" >> "$LOG" 2>&1
 IMPL_RC=$?
@@ -51,13 +52,22 @@ if [ "$IMPL_RC" -ne 0 ]; then
   exit 1
 fi
 
+# 実装空振り検出: コミットが無ければ NG（タスク曖昧・既に完了・実装AIが判断迷い）
+HEAD_AFTER=$(git rev-parse HEAD 2>/dev/null || echo "")
+if [ "$HEAD_BEFORE" = "$HEAD_AFTER" ]; then
+  echo "NG" > "$VERIFY"
+  echo "実装でコミットなし（タスク曖昧・既に完了の可能性）" >> "$VERIFY"
+  echo "[$(date '+%F %T')] 実装空振り（HEAD不変・検証スキップ）" >> "$LOG"
+  exit 1
+fi
+
 # Issue番号があれば close
 if [ -n "$ISSUE" ]; then
   gh issue close "$ISSUE" >> "$LOG" 2>&1 || true
 fi
 
 # ② 検証フェーズ（検証AI・別プロセス=ch8 別コンテキスト）
-VERIFY_PROMPT="あなたは検証AI。直前のコミット(git HEAD)を確認し、コードレビュー観点(バグ/簡潔性/規約違反)で厳しく評価せよ。結果の1行目に OK または NG を、2行目以降に理由を書いて出力せよ。基準: テスト通過・明らかなバグなし・規約違反なしなら OK。"
+VERIFY_PROMPT="あなたは検証AI。直前のコミット(git HEAD)を確認し、コードレビュー観点(バグ/簡潔性/規約違反)で厳しく評価せよ。**結果の1行目は必ず OK または NG のみを出力せよ（他の文字・日本語を一切含めない）**。2行目以降に理由を書け。基準: テスト通過・明らかなバグなし・規約違反なしなら OK。"
 "$CLAUDE" --print "$VERIFY_PROMPT" > "$VERIFY" 2>&1
 VERIFY_RC=$?
 
