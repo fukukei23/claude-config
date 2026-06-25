@@ -60,9 +60,6 @@ Think Before Coding / Surgical Changes / Simplicity First
 ## MCPツール管理
 `00_SYSTEM/MCPツール使い分けガイド.md` — settings.json変更時にガイドも更新
 
-## Knowledge Lint
-ユーザーが「リント実行」と言った場合は即時実行。自動設定（`3 3 * * 0,2,4`・durable:false）はSessionStart hookが検知してCronCreate。
-
 ## 並行セッション・共通ファイル（厳格）
 並行セッションが「共通ファイル」を同時に触る競合を防ぐため、`obsidian-ssot/00_SYSTEM/active-sessions.md` で作業を宣言・確認すること。
 
