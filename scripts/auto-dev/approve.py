@@ -122,7 +122,7 @@ def load_or_init_state() -> dict:
 
 
 def main() -> int:
-    """対話的に候補を選択→state.json 登録→最初のタスクを起動。"""
+    """対話的に候補を選択→state.json 登録→最初のタスクを起動（多repo対応）。"""
     if not TODAY_TASKS.exists():
         print(f"❌ {TODAY_TASKS} がありません。先に daily-triage.sh を実行してください。")
         return 1
@@ -135,9 +135,11 @@ def main() -> int:
     print("=== 今日のタスク候補 ===")
     for t in tasks:
         cost = f" [{t['cost']}]" if t["cost"] else ""
-        print(f"  {t['n']}. {t['title']}{cost} — {t['reason']}")
-    print("\n承認する番号をカンマ区切りで入力（例: 1 または 1,2）")
+        marker = f" (repo: {t['repo']})" if t["repo"] else (" (手動)" if t["manual"] else "")
+        print(f"  {t['n']}. {t['title']}{cost}{marker} — {t['reason']}")
+    print("\n承認する番号をカンマ区切りで入力（例: 1 または 1,2,3）")
     print("⚠️ 大量一括は非推奨（ch12① agentic trap）。今日やる分だけ。")
+    print("ℹ️ （手動）タスクは選んでも自動実行対象外として除外されます。")
 
     raw = input("> ").strip()
     nums = [int(x.strip()) for x in raw.split(",") if x.strip().isdigit()]
@@ -145,33 +147,36 @@ def main() -> int:
         print("未選択・中止します。")
         return 0
 
-    repo = input("実行先リポジトリパス (例: /home/yn4416/projects/<repo>): ").strip()
-    if not repo:
-        print("リポジトリ未指定・中止。")
-        return 1
-
     selected = [t for t in tasks if t["n"] in nums]
+    queueable, excluded = select_queueable(selected)
+
+    for t in excluded:
+        print(f"⚠️ 自動実行対象外・人間対応: {t['title']}")
+
     state = load_or_init_state()
-    state["pending"] = [build_task_entry(t, repo) for t in selected]
+    state["pending"] = [build_task_entry(t, t["repo_path"]) for t in queueable]
     state["active"] = True
     state["running"] = False
-    # 最初のタスクを current に直接セット（next_issue.py の初回起動ロジックと競合させない・E2E 二重実行防止）
     first_task = state["pending"].pop(0) if state["pending"] else None
     state["current"] = first_task
     state["completed"] = []
     state["blocked"] = []
-    state["project"] = Path(repo).name
-    state["repo_path"] = repo
+    state["project"] = "multi"
+    state.pop("repo_path", None)  # top-level repo_path 廃止（多repoでは無意味）
     STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"✅ キュー登録: {[t['title'] for t in selected]}")
+    print(f"✅ キュー登録: {[t['title'] for t in queueable]}")
+
+    if not queueable:
+        print("ℹ️ 自動実行可能なタスクがありません（全て手動）。起動せず終了。")
+        return 0
 
     if first_task:
         subprocess.Popen(
             ["setsid", "bash", str(RUN_SCRIPT), first_task["title"]],
-            cwd=repo,
+            cwd=first_task["repo"],
             start_new_session=True,
         )
-        print(f"🚀 最初のタスク起動: {first_task['title']}")
+        print(f"🚀 最初のタスク起動: {first_task['title']} (repo: {first_task['repo']})")
     return 0
 
 
