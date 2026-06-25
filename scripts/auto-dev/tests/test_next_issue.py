@@ -23,7 +23,7 @@ def test_advance_ok_moves_current_to_completed_and_pops_next():
     """検証OK: current→completed・pending先頭を次のcurrentに。"""
     state = _initial_state()
     result = advance_state(state, verify_ok=True)
-    assert result["completed"] == [{"title": "prev"}]
+    assert result["completed"] == [{"title": "prev", "repo": "/r"}]
     assert result["current"]["title"] == "task-A"
     assert result["pending"] == [
         {"title": "task-B", "prompt": "do B", "repo": "/r", "issue": None}
@@ -35,7 +35,7 @@ def test_advance_ng_moves_current_to_blocked_and_stops():
     """検証NG: current→blocked・次へ進まず active=False。"""
     state = _initial_state()
     result = advance_state(state, verify_ok=False)
-    assert result["blocked"] == [{"title": "prev", "reason": "verify NG"}]
+    assert result["blocked"] == [{"title": "prev", "reason": "verify NG", "repo": "/r"}]
     assert result["current"] is None
     assert result["active"] is False
     assert result["pending"] == [

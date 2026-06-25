@@ -101,10 +101,18 @@ def advance_state(state: dict, verify_ok: bool) -> dict:
     if s.get("current") is not None:
         cur = s["current"]
         if verify_ok:
-            s["completed"].append({"title": cur.get("title")})
+            s["completed"].append(
+                {"title": cur.get("title"), "repo": cur.get("repo")}
+            )
             s["current"] = None
         else:
-            s["blocked"].append({"title": cur.get("title"), "reason": "verify NG"})
+            s["blocked"].append(
+                {
+                    "title": cur.get("title"),
+                    "reason": "verify NG",
+                    "repo": cur.get("repo"),
+                }
+            )
             s["current"] = None
             s["active"] = False
             return s  # 検証NG は停止（次へ進まない）
