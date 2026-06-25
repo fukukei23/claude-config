@@ -82,6 +82,25 @@ def collect_handoff_latest(handoff_dir: Path) -> str | None:
     return files[0].read_text(encoding="utf-8")
 
 
+def collect_repo_names(repo_index: Path) -> list[str]:
+    """repo-index.yaml からリポジトリ名一覧を抽出（LLMのrepo選択制約用）。
+
+    Args:
+        repo_index: repo-index.yaml のパス。
+
+    Returns:
+        リポジトリ名のリスト。ファイル無ければ空。
+    """
+    if not repo_index.exists():
+        return []
+    names: list[str] = []
+    for line in repo_index.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- name:"):
+            names.append(stripped[len("- name:"):].strip())
+    return names
+
+
 def build_context(backlog: list[str], green: list[str], handoff: str | None) -> str:
     """収集データを Claude判定用プロンプトに組み立てる。
 
@@ -156,12 +175,17 @@ JUDGE_PROMPT = """あなたは Daily Triage エージェント。以下の収集
 - 🟢進行中タスクは他セッションが対応中なら候補から除外
 - バックログP0を最優先。handoffの「次のタスク」を次点
 - 公務員で日中作業不可→夜1セッションで完結する粒度を優先
+- 各タスクの対象リポジトリを repo_list から選び (repo: <name>) で付与
+- コード作業でない（応募・学習・手動運用・リポジトリ外）は (手動) を付与
+
+# repo_list（この中から選ぶ・該当無しは (手動)）
+{repo_list}
 
 # 出力フォーマット（厳守・Markdown）
 ## 今日のタスク候補 ({date})
 
-1. **<タスク>** — <理由>（想定コスト: <S/M/L>）
-2. **<タスク>** — <理由>（想定コスト: <S/M/L>）
+1. **<タスク>** — <理由>（想定コスト: <S/M/L>）（repo: <name>） または （手動）
+2. **<タスク>** — <理由>（想定コスト: <S/M/L>）（repo: <name>） または （手動）
 
 ---
 ※ 人間の承認後に実行。
@@ -171,12 +195,14 @@ JUDGE_PROMPT = """あなたは Daily Triage エージェント。以下の収集
 """
 
 
-def judge_with_claude(context: str, date_str: str) -> str:
+def judge_with_claude(context: str, date_str: str, repo_list: list[str]) -> str:
     """claude --print で優先度判定し today-tasks.md 形式の本文を返す。
 
     外部APIのため手動検証（pytest 対象外）。
     """
-    prompt = JUDGE_PROMPT.format(context=context, date=date_str)
+    prompt = JUDGE_PROMPT.format(
+        context=context, date=date_str, repo_list=", ".join(repo_list)
+    )
     result = subprocess.run(
         [CLAUDE_BIN, "--print", prompt],
         capture_output=True,
@@ -238,6 +264,7 @@ def main() -> int:
     backlog = collect_backlog(SSOT / "00_SYSTEM" / "バックログ.md")
     green = collect_active_green(SSOT / "00_SYSTEM" / "active-sessions.md")
     handoff = collect_handoff_latest(SSOT / "00_SYSTEM" / "handoff")
+    repo_list = collect_repo_names(SSOT / "00_SYSTEM" / "repo-index.yaml")
     context = build_context(backlog, green, handoff)
 
     if args.collect_only:
@@ -246,7 +273,7 @@ def main() -> int:
 
     from datetime import date
     date_str = date.today().isoformat()
-    body = context if args.no_llm else judge_with_claude(context, date_str)
+    body = context if args.no_llm else judge_with_claude(context, date_str, repo_list)
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(body, encoding="utf-8")
