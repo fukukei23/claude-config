@@ -23,15 +23,19 @@ SSOT（`/home/yn4416/projects/obsidian-ssot/`）内のファイルと実態（�
 ### auto 時の挙動
 - **フェーズ2**: 承認確認なし。乖離一覧は内部保持のみでユーザーに問わない。
 - **フェーズ3（修正）**: **重要度「高」のみ自動修正**。「中」「低」は修正しない。
-- **フェーズ4**: commit/push を自動実行。メッセージ: `chore: SSOT整合性チェック[auto]（高重要度N件修正）`
-- **記録**: 修正した「高」と検知のみの「中・低」の**全件**を `10_DAILY/YYYY-MM-DD.md` に追記。ヘッダーは `## SSOT整合性チェック[auto] (HH:MM)` 形式（セッションログではない）。
+- **フェーズ4**: **commit のみ自動実行**（push は ssot-auto-sync `*/30` に委譲・git競合の窓口を減らす）。メッセージ: `chore: SSOT整合性チェック[auto]（高重要度N件修正）`
+- **記録**: 修正した「高」と検知のみの「中・低」の**全件**を `10_DAILY/YYYY-MM-DD.md` に追記。ヘッダーは `## SSOT整合性チェック[auto] (HH:MM)` 形式（セッションログではない）。**Edit ツールではなく bash の `>>` heredoc で追記**（複数プロセス・並行セッションによる `File has been modified since read` 競合を回避）。
 
-### auto 時のstate更新（必須・フェーズ4完了直後）
-SessionStart hook による日次自動実行の再発火を抑制するため、commit/push 後に必ず実行:
+### auto 時のstate更新（2段階・重複発火抑制）
+state は2ファイルに分離（2026-06-26 の 04:39/41/42/43 の4連鎖発火事故対策）:
+- `ssot-sync-triggered`: **SessionStart hook（check-ssot-sync-staleness.sh）が発火指示時に先行マーク**する。本スキルでは触らない。後続セッションの同時発火を弾く。
+- `ssot-sync-last-run`: **本スキルが auto 実行完了時に更新**する（実行成功日・翌日以降の参照用）。
+
 ```bash
+# auto 実行の完了時（高0件で commit なしの場合でも必ず実行）:
 date +%Y-%m-%d > ~/.claude/state/ssot-sync-last-run
 ```
-これを忘れると次セッション開始時にも再実行される。
+**高0件で commit をスキップした場合でも last-run は更新すること**（更新忘れが state 古残り→翌セッション再発火の無限ループの原因。04:39実行の再発原因）。
 
 ### 安全装置（auto 時の厳格な制限）
 - 「高」でも**削除系**（リポ消失・フォルダ消失等の記述削除）は自動修正せず検知のみ。誤削除防止。
@@ -159,13 +163,14 @@ python3 -c "import json; print(list(json.load(open('/home/yn4416/.claude/setting
 
 ---
 
-## フェーズ4: git commit & push
+## フェーズ4: git commit（push は auto-sync に委譲）
 
 ```bash
 cd /home/yn4416/projects/obsidian-ssot
+# auto 時は安全装置（5ファイル/100行超）で commit 中止判定を先に行うこと
 git add -A
-git commit -m "update: SSOT整合性チェック（修正対象: XXX）」
-git push
+git commit -m "update: SSOT整合性チェック（修正対象: XXX）"
+# ※ push は行わない。ssot-auto-sync.sh（*/30）が自動 push する（git競合窓口を減らす）
 ```
 
 ---
