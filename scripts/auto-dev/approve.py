@@ -11,6 +11,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from daily_triage import validate_repo
+
 STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
 TODAY_TASKS = Path("/home/yn4416/.claude/state/today-tasks.md")
 RUN_SCRIPT = Path("/home/yn4416/.claude/scripts/auto-dev/run-task.sh")
@@ -74,6 +76,36 @@ def build_task_entry(task: dict, repo: str) -> dict:
         "repo": repo,
         "issue": None,
     }
+
+
+def select_queueable(
+    tasks: list[dict], projects_dir: Path | None = None
+) -> tuple[list[dict], list[dict]]:
+    """タスクリストを (自動実行可能, 手動除外) に振り分け。
+
+    manual=True または repo実在チェック不可（validate_repo が None）は除外。
+    queueable 側には解決済み 'repo_path'（絶対パス）を付与。
+
+    Args:
+        tasks: parse_today_tasks() の結果。
+        projects_dir: validate_repo の親ディレクトリ（None ならデフォルト ~/projects）。
+
+    Returns:
+        (queueable, excluded)。queueable 各要素は元フィールド + 'repo_path'。
+    """
+    validate_kwargs = {} if projects_dir is None else {"projects_dir": projects_dir}
+    queueable: list[dict] = []
+    excluded: list[dict] = []
+    for t in tasks:
+        if t.get("manual"):
+            excluded.append(t)
+            continue
+        repo_path = validate_repo(t.get("repo") or "", **validate_kwargs)
+        if repo_path is None:
+            excluded.append(t)
+            continue
+        queueable.append({**t, "repo_path": repo_path})
+    return queueable, excluded
 
 
 def load_or_init_state() -> dict:

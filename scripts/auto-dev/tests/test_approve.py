@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from approve import parse_today_tasks, build_task_entry  # noqa: E402
+from approve import parse_today_tasks, build_task_entry, select_queueable  # noqa: E402
 
 
 def test_parse_today_tasks_extracts_numbered_candidates():
@@ -72,3 +72,25 @@ def test_build_task_entry_creates_pending_item():
     assert "Python基礎学習" in entry["prompt"]
     assert entry["repo"] == "/home/yn4416/projects/x"
     assert entry["issue"] is None
+
+
+def test_select_queueable_separates_manual_and_invalid(tmp_path):
+    """manual と repo非実在は excluded・実在は queueable(repo_path付き)。"""
+    (tmp_path / "NexusCore").mkdir()
+    tasks = [
+        {"n": 1, "title": "A", "reason": "r", "cost": "S", "repo": "NexusCore", "manual": False},
+        {"n": 2, "title": "B", "reason": "r", "cost": "S", "repo": None, "manual": True},
+        {"n": 3, "title": "C", "reason": "r", "cost": "S", "repo": "ghost", "manual": False},
+    ]
+    queueable, excluded = select_queueable(tasks, projects_dir=tmp_path)
+    assert [t["title"] for t in queueable] == ["A"]
+    assert queueable[0]["repo_path"] == str(tmp_path / "NexusCore")
+    assert [t["title"] for t in excluded] == ["B", "C"]
+
+
+def test_select_queueable_all_manual_returns_empty(tmp_path):
+    """全タスク manual→ queueable 空。"""
+    tasks = [{"n": 1, "title": "A", "reason": "r", "cost": "S", "repo": None, "manual": True}]
+    queueable, excluded = select_queueable(tasks, projects_dir=tmp_path)
+    assert queueable == []
+    assert len(excluded) == 1
