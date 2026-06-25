@@ -359,7 +359,14 @@
     "superpowers@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true
   },
-  "extraKnownMarketplaces": {},
+  "extraKnownMarketplaces": {
+    "addy-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "addyosmani/agent-skills"
+      }
+    }
+  },
   "language": "japanese",
   "effortLevel": "medium",
   "skipDangerousModePermissionPrompt": true,
