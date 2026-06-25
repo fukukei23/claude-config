@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from next_issue import advance_state, read_verify_result  # noqa: E402
+from next_issue import advance_state, read_verify_result, _launch_current  # noqa: E402
 
 
 def _initial_state():
@@ -87,3 +87,19 @@ def test_main_ignores_stop_hook_while_running(tmp_path, monkeypatch):
     after = json.loads(state_file.read_text(encoding="utf-8"))
     assert after["running"] is True
     assert after["current"]["title"] == "x"
+
+
+def test_launch_current_uses_task_repo(monkeypatch):
+    """_launch_current は current['repo'] を cwd に使う（top-level repo_path に依存しない）。"""
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, cmd, cwd=None, **kw):
+            captured["cmd"] = cmd
+            captured["cwd"] = cwd
+
+    monkeypatch.setattr("next_issue.subprocess.Popen", FakePopen)
+    current = {"title": "task-X", "repo": "/home/yn4416/projects/NexusCore"}
+    _launch_current(current)
+    assert captured["cwd"] == "/home/yn4416/projects/NexusCore"
+    assert captured["cmd"][0] == "setsid"
