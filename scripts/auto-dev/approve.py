@@ -125,7 +125,7 @@ def main() -> int:
             cwd=repo,
             start_new_session=True,
         )
-    print(f"🚀 最初のタスク起動: {first['title']}")
+        print(f"🚀 最初のタスク起動: {first_task['title']}")
     return 0
 
 
