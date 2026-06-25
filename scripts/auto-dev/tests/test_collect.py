@@ -8,6 +8,7 @@ from daily_triage import (
     collect_active_green,
     collect_handoff_latest,
     build_context,
+    validate_repo,  # noqa: E402
 )
 
 FIX = Path(__file__).resolve().parent / "fixtures"
@@ -77,3 +78,20 @@ def test_build_context_empty_inputs():
     """空入力は（なし）で埋める（クラッシュしない）。"""
     ctx = build_context(backlog=[], green=[], handoff=None)
     assert "（なし）" in ctx
+
+
+def test_validate_repo_returns_abs_path_when_dir_exists(tmp_path):
+    """実在するディレクトリ名→絶対パス返却。"""
+    (tmp_path / "NexusCore").mkdir()
+    assert validate_repo("NexusCore", projects_dir=tmp_path) == str(tmp_path / "NexusCore")
+
+
+def test_validate_repo_returns_none_when_missing(tmp_path):
+    """非実在ディレクトリ名→None。"""
+    assert validate_repo("nonexistent-repo", projects_dir=tmp_path) is None
+
+
+def test_validate_repo_returns_none_for_empty(tmp_path):
+    """空文字・None→None。"""
+    assert validate_repo("", projects_dir=tmp_path) is None
+    assert validate_repo(None, projects_dir=tmp_path) is None  # type: ignore[arg-type]

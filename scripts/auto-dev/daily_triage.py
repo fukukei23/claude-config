@@ -113,6 +113,25 @@ def build_context(backlog: list[str], green: list[str], handoff: str | None) -> 
 SSOT = Path("/home/yn4416/projects/obsidian-ssot")
 STATE_DIR = Path("/home/yn4416/.claude/state")
 TODAY_TASKS = STATE_DIR / "today-tasks.md"
+PROJECTS_DIR = Path("/home/yn4416/projects")
+
+
+def validate_repo(repo_name: str, projects_dir: Path = PROJECTS_DIR) -> str | None:
+    """repo名→実在チェック。実在するディレクトリなら絶対パス、非実在/空は None。
+
+    Args:
+        repo_name: リポジトリ名（~/projects/ 配下のディレクトリ名）。
+        projects_dir: 親ディレクトリ（デフォルト ~/projects・テストで注入）。
+
+    Returns:
+        実在すれば絶対パス・非実在/空なら None。
+    """
+    if not repo_name:
+        return None
+    path = projects_dir / repo_name
+    return str(path) if path.is_dir() else None
+
+
 def _resolve_claude_bin() -> str:
     """claude CLI のパスを解決。fnmハードコード優先、なければPATHから探す。
 
