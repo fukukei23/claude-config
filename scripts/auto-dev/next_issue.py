@@ -138,12 +138,15 @@ def save_state(path: Path, state: dict) -> None:
     path.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def _launch_current(current: dict, repo_path: str) -> None:
-    """run-task.sh を current タスクでバックグラウンド起動。"""
+def _launch_current(current: dict) -> None:
+    """run-task.sh を current タスクでバックグラウンド起動。
+    cwd は current['repo']（per-task・top-level repo_path に依存しない）。
+    """
     title = current.get("title", "")
+    repo = current.get("repo") or "/home/yn4416"
     subprocess.Popen(
         ["setsid", "bash", str(RUN_SCRIPT), title],
-        cwd=repo_path,
+        cwd=repo,
         start_new_session=True,
     )
 
@@ -156,7 +159,6 @@ def main() -> None:
         return  # run-task.sh 実行中の claude Stop hook 発火を無視（二重発火・検証前完了扱い対策）
 
     project = state.get("project", "unknown")
-    repo_path = state.get("repo_path", "/home/yn4416/projects/atelier-kyo-manager")
 
     # 初回起動ロジック削除: approve.py が current を直接セットする（E2E 二重実行防止）
     if state.get("current") is None:
@@ -180,7 +182,7 @@ def main() -> None:
         return
 
     log(f"[{project}] 🚀 次タスク起動: {state['current'].get('title')}")
-    _launch_current(state["current"], repo_path)
+    _launch_current(state["current"])
 
 
 if __name__ == "__main__":
