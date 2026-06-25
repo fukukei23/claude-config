@@ -3,14 +3,13 @@
 Stop hook: 次のタスクをキューから取り出して claude CLI で起動する。
 ~/.claude/settings.json の Stop フックから呼ばれる。
 
-state.json スキーマ（タスク本文ベース・Loop Engineering Phase3）:
+state.json スキーマ（タスク本文ベース・Loop Engineering Phase3.1・per-task repo）:
   active    bool        - false なら何もしない（誤爆防止）
-  pending   list[dict]  - 未着手タスク {title, prompt, repo, issue}
-  current   dict|null   - 実行中タスク
-  completed list[dict]  - 完了済み（検証OK）{title}
-  blocked   list[dict]  - 検証NG停止 {title, reason}
-  project   str         - プロジェクト名（ログ用）
-  repo_path str         - リポジトリの絶対パス
+  pending   list[dict]  - 未着手タスク {title, prompt, repo, issue}（repo は絶対パス・per-task）
+  current   dict|null   - 実行中タスク {title, prompt, repo, issue}
+  completed list[dict]  - 完了済み（検証OK）{title, repo}
+  blocked   list[dict]  - 検証NG停止 {title, reason, repo}
+  project   str         - プロジェクト名（ログ用・"multi" の場合は多repo混在）
 """
 import json
 import subprocess
