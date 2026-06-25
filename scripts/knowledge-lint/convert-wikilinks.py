@@ -97,7 +97,10 @@ def convert_wikilink(match_text: str, src: Path, vault: Path, idx: dict):
 def process_file(src: Path, vault: Path, idx: dict, warnings: list):
     """1ファイルのwikilinkを全変換。## 関連セクションの重複をuniq化。
     戻り値: (変換数, スキップ数)"""
-    text = src.read_text(encoding="utf-8")
+    try:
+        text = src.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        text = src.read_text(encoding="utf-8", errors="replace")
     converted = 0
     skipped = 0
 
@@ -176,3 +179,104 @@ def dedupe_related_section(text: str) -> str:
     result = re.sub(r"## 関連\s*\n\s*$", "", result)
     result = re.sub(r"## 関連\s*\n(\s*## )", r"\1", result)
     return result
+
+
+def backup_vault(vault: Path) -> Path:
+    """vault内の全.mdをバックアップディレクトリにコピー"""
+    ts = datetime.now().strftime("%Y%m%d")
+    backup_dir = vault / f".backup-wikilinks-{ts}"
+    if backup_dir.exists():
+        shutil.rmtree(backup_dir)
+    for d in SCAN_DIRS:
+        sp = vault / d
+        if not sp.exists():
+            continue
+        for p in sp.rglob("*.md"):
+            if any(str(p).endswith(s) for s in SKIP_SUFFIXES):
+                continue
+            rel = p.relative_to(vault)
+            dst = backup_dir / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, dst)
+    return backup_dir
+
+
+def main():
+    parser = argparse.ArgumentParser(description="wikilink → 標準Markdown 変換（one-shot）")
+    parser.add_argument("--ssot-dir", default=str(Path.home() / "projects" / "obsidian-ssot"))
+    parser.add_argument("--dry-run", action="store_true", help="変換せず結果のみ表示")
+    parser.add_argument("--dir", help="対象ディレクトリ限定（テスト用）")
+    parser.add_argument("--no-backup", action="store_true", help="バックアップ省略")
+    args = parser.parse_args()
+
+    vault = Path(args.ssot_dir)
+    if not vault.exists():
+        print(f"❌ vault不在: {vault}", file=sys.stderr)
+        return 1
+
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] 変換開始 vault={vault}")
+
+    # バックアップ
+    if not args.dry_run and not args.no_backup:
+        bd = backup_vault(vault)
+        print(f"✅ バックアップ: {bd}")
+
+    idx = build_stem_index(vault)
+    print(f"📁 stem index構築: {len(idx)}件")
+
+    warnings = []
+    total_converted = 0
+    total_skipped = 0
+    files_changed = 0
+
+    # 対象ファイル収集
+    targets = []
+    dirs = [args.dir] if args.dir else SCAN_DIRS
+    for d in dirs:
+        sp = vault / d
+        if not sp.exists():
+            continue
+        targets.extend(sp.rglob("*.md"))
+
+    for src in targets:
+        if any(str(src).endswith(s) for s in SKIP_SUFFIXES):
+            continue
+        if args.dry_run:
+            try:
+                text = src.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                # 部分的エンコーディング混入は errors=replace でフォールバック
+                text = src.read_text(encoding="utf-8", errors="replace")
+            matches = WIKILINK_RE.findall(text)
+            if matches:
+                print(f"  [DRY] {src.relative_to(vault)}: {len(matches)}件")
+            continue
+        try:
+            before = src.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            warnings.append(f"[decode-error] {src.relative_to(vault)}: UTF-8 decode失敗・スキップ")
+            continue
+        c, s = process_file(src, vault, idx, warnings)
+        after = src.read_text(encoding="utf-8")
+        if before != after:
+            files_changed += 1
+        total_converted += c
+        total_skipped += s
+
+    # 警告ログ
+    if warnings:
+        log_path = vault / "convert-warnings.log"
+        log_path.write_text("\n".join(warnings) + "\n", encoding="utf-8")
+        print(f"⚠️ 警告: {len(warnings)}件 → {log_path}")
+
+    print(f"\n=== サマリー ===")
+    print(f"変更ファイル: {files_changed}")
+    print(f"変換リンク: {total_converted}")
+    print(f"スキップ: {total_skipped}")
+    if args.dry_run:
+        print("（dry-run・ファイル未変更）")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
