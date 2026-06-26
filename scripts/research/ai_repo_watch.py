@@ -7,6 +7,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import requests
 from bs4 import BeautifulSoup
 
 GITHUB_LINK_RE = re.compile(r"\(https://github\.com/([\w.-]+/[\w.-]+)\)")
@@ -68,3 +69,50 @@ def save_pending_repos(path: Path, new_repos: list[dict], fetched_date: str) -> 
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+TRENDING_URL = "https://github.com/trending"
+SSOT_EVAL_FILE = Path(
+    "/home/yn4416/projects/obsidian-ssot/30_RESEARCH/MCPサーバー/"
+    "2026-06-24_GitHub急上昇AIリポジトリ10選評価.md"
+)
+PENDING_FILE = Path("/home/yn4416/projects/obsidian-ssot/00_SYSTEM/stats/pending-ai-repos.json")
+LOG_FILE = Path("/home/yn4416/projects/obsidian-ssot/00_SYSTEM/stats/ai-repo-watch.log")
+
+
+def fetch_trending_html() -> str:
+    """GitHub Trendingページを取得する。"""
+    response = requests.get(TRENDING_URL, timeout=15)
+    response.raise_for_status()
+    return response.text
+
+
+def _log(message: str) -> None:
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a", encoding="utf-8") as f:
+        f.write(f"{date.today().isoformat()} {message}\n")
+
+
+def main() -> int:
+    try:
+        html = fetch_trending_html()
+    except Exception as exc:  # noqa: BLE001 - スクレイピング失敗は静かにskip
+        _log(f"FETCH_ERROR: {exc}")
+        return 0
+
+    trending = parse_trending_html(html)
+    evaluated_text = SSOT_EVAL_FILE.read_text(encoding="utf-8") if SSOT_EVAL_FILE.exists() else ""
+    evaluated = extract_evaluated_repos(evaluated_text)
+    new_repos = filter_new_repos(trending, evaluated)
+
+    if new_repos:
+        save_pending_repos(PENDING_FILE, new_repos, fetched_date=date.today().isoformat())
+        _log(f"NEW_REPOS: {len(new_repos)}件保存")
+    else:
+        _log("NEW_REPOS: 0件")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
