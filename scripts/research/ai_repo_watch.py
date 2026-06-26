@@ -43,3 +43,8 @@ def parse_trending_html(html: str) -> list[dict]:
             "stars_today": stars_today,
         })
     return entries
+
+
+def filter_new_repos(trending: list[dict], evaluated: set[str]) -> list[dict]:
+    """既評価済みリポジトリ(owner/repo)を除外して新規分のみ返す。"""
+    return [r for r in trending if r["name"] not in evaluated]

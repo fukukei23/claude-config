@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ai_repo_watch import extract_evaluated_repos, parse_trending_html  # noqa: E402
+from ai_repo_watch import extract_evaluated_repos, parse_trending_html, filter_new_repos  # noqa: E402
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -36,3 +36,17 @@ def test_parse_trending_html_extracts_repo_entries():
     assert result[0]["description"] == "説明テキストA"
     assert result[0]["stars_today"] == 123
     assert result[1]["stars_today"] == 45
+
+
+def test_filter_new_repos_excludes_already_evaluated():
+    """既評価済み(owner/repo)に含まれるものは除外する。"""
+    trending = [
+        {"name": "DeusData/codebase-memory-mcp", "url": "https://github.com/DeusData/codebase-memory-mcp"},
+        {"name": "new-owner/new-repo", "url": "https://github.com/new-owner/new-repo"},
+    ]
+    evaluated = {"DeusData/codebase-memory-mcp"}
+
+    result = filter_new_repos(trending, evaluated)
+
+    assert len(result) == 1
+    assert result[0]["name"] == "new-owner/new-repo"
