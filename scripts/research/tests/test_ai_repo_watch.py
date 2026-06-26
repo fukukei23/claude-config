@@ -23,3 +23,19 @@ def test_extract_evaluated_repos_returns_owner_repo_set():
 def test_extract_evaluated_repos_empty_text_returns_empty_set():
     """テーブルがない場合は空集合を返す。"""
     assert extract_evaluated_repos("# 何もないドキュメント") == set()
+
+
+from ai_repo_watch import parse_trending_html  # noqa: E402
+
+
+def test_parse_trending_html_extracts_repo_entries():
+    """Trending HTMLから name/url/description/stars_todayを抽出する。"""
+    html = (FIX / "trending_sample.html").read_text(encoding="utf-8")
+    result = parse_trending_html(html)
+
+    assert len(result) == 2
+    assert result[0]["name"] == "owner-a/repo-a"
+    assert result[0]["url"] == "https://github.com/owner-a/repo-a"
+    assert result[0]["description"] == "説明テキストA"
+    assert result[0]["stars_today"] == 123
+    assert result[1]["stars_today"] == 45
