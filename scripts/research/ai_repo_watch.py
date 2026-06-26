@@ -25,7 +25,6 @@ def parse_trending_html(html: str) -> list[dict]:
         link = article.select_one("h2 a")
         if link is None:
             continue
-        name = "/".join(part.strip() for part in link.get_text().split("/"))
         repo_path = link.get("href", "").lstrip("/")
         desc_el = article.select_one("p")
         description = desc_el.get_text(strip=True) if desc_el else ""
