@@ -47,3 +47,24 @@ def parse_trending_html(html: str) -> list[dict]:
 def filter_new_repos(trending: list[dict], evaluated: set[str]) -> list[dict]:
     """既評価済みリポジトリ(owner/repo)を除外して新規分のみ返す。"""
     return [r for r in trending if r["name"] not in evaluated]
+
+
+def load_pending_repos(path: Path) -> list[dict]:
+    """pending JSONを読み込む。ファイルがなければ空リスト。"""
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_pending_repos(path: Path, new_repos: list[dict], fetched_date: str) -> None:
+    """新規分をpending JSONに追記保存する。既存nameは重複追加しない。"""
+    existing = load_pending_repos(path)
+    existing_names = {r["name"] for r in existing}
+
+    for repo in new_repos:
+        if repo["name"] in existing_names:
+            continue
+        existing.append({**repo, "fetched_date": fetched_date})
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")

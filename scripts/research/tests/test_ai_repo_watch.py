@@ -1,9 +1,16 @@
 """ai_repo_watch のユニットテスト"""
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ai_repo_watch import extract_evaluated_repos, parse_trending_html, filter_new_repos  # noqa: E402
+from ai_repo_watch import (
+    extract_evaluated_repos,
+    parse_trending_html,
+    filter_new_repos,
+    save_pending_repos,
+    load_pending_repos,
+)  # noqa: E402
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -50,3 +57,35 @@ def test_filter_new_repos_excludes_already_evaluated():
 
     assert len(result) == 1
     assert result[0]["name"] == "new-owner/new-repo"
+
+
+def test_save_then_load_pending_repos_roundtrip(tmp_path):
+    """新規分をJSONに保存し、同じ内容を読み込める。"""
+    path = tmp_path / "pending-ai-repos.json"
+    new_repos = [
+        {"name": "owner/repo", "url": "https://github.com/owner/repo",
+         "description": "desc", "stars_today": 10},
+    ]
+
+    save_pending_repos(path, new_repos, fetched_date="2026-06-26")
+    result = load_pending_repos(path)
+
+    assert len(result) == 1
+    assert result[0]["name"] == "owner/repo"
+    assert result[0]["fetched_date"] == "2026-06-26"
+
+
+def test_save_pending_repos_appends_without_duplicates(tmp_path):
+    """既存pendingに同じnameがあれば追加しない（再実行の重複防止）。"""
+    path = tmp_path / "pending-ai-repos.json"
+    first = [{"name": "owner/repo", "url": "u", "description": "d", "stars_today": 1}]
+    save_pending_repos(path, first, fetched_date="2026-06-26")
+    save_pending_repos(path, first, fetched_date="2026-07-03")
+
+    result = load_pending_repos(path)
+    assert len(result) == 1
+
+
+def test_load_pending_repos_missing_file_returns_empty_list(tmp_path):
+    """ファイルが存在しない場合は空リストを返す。"""
+    assert load_pending_repos(tmp_path / "missing.json") == []
