@@ -98,7 +98,7 @@ if [[ -f "$PENDING_REPOS" ]]; then
     pending_names=$(python3 -c "import json,sys; print(', '.join(r['name'] for r in json.load(open(sys.argv[1]))))" "$PENDING_REPOS" 2>/dev/null)
     echo "--- 📡 新規Trendingリポジトリ ${pending_count}件（評価待ち） ---"
     echo "$pending_names"
-    echo "（※ 評価して30_RESEARCH/MCPサーバー/2026-06-24評価.mdに追記したらpending-ai-repos.jsonから削除）"
+    echo "（※ 評価して30_RESEARCH/MCPサーバー/2026-06-24_GitHub急上昇AIリポジトリ10選評価.mdに追記したらpending-ai-repos.jsonから削除）"
     echo "--- /📡 新規Trendingリポジトリ ---"
   fi
 fi

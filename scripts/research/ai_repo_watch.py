@@ -18,11 +18,14 @@ def extract_evaluated_repos(markdown_text: str) -> set[str]:
     return set(GITHUB_LINK_RE.findall(markdown_text))
 
 
+TRENDING_LIMIT = 25
+
+
 def parse_trending_html(html: str) -> list[dict]:
     """GitHub Trendingページ(HTML)から上位リポジトリ情報を抽出する。"""
     soup = BeautifulSoup(html, "html.parser")
     entries = []
-    for article in soup.select("article.Box-row"):
+    for article in soup.select("article.Box-row")[:TRENDING_LIMIT]:
         link = article.select_one("h2 a")
         if link is None:
             continue
