@@ -26,7 +26,7 @@ def parse_trending_html(html: str) -> list[dict]:
         if link is None:
             continue
         name = "/".join(part.strip() for part in link.get_text().split("/"))
-        href = link.get("href", "").lstrip("/")
+        repo_path = link.get("href", "").lstrip("/")
         desc_el = article.select_one("p")
         description = desc_el.get_text(strip=True) if desc_el else ""
         stars_today = 0
@@ -37,8 +37,8 @@ def parse_trending_html(html: str) -> list[dict]:
                 stars_today = int(m.group(1).replace(",", ""))
                 break
         entries.append({
-            "name": href,
-            "url": f"https://github.com/{href}",
+            "name": repo_path,
+            "url": f"https://github.com/{repo_path}",
             "description": description,
             "stars_today": stars_today,
         })

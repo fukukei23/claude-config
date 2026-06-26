@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from ai_repo_watch import extract_evaluated_repos  # noqa: E402
+from ai_repo_watch import extract_evaluated_repos, parse_trending_html  # noqa: E402
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -23,9 +23,6 @@ def test_extract_evaluated_repos_returns_owner_repo_set():
 def test_extract_evaluated_repos_empty_text_returns_empty_set():
     """テーブルがない場合は空集合を返す。"""
     assert extract_evaluated_repos("# 何もないドキュメント") == set()
-
-
-from ai_repo_watch import parse_trending_html  # noqa: E402
 
 
 def test_parse_trending_html_extracts_repo_entries():
