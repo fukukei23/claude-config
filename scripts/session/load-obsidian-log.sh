@@ -90,6 +90,19 @@ if [[ -f "$TODAY_TASKS" ]]; then
   echo "--- /今日のタスク候補 ---"
 fi
 
+# --- 📡 新規Trendingリポジトリ（pending評価待ち）---
+PENDING_REPOS="$SSOT_PATH/00_SYSTEM/stats/pending-ai-repos.json"
+if [[ -f "$PENDING_REPOS" ]]; then
+  pending_count=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$PENDING_REPOS" 2>/dev/null)
+  if [[ -n "$pending_count" ]] && [[ "$pending_count" -gt 0 ]]; then
+    pending_names=$(python3 -c "import json,sys; print(', '.join(r['name'] for r in json.load(open(sys.argv[1]))))" "$PENDING_REPOS" 2>/dev/null)
+    echo "--- 📡 新規Trendingリポジトリ ${pending_count}件（評価待ち） ---"
+    echo "$pending_names"
+    echo "（※ 評価して30_RESEARCH/MCPサーバー/2026-06-24評価.mdに追記したらpending-ai-repos.jsonから削除）"
+    echo "--- /📡 新規Trendingリポジトリ ---"
+  fi
+fi
+
 # --- バックログ: P0+P1のみ（P2は必要時にRead） ---
 BACKLOG="$SSOT_PATH/00_SYSTEM/バックログ.md"
 if [[ -f "$BACKLOG" ]]; then
