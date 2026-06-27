@@ -96,6 +96,35 @@ def _log(message: str) -> None:
         f.write(f"{date.today().isoformat()} {message}\n")
 
 
+def load_trend_history(path: Path) -> dict:
+    """観測履歴JSONを読み込む。ファイルがなければ空dict。"""
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def save_trend_history(path: Path, entries: list[dict], observed_date: str) -> dict:
+    """観測履歴を更新して保存する。同日内の重複呼び出しではweeks_seenを増やさない。"""
+    history = load_trend_history(path)
+
+    for entry in entries:
+        name = entry["name"]
+        record = history.get(name)
+        if record is None:
+            history[name] = {
+                "first_seen": observed_date,
+                "last_seen": observed_date,
+                "weeks_seen": 1,
+            }
+        elif record["last_seen"] != observed_date:
+            record["last_seen"] = observed_date
+            record["weeks_seen"] += 1
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+    return history
+
+
 def tag_for_weeks_seen(weeks_seen: int) -> str:
     """観測週数に応じたタグ文字列を返す。"""
     if weeks_seen <= 1:

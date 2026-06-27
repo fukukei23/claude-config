@@ -11,6 +11,8 @@ from ai_repo_watch import (
     save_pending_repos,
     load_pending_repos,
     tag_for_weeks_seen,
+    load_trend_history,
+    save_trend_history,
 )  # noqa: E402
 
 FIX = Path(__file__).resolve().parent / "fixtures"
@@ -98,3 +100,44 @@ def test_tag_for_weeks_seen_returns_correct_label():
     assert tag_for_weeks_seen(2) == "2週連続"
     assert tag_for_weeks_seen(3) == "定着"
     assert tag_for_weeks_seen(10) == "定着"
+
+
+def test_save_trend_history_first_time_sets_weeks_seen_to_1(tmp_path):
+    """初めて観測したリポジトリは weeks_seen=1 で記録される。"""
+    path = tmp_path / "repo-trend-history.json"
+    entries = [{"name": "owner/repo"}]
+
+    result = save_trend_history(path, entries, observed_date="2026-06-26")
+
+    assert result["owner/repo"]["weeks_seen"] == 1
+    assert result["owner/repo"]["first_seen"] == "2026-06-26"
+    assert result["owner/repo"]["last_seen"] == "2026-06-26"
+
+
+def test_save_trend_history_new_date_increments_weeks_seen(tmp_path):
+    """別の日付で再度観測されたら weeks_seen が増える。"""
+    path = tmp_path / "repo-trend-history.json"
+    entries = [{"name": "owner/repo"}]
+
+    save_trend_history(path, entries, observed_date="2026-06-26")
+    result = save_trend_history(path, entries, observed_date="2026-07-03")
+
+    assert result["owner/repo"]["weeks_seen"] == 2
+    assert result["owner/repo"]["first_seen"] == "2026-06-26"
+    assert result["owner/repo"]["last_seen"] == "2026-07-03"
+
+
+def test_save_trend_history_same_date_does_not_increment(tmp_path):
+    """同じ日付で複数回呼んでも weeks_seen は増えない（同日重複cron対策）。"""
+    path = tmp_path / "repo-trend-history.json"
+    entries = [{"name": "owner/repo"}]
+
+    save_trend_history(path, entries, observed_date="2026-06-26")
+    result = save_trend_history(path, entries, observed_date="2026-06-26")
+
+    assert result["owner/repo"]["weeks_seen"] == 1
+
+
+def test_load_trend_history_missing_file_returns_empty_dict(tmp_path):
+    """ファイルが存在しない場合は空dictを返す。"""
+    assert load_trend_history(tmp_path / "missing.json") == {}
