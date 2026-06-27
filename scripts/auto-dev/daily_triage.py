@@ -7,9 +7,14 @@ Claude判定は claude --print の外部APIのため手動検証（--collect-onl
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
+
+# handoff ファイル名形式（YYYY-MM-DD_HHMM.md）。
+# handoff_prompt.md のような非日付の固定名ファイルを「最新」誤認して拾わないためのフィルタ。
+_HANDOFF_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}\.md$")
 
 
 def collect_backlog(path: Path) -> list[str]:
@@ -76,7 +81,11 @@ def collect_handoff_latest(handoff_dir: Path) -> str | None:
     """
     if not handoff_dir.exists():
         return None
-    files = sorted(handoff_dir.glob("*.md"), key=lambda p: p.name, reverse=True)
+    files = sorted(
+        [p for p in handoff_dir.glob("*.md") if _HANDOFF_DATE_RE.match(p.name)],
+        key=lambda p: p.name,
+        reverse=True,
+    )
     if not files:
         return None
     return files[0].read_text(encoding="utf-8")
