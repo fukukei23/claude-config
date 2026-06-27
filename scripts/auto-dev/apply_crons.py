@@ -305,9 +305,12 @@ HEALTH_LOG = os.path.join(AUTO_DEV_DIR, "cron-health.log")
 
 def _log(path: str, line: str) -> None:
     """ログファイルに時刻付きで追記。"""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "a") as f:
-        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
+    except OSError as e:
+        print(f"WARNING: ログ書き込み失敗 {path}: {e}", file=sys.stderr)
 
 
 def cmd_check(definitions: list[CronDefinition]) -> int:
@@ -385,7 +388,6 @@ def main(argv: list[str]) -> int:
         except CleanError as e:
             print(f"CleanError: {e}", file=sys.stderr)
             return 1
-    return 0
 
 
 if __name__ == "__main__":

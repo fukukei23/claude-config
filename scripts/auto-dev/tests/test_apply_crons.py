@@ -1,5 +1,6 @@
 """apply_crons.py のテスト。"""
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -140,3 +141,19 @@ def test_clean_safety_threshold(tmp_path):
     target.write_text(json.dumps({"tasks": tasks}))
     with pytest.raises(CleanError, match="半分超"):
         run_clean(str(target), defs, force=True)
+
+
+def _cli(args: list[str]) -> int:
+    """apply_crons.py をsubprocessで呼び出し・終了コードを返す。"""
+    script = str(Path(__file__).parent.parent / "apply_crons.py")
+    return subprocess.run(["python3", script] + args, capture_output=True).returncode
+
+
+def test_cli_no_args_returns_2():
+    """引数なしはusage表示・終了コード2。"""
+    assert _cli([]) == 2
+
+
+def test_cli_invalid_subcommand_returns_2():
+    """不正サブコマンドは終了コード2。"""
+    assert _cli(["unknown"]) == 2
