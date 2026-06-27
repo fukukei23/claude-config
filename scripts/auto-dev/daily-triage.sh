@@ -7,4 +7,8 @@
 #   bash daily-triage.sh --collect-only  # 収集データのみstdout（検証用）
 #   bash daily-triage.sh --no-llm        # LLM不使用・収集データをそのまま出力
 set -euo pipefail
+# シークレット読み込み（DISCORD_CLAUDE_WEBHOOK 等・exec先pythonに環境変数として継承）
+set -a
+source ~/.secrets.env 2>/dev/null || true
+set +a
 exec python3 "$(dirname "$0")/daily_triage.py" "$@"
