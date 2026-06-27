@@ -8,7 +8,12 @@
 #   bash daily-triage.sh --no-llm        # LLM不使用・収集データをそのまま出力
 set -euo pipefail
 # シークレット読み込み（DISCORD_CLAUDE_WEBHOOK 等・exec先pythonに環境変数として継承）
+# 注: ~/.secrets.env の一部の値に $ を含む行があり set -e/-u 下で source すると
+# 未定義変数展開で即exitするため、source 時のみ errexit/nounset を一時無効化
+# （.bashrc 経由の通常読み込み=set -u なし と同じ挙動）
+set +eu
 set -a
 source ~/.secrets.env 2>/dev/null || true
 set +a
+set -euo pipefail
 exec python3 "$(dirname "$0")/daily_triage.py" "$@"

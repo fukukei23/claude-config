@@ -235,7 +235,8 @@ def send_discord(content: str, webhook_url: str, max_chars: int = DISCORD_MAX_CH
     import urllib.request
     payload = json.dumps({"content": content[:max_chars]}).encode("utf-8")
     req = urllib.request.Request(
-        webhook_url, data=payload, headers={"Content-Type": "application/json"}
+        webhook_url, data=payload,
+        headers={"Content-Type": "application/json", "User-Agent": "ClaudeCode-DailyTriage/1.0"},
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
