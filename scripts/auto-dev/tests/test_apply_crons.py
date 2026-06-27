@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from apply_crons import parse_definitions, CronDefinition, ParseError
 from apply_crons import probe_commit, probe_file, probe_log, HealthStatus
 from apply_crons import diff, Action, load_tasks
+from apply_crons import run_clean, CleanError
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -114,3 +115,28 @@ def test_idempotent_apply():
     a2 = diff(defs, tasks)
     assert [(a.kind, a.def_id) for a in a1] == [(a.kind, a.def_id) for a in a2]
     assert a1[0].kind == "create"
+
+
+def test_clean_whitelist(tmp_path):
+    """clean: ホワイトリスト外のみ削除・バックアップ生成。"""
+    tasks = _sample_tasks()
+    defs = parse_definitions(_sample_text())
+    target = tmp_path / "scheduled_tasks.json"
+    target.write_text(json.dumps({"tasks": tasks}))
+    removed, backup = run_clean(str(target), defs, force=True)
+    # ghost-1 のみ削除される
+    assert removed == 1
+    assert backup.exists()
+
+
+def test_clean_safety_threshold(tmp_path):
+    """clean: 削除数が定義の半分超なら CleanError で停止。"""
+    tasks = [
+        {"cron": "0 0 * * *", "prompt": "ゴーストA xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "durable": True},
+        {"cron": "0 1 * * *", "prompt": "ゴーストB yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy", "durable": True},
+    ]
+    defs = parse_definitions(_sample_text())  # 有効定義3件→ホワイトリスト一致0→削除2件>定義半分(1)
+    target = tmp_path / "scheduled_tasks.json"
+    target.write_text(json.dumps({"tasks": tasks}))
+    with pytest.raises(CleanError, match="半分超"):
+        run_clean(str(target), defs, force=True)
