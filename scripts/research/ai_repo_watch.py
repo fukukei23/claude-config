@@ -80,6 +80,7 @@ SSOT_EVAL_FILE = Path(
     "2026-06-24_GitHub急上昇AIリポジトリ10選評価.md"
 )
 PENDING_FILE = Path("/home/yn4416/projects/obsidian-ssot/00_SYSTEM/stats/pending-ai-repos.json")
+TREND_HISTORY_FILE = Path("/home/yn4416/projects/obsidian-ssot/00_SYSTEM/stats/repo-trend-history.json")
 LOG_FILE = Path("/home/yn4416/projects/obsidian-ssot/00_SYSTEM/stats/ai-repo-watch.log")
 
 
@@ -142,18 +143,24 @@ def main() -> int:
         return 0
 
     trending = parse_trending_html(html)
+    today = date.today().isoformat()
+    history = save_trend_history(TREND_HISTORY_FILE, trending, observed_date=today)
+
     evaluated_text = SSOT_EVAL_FILE.read_text(encoding="utf-8") if SSOT_EVAL_FILE.exists() else ""
     evaluated = extract_evaluated_repos(evaluated_text)
     new_repos = filter_new_repos(trending, evaluated)
 
+    for repo in new_repos:
+        weeks_seen = history[repo["name"]]["weeks_seen"]
+        repo["tag"] = tag_for_weeks_seen(weeks_seen)
+
     if new_repos:
-        save_pending_repos(PENDING_FILE, new_repos, fetched_date=date.today().isoformat())
+        save_pending_repos(PENDING_FILE, new_repos, fetched_date=today)
         _log(f"NEW_REPOS: {len(new_repos)}件保存")
     else:
         _log("NEW_REPOS: 0件")
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
