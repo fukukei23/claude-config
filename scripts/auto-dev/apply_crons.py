@@ -6,8 +6,14 @@
 """
 from __future__ import annotations
 
+import glob as _glob
+import os
 import re
-from dataclasses import dataclass, field
+import subprocess
+import time
+from dataclasses import dataclass as _dc
+from dataclasses import field
+from enum import Enum
 from typing import Iterable
 
 
@@ -15,7 +21,7 @@ class ParseError(Exception):
     """定義ファイルの書式エラー。"""
 
 
-@dataclass
+@_dc
 class CronDefinition:
     """1件のCron定義。"""
     id: int
@@ -95,3 +101,79 @@ def parse_definitions(text: str) -> list[CronDefinition]:
                 _flush()
     _flush()
     return defs
+
+
+class HealthStatus(Enum):
+    OK = "✅"
+    STALE = "⚠️"
+    UNKNOWN = "❓"
+
+
+@_dc
+class HealthResult:
+    status: HealthStatus
+    detail: str
+
+
+def _last_commit_days(repo: str) -> float:
+    """repo の最終commit日時を「現在からの経過日数」で返す（失敗時 大きな値）。"""
+    path = os.path.expanduser(f"~/projects/{repo}")
+    try:
+        out = subprocess.run(
+            ["git", "log", "-1", "--format=%ct"],
+            cwd=path, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        age_sec = time.time() - float(out)
+        return age_sec / 86400.0
+    except Exception:
+        return 1e9
+
+
+def probe_commit(repo: str, max_days: int) -> HealthResult:
+    """commit型: repoの最終commitが max_days 日以内ならOK。"""
+    days = _last_commit_days(repo)
+    if days <= max_days:
+        return HealthResult(HealthStatus.OK, f"最終commit {days:.1f}日前")
+    return HealthResult(HealthStatus.STALE, f"最終commit {days:.1f}日前（閾値{max_days}日超過）")
+
+
+def probe_file(pattern: str, max_days: int) -> HealthResult:
+    """file型: glob最新ファイルのmtimeが max_days 日以内ならOK。"""
+    expanded = os.path.expanduser(pattern)
+    files = sorted(_glob.glob(expanded), key=os.path.getmtime, reverse=True)
+    if not files:
+        return HealthResult(HealthStatus.STALE, f"該当ファイルなし({pattern})")
+    age_sec = time.time() - os.path.getmtime(files[0])
+    days = age_sec / 86400.0
+    if days <= max_days:
+        return HealthResult(HealthStatus.OK, f"最新 {os.path.basename(files[0])} ({days:.1f}日前)")
+    return HealthResult(HealthStatus.STALE, f"最新 {days:.1f}日前（閾値{max_days}日超過）")
+
+
+def probe_log(path: str, max_hours: int) -> HealthResult:
+    """log型: ファイルmtimeが max_hours 時間以内ならOK。"""
+    expanded = os.path.expanduser(path)
+    if not os.path.exists(expanded):
+        return HealthResult(HealthStatus.STALE, f"ログ不在({path})")
+    age_sec = time.time() - os.path.getmtime(expanded)
+    hours = age_sec / 3600.0
+    if hours <= max_hours:
+        return HealthResult(HealthStatus.OK, f"最終更新 {hours:.1f}時間前")
+    return HealthResult(HealthStatus.STALE, f"最終更新 {hours:.1f}時間前（閾値{max_hours}h超過）")
+
+
+def run_health(probe: str) -> HealthResult:
+    """health プローブ文字列（type:args:threshold）を判定。"""
+    parts = probe.split(":")
+    kind = parts[0]
+    try:
+        if kind == "commit":
+            return probe_commit(parts[1], int(parts[2]))
+        if kind == "file":
+            return probe_file(parts[1], int(parts[2]))
+        if kind == "log":
+            return probe_log(parts[1], int(parts[2]))
+    except (IndexError, ValueError):
+        return HealthResult(HealthStatus.UNKNOWN, f"プローブ書式不正({probe})")
+    return HealthResult(HealthStatus.UNKNOWN, f"未対応プローブ({kind})")
+

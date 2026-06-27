@@ -7,6 +7,7 @@ import pytest
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from apply_crons import parse_definitions, CronDefinition, ParseError
+from apply_crons import probe_commit, probe_file, probe_log, HealthStatus
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -46,3 +47,35 @@ def test_parse_invalid_format_schedule():
     text = '# @cron id=1 name="A" schedule="0 0 *" health="commit:r:3"\n#   prompt A\n'
     with pytest.raises(ParseError, match="schedule"):
         parse_definitions(text)
+
+
+def test_health_probe_commit_threshold(tmp_path, monkeypatch):
+    """commit型: repo最終commit日時で判定（prefix廃止）。閾値以内✅/超過⚠️。"""
+    def fake_last_commit_days(repo: str) -> float:
+        return 3.0
+
+    monkeypatch.setattr("apply_crons._last_commit_days", fake_last_commit_days)
+    fresh = probe_commit("obsidian-ssot", max_days=5)
+    stale = probe_commit("obsidian-ssot", max_days=2)
+    assert fresh.status == HealthStatus.OK
+    assert stale.status == HealthStatus.STALE
+
+
+def test_health_probe_file(tmp_path):
+    """file型: glob最新ファイルの日付で判定。"""
+    fresh = tmp_path / "2026-06-28.json"
+    fresh.write_text("{}")
+    ok = probe_file(str(fresh), max_days=2)
+    assert ok.status == HealthStatus.OK
+    none = probe_file(str(tmp_path / "none-*.json"), max_days=2)
+    assert none.status == HealthStatus.STALE
+
+
+def test_health_probe_log(tmp_path):
+    """log型: ファイルmtimeで判定。"""
+    logf = tmp_path / "cron-health.log"
+    logf.write_text("line\n")
+    ok = probe_log(str(logf), max_hours=30)
+    assert ok.status == HealthStatus.OK
+    miss = probe_log(str(tmp_path / "missing.log"), max_hours=30)
+    assert miss.status == HealthStatus.STALE
