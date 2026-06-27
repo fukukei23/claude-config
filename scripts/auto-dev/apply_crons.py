@@ -197,10 +197,14 @@ class Action:
 
 
 def load_tasks(path: str = TASKS_PATH) -> list[dict]:
-    """scheduled_tasks.json から durable タスクを読込。"""
+    """scheduled_tasks.json から全タスクを読込。
+
+    注意: Claude Code は durable フラグを json に永続化しない（recurring のみ）。
+    よって durable フィルタはせず全タスクを返す（2026-06-28 実データ確認で修正）。
+    """
     try:
         with open(path) as f:
-            return [t for t in json.load(f).get("tasks", []) if t.get("durable")]
+            return json.load(f).get("tasks", [])
     except FileNotFoundError:
         return []
 
