@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from dataclasses import dataclass as _dc
 from dataclasses import field
@@ -291,4 +292,102 @@ def run_clean(tasks_path: str, definitions: list[CronDefinition], force: bool = 
     with open(tasks_path_obj, "w") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     return len(remove), backup
+
+
+# ============================================================================
+# CLI (Step 1: 追記)
+# ============================================================================
+
+AUTO_DEV_DIR = os.path.expanduser("~/projects/claude-config/scripts/auto-dev")
+APPLY_LOG = os.path.join(AUTO_DEV_DIR, "cron-apply.log")
+HEALTH_LOG = os.path.join(AUTO_DEV_DIR, "cron-health.log")
+
+
+def _log(path: str, line: str) -> None:
+    """ログファイルに時刻付きで追記。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {line}\n")
+
+
+def cmd_check(definitions: list[CronDefinition]) -> int:
+    """checkサブコマンド: 突合 + 健康診断 + ログ。"""
+    tasks = load_tasks()
+    actions = diff(definitions, tasks)
+    enabled = [d for d in definitions if d.enabled]
+    create_n = sum(1 for a in actions if a.kind == "create")
+    ghost_n = len([t for t in tasks if not any(_match(d, t) for d in enabled)])
+
+    print("=== Cron 突合 ===")
+    print(f"定義: {len(enabled)}件 / 登録: {len(tasks)}件 / 欠落(create): {create_n} / 不要(ghost): {ghost_n}")
+    print()
+    print("=== 健康診断 ===")
+    warnings = []
+    for d in enabled:
+        r = run_health(d.health)
+        print(f"#{d.id} {d.name:<20} {r.status.value} {r.detail}")
+        if r.status == HealthStatus.STALE:
+            warnings.append(f"#{d.id} {d.name}")
+    print()
+    print("=== サマリ ===")
+    _log(HEALTH_LOG, f"check 定義{len(enabled)}/登録{len(tasks)}/create{create_n}/ghost{ghost_n} 警告:{','.join(warnings) or 'なし'}")
+    if create_n or ghost_n:
+        print(f"整合: ⚠️ create{create_n}/ghost{ghost_n}")
+        return 1
+    if warnings:
+        print(f"整合: ✅ / 要対応: {', '.join(warnings)}（別タスク参照）")
+        return 0
+    print("整合: ✅")
+    return 0
+
+
+def cmd_apply(definitions: list[CronDefinition]) -> int:
+    """applyサブコマンド: プロトコル出力 + ログ。"""
+    tasks = load_tasks()
+    actions = diff(definitions, tasks)
+    print(format_protocol(actions))
+    creates = sum(1 for a in actions if a.kind == "create")
+    skips = sum(1 for a in actions if a.kind == "skip")
+    _log(APPLY_LOG, f"apply create={creates} skip={skips}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    """CLIエントリポイント。"""
+    if len(argv) < 2 or argv[1] not in {"check", "diff", "apply", "clean"}:
+        print("usage: apply-crons.sh {check|diff|apply|clean} [--force]", file=sys.stderr)
+        return 2
+
+    defs_path = os.path.expanduser("~/bin/renew-crons.sh")
+    try:
+        definitions = parse_definitions(Path(defs_path).read_text())
+    except ParseError as e:
+        print(f"ParseError: {e}", file=sys.stderr)
+        return 2
+
+    sub = argv[1]
+    if sub == "check":
+        return cmd_check(definitions)
+    if sub == "diff":
+        tasks = load_tasks()
+        for a in diff(definitions, tasks):
+            print(f"{a.kind:6} id={a.def_id} {a.name} {a.reason}")
+        return 0
+    if sub == "apply":
+        return cmd_apply(definitions)
+    if sub == "clean":
+        force = "--force" in argv
+        try:
+            removed, backup = run_clean(TASKS_PATH, definitions, force=force)
+            print(f"削除: {removed}件 / バックアップ: {backup}")
+            _log(APPLY_LOG, f"clean removed={removed} backup={backup}")
+            return 0
+        except CleanError as e:
+            print(f"CleanError: {e}", file=sys.stderr)
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
 
