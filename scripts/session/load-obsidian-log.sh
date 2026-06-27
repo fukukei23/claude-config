@@ -90,16 +90,32 @@ if [[ -f "$TODAY_TASKS" ]]; then
   echo "--- /今日のタスク候補 ---"
 fi
 
-# --- 📡 新規Trendingリポジトリ（pending評価待ち）---
+# --- 📡 新規Trendingリポジトリ（pending評価待ち・タグ別グルーピング）---
 PENDING_REPOS="$SSOT_PATH/00_SYSTEM/stats/pending-ai-repos.json"
 if [[ -f "$PENDING_REPOS" ]]; then
-  pending_count=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$PENDING_REPOS" 2>/dev/null)
-  if [[ -n "$pending_count" ]] && [[ "$pending_count" -gt 0 ]]; then
-    pending_names=$(python3 -c "import json,sys; print(', '.join(r['name'] for r in json.load(open(sys.argv[1]))))" "$PENDING_REPOS" 2>/dev/null)
-    echo "--- 📡 新規Trendingリポジトリ ${pending_count}件（評価待ち） ---"
-    echo "$pending_names"
-    echo "（※ 評価して30_RESEARCH/MCPサーバー/2026-06-24_GitHub急上昇AIリポジトリ10選評価.mdに追記したらpending-ai-repos.jsonから削除）"
-    echo "--- /📡 新規Trendingリポジトリ ---"
+  pending_summary=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+if not data:
+    sys.exit(0)
+groups = {}
+for r in data:
+    tag = r.get('tag', '初見')
+    groups.setdefault(tag, []).append(r['name'])
+order = ['初見', '2週連続', '定着']
+summary_parts = []
+for tag in order:
+    if tag in groups:
+        summary_parts.append(f\"{tag}{len(groups[tag])}件\")
+print('--- 📡 新規Trendingリポジトリ: ' + '・'.join(summary_parts) + ' ---')
+for tag in order:
+    if tag in groups:
+        print(f'[{tag}] ' + ', '.join(groups[tag]))
+print('（※ 評価して30_RESEARCH/MCPサーバー/2026-06-24_GitHub急上昇AIリポジトリ10選評価.mdに追記したらpending-ai-repos.jsonから削除）')
+print('--- /📡 新規Trendingリポジトリ ---')
+" "$PENDING_REPOS" 2>/dev/null)
+  if [[ -n "$pending_summary" ]]; then
+    echo "$pending_summary"
   fi
 fi
 
