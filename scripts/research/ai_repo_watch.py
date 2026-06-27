@@ -138,27 +138,26 @@ def tag_for_weeks_seen(weeks_seen: int) -> str:
 def main() -> int:
     try:
         html = fetch_trending_html()
-    except Exception as exc:  # noqa: BLE001 - スクレイピング失敗は静かにskip
-        _log(f"FETCH_ERROR: {exc}")
-        return 0
 
-    trending = parse_trending_html(html)
-    today = date.today().isoformat()
-    history = save_trend_history(TREND_HISTORY_FILE, trending, observed_date=today)
+        trending = parse_trending_html(html)
+        today = date.today().isoformat()
+        history = save_trend_history(TREND_HISTORY_FILE, trending, observed_date=today)
 
-    evaluated_text = SSOT_EVAL_FILE.read_text(encoding="utf-8") if SSOT_EVAL_FILE.exists() else ""
-    evaluated = extract_evaluated_repos(evaluated_text)
-    new_repos = filter_new_repos(trending, evaluated)
+        evaluated_text = SSOT_EVAL_FILE.read_text(encoding="utf-8") if SSOT_EVAL_FILE.exists() else ""
+        evaluated = extract_evaluated_repos(evaluated_text)
+        new_repos = filter_new_repos(trending, evaluated)
 
-    for repo in new_repos:
-        weeks_seen = history[repo["name"]]["weeks_seen"]
-        repo["tag"] = tag_for_weeks_seen(weeks_seen)
+        for repo in new_repos:
+            weeks_seen = history[repo["name"]]["weeks_seen"]
+            repo["tag"] = tag_for_weeks_seen(weeks_seen)
 
-    if new_repos:
-        save_pending_repos(PENDING_FILE, new_repos, fetched_date=today)
-        _log(f"NEW_REPOS: {len(new_repos)}件保存")
-    else:
-        _log("NEW_REPOS: 0件")
+        if new_repos:
+            save_pending_repos(PENDING_FILE, new_repos, fetched_date=today)
+            _log(f"NEW_REPOS: {len(new_repos)}件保存")
+        else:
+            _log("NEW_REPOS: 0件")
+    except Exception as exc:  # noqa: BLE001 - 週次cronは無人実行のため全段で静かにskip
+        _log(f"ERROR: {exc}")
 
     return 0
 
