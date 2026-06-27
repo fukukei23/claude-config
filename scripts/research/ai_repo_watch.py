@@ -96,6 +96,15 @@ def _log(message: str) -> None:
         f.write(f"{date.today().isoformat()} {message}\n")
 
 
+def tag_for_weeks_seen(weeks_seen: int) -> str:
+    """観測週数に応じたタグ文字列を返す。"""
+    if weeks_seen <= 1:
+        return "初見"
+    if weeks_seen == 2:
+        return "2週連続"
+    return "定着"
+
+
 def main() -> int:
     try:
         html = fetch_trending_html()

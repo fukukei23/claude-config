@@ -10,6 +10,7 @@ from ai_repo_watch import (
     filter_new_repos,
     save_pending_repos,
     load_pending_repos,
+    tag_for_weeks_seen,
 )  # noqa: E402
 
 FIX = Path(__file__).resolve().parent / "fixtures"
@@ -89,3 +90,11 @@ def test_save_pending_repos_appends_without_duplicates(tmp_path):
 def test_load_pending_repos_missing_file_returns_empty_list(tmp_path):
     """ファイルが存在しない場合は空リストを返す。"""
     assert load_pending_repos(tmp_path / "missing.json") == []
+
+
+def test_tag_for_weeks_seen_returns_correct_label():
+    """週数に応じたタグを返す。"""
+    assert tag_for_weeks_seen(1) == "初見"
+    assert tag_for_weeks_seen(2) == "2週連続"
+    assert tag_for_weeks_seen(3) == "定着"
+    assert tag_for_weeks_seen(10) == "定着"
