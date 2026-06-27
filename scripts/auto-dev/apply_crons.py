@@ -248,15 +248,20 @@ class CleanError(Exception):
     """clean操作の安全停止。"""
 
 
-def run_clean(tasks_path: str, definitions: list[CronDefinition], force: bool = False) -> tuple[int, Path]:
+def run_clean(tasks_path: str, definitions: list[CronDefinition], force: bool = False) -> tuple[int, Path | None]:
     """scheduled_tasks.json のホワイトリスト方式削除。
 
     定義に一致しない durable エントリを削除。
-    戻り値: (削除件数, バックアップファイルPath)。
+    戻り値: (削除件数, バックアップファイルPath・削除0件時はNone)。
     """
     tasks_path_obj = Path(tasks_path)
-    with open(tasks_path_obj) as f:
-        data = json.load(f)
+    if not tasks_path_obj.exists():
+        raise FileNotFoundError(f"タスクファイル不在: {tasks_path}")
+    try:
+        with open(tasks_path_obj) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSON破損: {tasks_path}: {e}") from e
     tasks = [t for t in data.get("tasks", []) if t.get("durable")]
     enabled = [d for d in definitions if d.enabled]
 
@@ -278,7 +283,7 @@ def run_clean(tasks_path: str, definitions: list[CronDefinition], force: bool = 
         print(f"削除候補 {len(remove)}件: {[t.get('prompt','')[:30] for t in remove]}")
         ans = input("実行しますか? (y/N): ").strip().lower()
         if ans != "y":
-            return 0, tasks_path_obj
+            return 0, None
 
     backup = tasks_path_obj.with_suffix(f".json.bak.{int(time.time())}")
     shutil.copy2(tasks_path_obj, backup)
