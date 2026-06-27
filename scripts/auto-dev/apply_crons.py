@@ -10,11 +10,13 @@ import glob as _glob
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from dataclasses import dataclass as _dc
 from dataclasses import field
 from enum import Enum
+from pathlib import Path
 from typing import Iterable
 
 
@@ -240,4 +242,48 @@ def format_protocol(actions: list[Action]) -> str:
     lines.append("=== CRON_APPLY_PROTOCOL_END ===")
     lines.append(f"要約: 追加{creates}件・スキップ{skips}件（削除は clean サブコマンドへ）")
     return "\n".join(lines)
+
+
+class CleanError(Exception):
+    """clean操作の安全停止。"""
+
+
+def run_clean(tasks_path: str, definitions: list[CronDefinition], force: bool = False) -> tuple[int, Path]:
+    """scheduled_tasks.json のホワイトリスト方式削除。
+
+    定義に一致しない durable エントリを削除。
+    戻り値: (削除件数, バックアップファイルPath)。
+    """
+    tasks_path_obj = Path(tasks_path)
+    with open(tasks_path_obj) as f:
+        data = json.load(f)
+    tasks = [t for t in data.get("tasks", []) if t.get("durable")]
+    enabled = [d for d in definitions if d.enabled]
+
+    keep = []
+    remove = []
+    for t in tasks:
+        if any(_match(d, t) for d in enabled):
+            keep.append(t)
+        else:
+            remove.append(t)
+
+    # 安全閾値: 削除数が有効定義数の半分超なら異常停止
+    if enabled and len(remove) > len(enabled) / 2:
+        raise CleanError(
+            f"削除候補{len(remove)}件が定義{len(enabled)}件の半分超。異常の疑いで停止"
+        )
+
+    if not force:
+        print(f"削除候補 {len(remove)}件: {[t.get('prompt','')[:30] for t in remove]}")
+        ans = input("実行しますか? (y/N): ").strip().lower()
+        if ans != "y":
+            return 0, tasks_path_obj
+
+    backup = tasks_path_obj.with_suffix(f".json.bak.{int(time.time())}")
+    shutil.copy2(tasks_path_obj, backup)
+    data["tasks"] = keep
+    with open(tasks_path_obj, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return len(remove), backup
 
