@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import glob as _glob
+import json
 import os
 import re
 import subprocess
@@ -176,4 +177,67 @@ def run_health(probe: str) -> HealthResult:
     except (IndexError, ValueError):
         return HealthResult(HealthStatus.UNKNOWN, f"プローブ書式不正({probe})")
     return HealthResult(HealthStatus.UNKNOWN, f"未対応プローブ({kind})")
+
+
+TASKS_PATH = os.path.expanduser("~/.claude/scheduled_tasks.json")
+
+
+@_dc
+class Action:
+    """1件の同期アクション。"""
+    kind: str  # "create" | "skip"
+    def_id: int
+    name: str = ""
+    schedule: str = ""
+    prompt: str = ""
+    reason: str = ""
+
+
+def load_tasks(path: str = TASKS_PATH) -> list[dict]:
+    """scheduled_tasks.json から durable タスクを読込。"""
+    try:
+        with open(path) as f:
+            return [t for t in json.load(f).get("tasks", []) if t.get("durable")]
+    except FileNotFoundError:
+        return []
+
+
+def _match(defn: CronDefinition, task: dict) -> bool:
+    """同一判定: schedule完全一致 + prompt先頭40字一致。"""
+    if defn.schedule != task.get("cron"):
+        return False
+    return defn.prompt.strip()[:40] == (task.get("prompt") or "")[:40]
+
+
+def diff(definitions: list[CronDefinition], tasks: list[dict]) -> list[Action]:
+    """定義↔実体を突合し、ACTIONリストを返す（create/skipのみ・削除はclean）。"""
+    actions: list[Action] = []
+    for defn in definitions:
+        if not defn.enabled:
+            continue
+        matched = next((t for t in tasks if _match(defn, t)), None)
+        if matched:
+            actions.append(Action(kind="skip", def_id=defn.id, name=defn.name, reason="既存同一"))
+        else:
+            actions.append(Action(kind="create", def_id=defn.id, name=defn.name,
+                                  schedule=defn.schedule, prompt=defn.prompt))
+    return actions
+
+
+def format_protocol(actions: list[Action]) -> str:
+    """CronCreate協調プロトコル行を生成。"""
+    lines = ["=== CRON_APPLY_PROTOCOL_START ==="]
+    creates = 0
+    skips = 0
+    for a in actions:
+        if a.kind == "skip":
+            lines.append(f'ACTION: skip  id={a.def_id}  reason="{a.reason}"')
+            skips += 1
+        else:
+            lines.append(f'ACTION: create  id={a.def_id}  name="{a.name}"  schedule="{a.schedule}"  durable=true')
+            lines.append(f"  PROMPT: {a.prompt.strip()}")
+            creates += 1
+    lines.append("=== CRON_APPLY_PROTOCOL_END ===")
+    lines.append(f"要約: 追加{creates}件・スキップ{skips}件（削除は clean サブコマンドへ）")
+    return "\n".join(lines)
 

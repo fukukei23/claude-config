@@ -8,6 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from apply_crons import parse_definitions, CronDefinition, ParseError
 from apply_crons import probe_commit, probe_file, probe_log, HealthStatus
+from apply_crons import diff, Action, load_tasks
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -79,3 +80,37 @@ def test_health_probe_log(tmp_path):
     assert ok.status == HealthStatus.OK
     miss = probe_log(str(tmp_path / "missing.log"), max_hours=30)
     assert miss.status == HealthStatus.STALE
+
+
+def _sample_tasks():
+    """fixture: 既存タスク実体のシミュレーション。"""
+    return json.loads((FIXTURES / "scheduled-tasks-sample.json").read_text())["tasks"]
+
+
+def test_skip_existing_same_prompt():
+    """定義と実体が一致（schedule+prompt先頭40字）ならskip。"""
+    defs = parse_definitions(_sample_text())
+    actions = diff(defs, _sample_tasks())
+    # id=1/5/9 は実体と同一→skip。id=8 はenabled=false→対象外
+    skips = [a for a in actions if a.kind == "skip"]
+    assert {a.def_id for a in skips} == {1, 5, 9}
+
+
+def test_create_when_new():
+    """未登録エントリはcreate候補。"""
+    defs = [d for d in parse_definitions(_sample_text()) if d.id == 1]
+    # 実体を空にすると id=1 はcreate
+    actions = diff(defs, [])
+    assert len(actions) == 1
+    assert actions[0].kind == "create"
+    assert actions[0].def_id == 1
+
+
+def test_idempotent_apply():
+    """核心: 同じ入力でdiffを2回計算しても結果は同じ（create候補は安定）。"""
+    defs = [d for d in parse_definitions(_sample_text()) if d.id == 1]
+    tasks = []
+    a1 = diff(defs, tasks)
+    a2 = diff(defs, tasks)
+    assert [(a.kind, a.def_id) for a in a1] == [(a.kind, a.def_id) for a in a2]
+    assert a1[0].kind == "create"
