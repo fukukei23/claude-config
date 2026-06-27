@@ -39,6 +39,15 @@ cat ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | head -40
 
 **フォールバック**: 一覧が空の場合は `~/.claude/state/handoff.md`（最新1件）を代わりに使う。
 
+**生きタスクの正典を取得（バックログ.md）**: 次タスクのソースは handoff の「次タスク候補」ではなく**バックログ.md 唯一**（spec 2026-06-26・コピペ連鎖で完了済みタスクが残り続けるのを防ぐ）。
+
+```bash
+# バックログ.md の未完了 [ ] 一覧（生きタスクの正典・優先度区分付き）
+grep -nE '^- \[ \]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
+# active-sessions の🟢進行中タスク表（他セッションの占有確認）
+sed -n '/現在進行中タスク/,/^## /p' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md | head -25
+```
+
 ---
 
 ## Step 2: 5件をReadして文脈を復元 🟡[GLM]
@@ -64,8 +73,13 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 - [HHMM] ○○
 - ...（3〜5行）
 
-## 次のタスク
-[具体的に何をするか。spec/詳細ファイルがあればパス明記]
+## 今やるべきタスク（from バックログ.md）
+🟢 占有中: <active-sessions.md の🟢表・他セッションが占有中のタスク（着手前にsoft警告）>
+🔴 P0: <バックログ.md の P0 の [ ] 一覧>
+🔁 前回継続: <直近handoffの「前回占有タスク（継続可・参考）」欄・未完了のもののみ>
+ℹ️ 他候補: バックログ.md 参照（P1: N件 / P2: M件）
+
+> ⚠️ 候補は handoff ではなく**バックログ.md が正典**。handoffの「次タスク候補」は廃止済み（完了済みが混入するため）。
 
 ## 未解決
 [あれば。なければ「なし」]
