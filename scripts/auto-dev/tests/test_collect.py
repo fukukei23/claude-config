@@ -59,6 +59,24 @@ def test_collect_handoff_latest_empty_dir():
     assert collect_handoff_latest(FIX / "no-such-dir") is None
 
 
+def test_collect_handoff_latest_ignores_non_date_files(tmp_path):
+    """非日付形式ファイル(handoff_prompt.md等)を最新誤認しない。
+
+    文字列降順で日付ファイルより先頭に来る handoff_prompt.md があっても
+    無視し、YYYY-MM-DD_HHMM.md 形式の最新を選ぶ。
+    回帰: handoff_prompt.md が古い内容で停滞し triage が常にそれを
+    「最新」と拾っていたバグ（2026-06-28 修正）。
+    """
+    hd = tmp_path / "handoff"
+    hd.mkdir()
+    # "h" > "2" で文字列降順では先頭に来る、古い内容で停滞した非日付ファイル
+    (hd / "handoff_prompt.md").write_text("STALE 古い内容", encoding="utf-8")
+    # 本来の最新（日付形式）
+    (hd / "2026-06-28_0815.md").write_text("最新の日付handoff", encoding="utf-8")
+    result = collect_handoff_latest(hd)
+    assert result == "最新の日付handoff"
+
+
 def test_build_context_has_all_sections():
     """収集データを3セクション構造のテキストに組み立てる。"""
     ctx = build_context(
