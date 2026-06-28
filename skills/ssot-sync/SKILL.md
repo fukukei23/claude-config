@@ -12,7 +12,7 @@ user-invocable: true
 
 ## 概要
 
-SSOT（`/home/yn4416/projects/obsidian-ssot/`）内のファイルと実態（設定ファイル・フォルダ構成・Cron等）を照合し、乖離があれば提案・修正する。
+SSOT（`~/projects/obsidian-ssot/`）内のファイルと実態（設定ファイル・フォルダ構成・Cron等）を照合し、乖離があれば提案・修正する。
 
 ---
 

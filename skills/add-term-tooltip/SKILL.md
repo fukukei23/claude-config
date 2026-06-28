@@ -1,3 +1,8 @@
+---
+name: add-term-tooltip
+description: HTMLページの専門用語にホバー（マウスオーバー）で解説が出るツールチップを追加するスキル。python-reading-guide で使う .term/.term-popup パターンを使用。ユーザーが「ツールチップ追加して」「用語に解説つけて」「ホバー説明を」と言った時、または /add-term-tooltip を呼んだ時にトリガー。
+---
+
 # スキル: add-term-tooltip
 
 ## トリガー

@@ -1,3 +1,8 @@
+---
+name: ssot-search
+description: obsidian-ssot（個人知識ベース）を横断検索するスキル。ユーザーが「SSOTから探して」「SSOT検索」「SSOTで検索」「ナレッジベースを検索」「過去の決定を探して」と言った時、または /ssot-search を呼んだ時にトリガー。
+---
+
 # スキル: SSOTから探して（SSOT検索）
 
 ## トリガーワード

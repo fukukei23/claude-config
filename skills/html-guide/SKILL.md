@@ -1,3 +1,8 @@
+---
+name: html-guide
+description: claude-code-guide に新しいHTMLページを追加する際のルール（CSS変数・ダーク/ライトモード対応・視認性チェック・CIテスト通過）を自動適用するスキル。ユーザーが「新しいHTMLページを作って」「インタラクティブな章を追加したい」「HTML章を追加して」と言った時、または /html-guide を呼んだ時にトリガー。
+---
+
 # スキル: html-guide — claude-code-guide 用インタラクティブHTMLページ作成
 
 ## トリガーワード
@@ -91,7 +96,7 @@ code {
 HTMLに以下の文字列を含めない:
 - `yn4416`（Linuxユーザー名）
 - `fukukei`（GitHubアカウント名、公開URLを除く）
-- `GLM-5.1`, `GLM-4.7`, `GLM-4.5-Air`（モデル名）
+- `GLM-5.2`, `GLM-5.1`, `GLM-4.7`, `GLM-4.5-Air`（モデル名）
 - `00_SYSTEM/`（SSOTの内部パス）
 - `glm_ask`, `minimax_ask`（MCPツール名）
 
