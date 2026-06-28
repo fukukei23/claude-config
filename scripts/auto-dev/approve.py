@@ -23,6 +23,25 @@ LINE_RE = re.compile(
     r"\s*(?:（(repo:\s*.+?|手動)）)?\s*$"
 )
 
+# today-tasks.md 先頭の生成タイムスタンプ（並行再生成対策・Phase3.1課題2）。
+_GENERATED_AT_RE = re.compile(r"<!--\s*generated_at:\s*([^\s>]+)\s*-->")
+
+
+def parse_generated_at(text: str) -> str | None:
+    """today-tasks.md 先頭の generated_at メタデータから ISO時刻文字列を抽出。
+
+    別セッションで daily-triage.sh が再実行され today-tasks.md が書き換わると
+    この時刻が進む。人間が承認時に「自分が閲覧した候補か」を照合する根拠。
+
+    Args:
+        text: today-tasks.md の全文。
+
+    Returns:
+        ISO時刻文字列（例: 2026-06-28T12:34:56）。無ければ None。
+    """
+    m = _GENERATED_AT_RE.search(text[:512])  # 先頭付近のみ走査
+    return m.group(1) if m else None
+
 
 def parse_today_tasks(text: str) -> list[dict]:
     """today-tasks.md から 'N. **<タスク>** — <理由>（コスト）（marker）' を抽出。
@@ -127,12 +146,17 @@ def main() -> int:
         print(f"❌ {TODAY_TASKS} がありません。先に daily-triage.sh を実行してください。")
         return 1
 
-    tasks = parse_today_tasks(TODAY_TASKS.read_text(encoding="utf-8"))
+    raw = TODAY_TASKS.read_text(encoding="utf-8")
+    tasks = parse_today_tasks(raw)
     if not tasks:
         print("候補がありません。")
         return 0
 
-    print("=== 今日のタスク候補 ===")
+    generated_at = parse_generated_at(raw)
+    if generated_at:
+        print(f"=== 今日のタスク候補（生成: {generated_at}）===")
+    else:
+        print("=== 今日のタスク候補 ===")
     for t in tasks:
         cost = f" [{t['cost']}]" if t["cost"] else ""
         marker = f" (repo: {t['repo']})" if t["repo"] else (" (手動)" if t["manual"] else "")

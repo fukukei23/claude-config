@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from approve import parse_today_tasks, build_task_entry, select_queueable  # noqa: E402
+from approve import parse_today_tasks, build_task_entry, select_queueable, parse_generated_at  # noqa: E402
 
 
 def test_parse_today_tasks_extracts_numbered_candidates():
@@ -94,3 +94,19 @@ def test_select_queueable_all_manual_returns_empty(tmp_path):
     queueable, excluded = select_queueable(tasks, projects_dir=tmp_path)
     assert queueable == []
     assert len(excluded) == 1
+
+
+def test_parse_generated_at_extracts_iso():
+    """先頭の generated_at メタデータ行から ISO時刻文字列を抽出。
+
+    並行再生成対策: today-tasks.md が別セッションで再生成されたかを
+    人間が承認時に把握するための生成タイムスタンプ（Phase3.1課題2）。
+    """
+    text = "<!-- generated_at: 2026-06-28T12:34:56 -->\n## 今日のタスク候補\n1. **A** — x\n"
+    assert parse_generated_at(text) == "2026-06-28T12:34:56"
+
+
+def test_parse_generated_at_returns_none_when_missing():
+    """メタデータ行が無ければ None（後方互換・旧形式の today-tasks.md）。"""
+    text = "## 今日のタスク候補\n1. **A** — x\n"
+    assert parse_generated_at(text) is None

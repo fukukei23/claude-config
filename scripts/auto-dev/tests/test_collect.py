@@ -1,5 +1,6 @@
 """daily_triage 収集ロジックのテスト"""
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -8,7 +9,8 @@ from daily_triage import (
     collect_active_green,
     collect_handoff_latest,
     build_context,
-    validate_repo,  # noqa: E402
+    validate_repo,
+    parse_task_date,  # noqa: E402
 )
 
 FIX = Path(__file__).resolve().parent / "fixtures"
@@ -113,3 +115,48 @@ def test_validate_repo_returns_none_for_empty(tmp_path):
     """空文字・None→None。"""
     assert validate_repo("", projects_dir=tmp_path) is None
     assert validate_repo(None, projects_dir=tmp_path) is None  # type: ignore[arg-type]
+
+
+def test_parse_task_date_extracts_month_day():
+    """行末 (M/D...) の最初の日付を抽出。年は today 基準で推定。"""
+    today = date(2026, 6, 28)
+    assert parse_task_date("オールブルー応募 — 書類完成（5/19）", today=today) == date(2026, 5, 19)
+    assert parse_task_date("タスク（6/26完了）", today=today) == date(2026, 6, 26)
+
+
+def test_parse_task_date_future_month_assumes_prev_year():
+    """M/D が today より未来なら前年扱い（年跨ぎの古いタスク）。"""
+    today = date(2026, 6, 28)
+    # 12/15 は 6/28 より未来の月日→前年 2025
+    assert parse_task_date("タスク（12/15）", today=today) == date(2025, 12, 15)
+
+
+def test_parse_task_date_returns_none_when_no_date():
+    """日付無し→None（stale判定不可＝マーク付けず）。"""
+    today = date(2026, 6, 28)
+    assert parse_task_date("日付のないタスク", today=today) is None
+
+
+def test_collect_backlog_marks_stale_tasks(tmp_path):
+    """30日超のタスクに ⚠stale マーク付与（鮮度管理・Phase3.1課題3）。
+
+    実装AIが古い前提のタスクで空振りするのを防ぐため、古いタスクを
+    LLM判定時に優先度下げる根拠として可視化。
+    """
+    backlog = tmp_path / "backlog.md"
+    backlog.write_text(
+        "## P0:\n"
+        "- [ ] 新しいタスク — 直近（6/26）\n"
+        "- [ ] 古いタスク — 前提腐敗（5/19）\n"
+        "## 完了済み\n",
+        encoding="utf-8",
+    )
+    today = date(2026, 6, 28)
+    result = collect_backlog(backlog, today=today)
+    joined = "\n".join(result)
+    # 新しい(6/26=2日前)はマーク無し
+    new = [t for t in result if "新しいタスク" in t]
+    assert len(new) == 1 and not new[0].startswith("⚠stale")
+    # 古い(5/19=40日前)は stale マーク
+    old = [t for t in result if "古いタスク" in t]
+    assert len(old) == 1 and old[0].startswith("⚠stale")

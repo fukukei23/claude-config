@@ -10,24 +10,66 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import date, datetime
 from pathlib import Path
 
 # handoff ファイル名形式（YYYY-MM-DD_HHMM.md）。
 # handoff_prompt.md のような非日付の固定名ファイルを「最新」誤認して拾わないためのフィルタ。
 _HANDOFF_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}\.md$")
 
+# バックログタスク行末の日付（M/D）。年は today 基準で推定。
+# 「（5/19完了）」「（6/26）」等の最初の M/D を拾う。
+_TASK_DATE_RE = re.compile(r"（\s*(\d{1,2})/(\d{1,2})")
 
-def collect_backlog(path: Path) -> list[str]:
+# stale 判定閾値（日）。超えると ⚠stale マークで実装AIの空振りを防ぐ。
+STALE_DAYS = 30
+_STALE_PREFIX = "⚠stale "
+
+
+def parse_task_date(text: str, today: date | None = None) -> date | None:
+    """タスク本文行末の (M/D...) から日付を抽出。年は today 基準で推定。
+
+    バックログの日付表記「（5/19完了）」「（6/26）」等の最初の M/D を拾う。
+    M/D が today の月日より未来なら前年扱い（年跨ぎの古いタスク）。
+    日付無し・パース失敗は None（stale 判定不可＝マーク付けず）。
+
+    Args:
+        text: タスク本文（"- [ ]" 除去後）。
+        today: 基準日（None なら date.today()・テストで注入）。
+
+    Returns:
+        抽出した date。無ければ None。
+    """
+    m = _TASK_DATE_RE.search(text)
+    if not m:
+        return None
+    today = today or date.today()
+    month, day = int(m.group(1)), int(m.group(2))
+    try:
+        candidate = date(today.year, month, day)
+    except ValueError:  # 不正月日（13/40等）
+        return None
+    if candidate > today:
+        candidate = date(today.year - 1, month, day)
+    return candidate
+
+
+def collect_backlog(path: Path, today: date | None = None) -> list[str]:
     """バックログからP0/P1未完了タスク([ ])を抽出。P2・完了済みセクションは除外。
+
+    30日(STALE_DAYS)超のタスクには ⚠stale マークを付与し、LLM判定で優先度を
+    下げる根拠とする（古い前提のタスクで実装AIが空振りするのを防止）。
 
     Args:
         path: バックログ.md のパス
+        today: stale 判定の基準日（None なら date.today()・テストで注入）。
 
     Returns:
-        タスク本文のリスト（"- [ ]" マーカー除去済み）
+        タスク本文のリスト（"- [ ]" マーカー除去済み・stale なら prefix付与）
     """
     if not path.exists():
         return []
+    today = today or date.today()
     tasks: list[str] = []
     section = ""
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -36,7 +78,11 @@ def collect_backlog(path: Path) -> list[str]:
         elif line.startswith("## P2:") or line.startswith("## 完了済み"):
             section = ""
         elif line.startswith("- [ ]") and section:
-            tasks.append(line[5:].strip())  # "- [ ]" (5文字) を除去
+            body = line[5:].strip()  # "- [ ]" (5文字) を除去
+            task_date = parse_task_date(body, today=today)
+            if task_date is not None and (today - task_date).days > STALE_DAYS:
+                body = _STALE_PREFIX + body
+            tasks.append(body)
     return tasks
 
 
@@ -186,6 +232,7 @@ JUDGE_PROMPT = """あなたは Daily Triage エージェント。以下の収集
 - 公務員で日中作業不可→夜1セッションで完結する粒度を優先
 - 各タスクの対象リポジトリを repo_list から選び (repo: <name>) で付与
 - コード作業でない（応募・学習・手動運用・リポジトリ外）は (手動) を付与
+- 「⚠stale」マーク付きタスクは30日以上更新のない旧タスク。前提が古い可能性があるため、候補に入れる場合は理由を明記し優先度を下げること
 
 # repo_list（この中から選ぶ・該当無しは (手動)）
 {repo_list}
@@ -281,13 +328,17 @@ def main() -> int:
         print(context)
         return 0
 
-    from datetime import date
     date_str = date.today().isoformat()
     body = context if args.no_llm else judge_with_claude(context, date_str, repo_list)
 
+    # 並行再生成対策: 生成タイムスタンプを埋め込み、approve.py で人間が承認時に
+    # 「自分が閲覧した候補か」を照合できるようにする（別セッションで再生成されると時刻が進む）
+    generated_at = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    body = f"<!-- generated_at: {generated_at} -->\n{body}"
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(body, encoding="utf-8")
-    print(f"✅ today-tasks.md 生成: {args.output}")
+    print(f"✅ today-tasks.md 生成: {args.output}（生成時刻: {generated_at}）")
 
     if args.notify_discord:
         webhook_url = os.environ.get(DISCORD_WEBHOOK_ENV, "")
