@@ -68,13 +68,16 @@ def fetch_from_repo(repo_path: str, label: str) -> list[dict]:
             check=False,
             timeout=30,
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        sys.stderr.write(f"[fetch_issues] gh起動失敗({repo_path}): {e}\n")
         return []
     if result.returncode != 0:
+        sys.stderr.write(f"[fetch_issues] gh失敗({repo_path}): {result.stderr}\n")
         return []
     try:
         issues = json.loads(result.stdout or "[]")
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        sys.stderr.write(f"[fetch_issues] JSONパース失敗({repo_path}): {e}\n")
         return []
     return [format_issue(i, repo_path) for i in issues]
 
@@ -141,10 +144,9 @@ def main() -> int:
     state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
     state = ensure_state_fields(state)
     state.setdefault("pending", [])
-    added = filter_duplicates(new_tasks, state)
-    state["pending"].extend(added)
+    state["pending"].extend(new_tasks)
     STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"✅ fetch_issues: {len(added)}件 追加（取得{len(new_tasks)}件・重複除外済）")
+    print(f"✅ fetch_issues: {len(new_tasks)}件 追加（重複除外済）")
     return 0
 
 
