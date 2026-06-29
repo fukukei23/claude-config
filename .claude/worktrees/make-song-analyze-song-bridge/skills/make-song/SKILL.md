@@ -109,6 +109,12 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
 
 > **Phase 0.5 の出力（ジャンル具体語）を Genre/Mood に反映してから GMIV を組む**。キャラクター辞書の「ジャンル具体語」列が GMIV の G/M の骨。
 
+> **0d実行済みの場合**: `make_song_input.json` の値を以下に反映する（フィールドの取得元はPhase 0.5「0d実行済みの場合の優先ルール」参照）
+> - Reference 3曲 = `reference_songs[:3]`（下記1.の代わりに使用可）
+> - GMIVのG = `genre_distribution` 最大カウントのジャンル
+> - GMIVのBPM（下記3.） = `recommended.bpm`
+> - GMIVのV性別 = `query.gender_estimate`
+
 1. **Reference 3曲**（業界標準）: 雰囲気を具体曲で伝える（`[L1.5]潮流` 参照可）
 2. **GMIV順序**（`[L1]プロンプト技法`・`[L1]楽曲制作基礎` 参照）:
    - **G**enre — ジャンル＋時代・**具体語**（抽象語NG）
