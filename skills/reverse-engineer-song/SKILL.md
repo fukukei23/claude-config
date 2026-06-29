@@ -96,14 +96,12 @@ description: YouTube動画（楽曲）をリバースエンジニアリングし
 ```
 質問:「この仕様書を既存の楽曲制作skillに持ち込みますか？」
 選択肢:
-  cyber-wa-song で制作する（サイバー和モダン系）
-  sangoku-song で制作する（三国志HIPHOP系）
+  make-song で制作する（Phase 0 の [THEME] でサイバー和/三国志を選択）
   いいえ（仕様書保存のみで終了）
 ```
 
-- **cyber-wa-song / sangoku-song 選択** → 該当skillの Phase 0「その他（カスタム）」経由で誘導。保存した仕様書のパスを伝え、世界観データとして参照するよう案内
+- **make-song 選択** → make-song の Phase 0「リファレンス仕様書の持ち込み」経由で誘導。保存した仕様書のパスを伝え、世界観データとして参照するよう案内（[THEME]でサイバー和モダン/三国志HIPHOPを選択）
 - **いいえ** → 「仕様書を保存しました: `<パス>`」と表示して終了
 
 ## 関連skill（双方向リンク）
-- `sangoku-song` — Phase 0「その他（カタログ参照）」から本skillを呼び出し可能
-- `cyber-wa-song` — Phase 0「その他（カスタム）」から本skillを呼び出し可能
+- `make-song` — Phase 0「リファレンス仕様書の持ち込み」から本skillの出力仕様書を取り込み可能。`[THEME]` 層でサイバー和モダン/三国志HIPHOPを選択（旧 sangoku-song/cyber-wa-song は make-song へ統合済・2026-06-29）
