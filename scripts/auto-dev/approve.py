@@ -180,6 +180,7 @@ def main() -> int:
     state = load_or_init_state()
     state["pending"] = [build_task_entry(t, t["repo_path"]) for t in queueable]
     state["active"] = True
+    state["mode"] = "manual"  # approve.py は manual entry point・auto残留防止(I1)
     state["running"] = False
     first_task = state["pending"].pop(0) if state["pending"] else None
     state["current"] = first_task
