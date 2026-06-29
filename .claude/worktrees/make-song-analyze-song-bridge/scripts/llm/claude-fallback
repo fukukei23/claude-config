@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+python3 "$HOME/.claude/scripts/claude_fallback.py" "$@"
