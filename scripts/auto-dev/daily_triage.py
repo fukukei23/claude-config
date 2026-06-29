@@ -156,6 +156,22 @@ def collect_repo_names(repo_index: Path) -> list[str]:
     return names
 
 
+def collect_issues() -> list[str]:
+    """fetch_issues.run() で auto-loop ラベル Issue を取得し候補文字列化。
+
+    fetch_issues インポート失敗・0件時は空リスト（Daily Triage を止めない）。
+
+    Returns:
+        Issue 候補のリスト（today-tasks.md 混入用）。
+    """
+    try:
+        import fetch_issues
+        tasks = fetch_issues.run()
+    except Exception:
+        return []
+    return [f"{t['title']}（repo: {Path(t['repo']).name}・Issue #{t['issue']}）" for t in tasks]
+
+
 def build_context(backlog: list[str], green: list[str], handoff: str | None) -> str:
     """収集データを Claude判定用プロンプトに組み立てる。
 
@@ -323,6 +339,9 @@ def main() -> int:
     handoff = collect_handoff_latest(SSOT / "00_SYSTEM" / "handoff")
     repo_list = collect_repo_names(SSOT / "00_SYSTEM" / "repo-index.yaml")
     context = build_context(backlog, green, handoff)
+    issues = collect_issues()
+    if issues:
+        context = context + "\n\n## OSS Issue 候補（auto-loop ラベル）\n" + "\n".join(f"- {i}" for i in issues)
 
     if args.collect_only:
         print(context)

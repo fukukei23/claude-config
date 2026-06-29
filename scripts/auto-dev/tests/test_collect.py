@@ -137,6 +137,18 @@ def test_parse_task_date_returns_none_when_no_date():
     assert parse_task_date("日付のないタスク", today=today) is None
 
 
+def test_collect_issues_auto_loop候補取得(monkeypatch):
+    """fetch_issues.run をモック化し候補リストを返す。"""
+    import daily_triage
+    fake_tasks = [
+        {"title": "Issue #1: バグ", "prompt": "実装せよ", "repo": "/r", "issue": 1}
+    ]
+    monkeypatch.setattr("fetch_issues.run", lambda: fake_tasks)
+    result = daily_triage.collect_issues()
+    assert len(result) == 1
+    assert "Issue #1: バグ" in result[0]
+
+
 def test_collect_backlog_marks_stale_tasks(tmp_path):
     """30日超のタスクに ⚠stale マーク付与（鮮度管理・Phase3.1課題3）。
 
