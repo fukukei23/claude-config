@@ -244,6 +244,13 @@ def main() -> None:
         notify_blocked(project, state["blocked"])
         return
 
+    # auto モード上限到達で停止（次タスク起動せず・残りは次セッションへ）
+    if state.get("mode") == "auto" and reached_max(state):
+        state["active"] = False
+        save_state(STATE, state)
+        log(f"[{project}] auto上限到達({state.get('session_task_count', 0)})・停止")
+        return
+
     if not state["active"]:
         log(f"[{project}] ✅ 全タスク完了: {state['completed']}")
         notify_complete(project, state["completed"])
