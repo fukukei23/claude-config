@@ -73,7 +73,7 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
       <起点曲(URL/MP3パス)> -o /tmp/make-song-query/<timestamp> -t <仮タイトル>
     /home/yn4416/projects/claude-config/.venv/bin/python -m scripts.match_song \
       /tmp/make-song-query/<timestamp>/features.json \
-      /home/yn4416/projects/claude-config/skills/analyze-song/reference/名曲DB \
+      /home/yn4416/projects/obsidian-ssot/reference/名曲DB \
       -o /tmp/make-song-query/<timestamp>/match_report.md
     ```
   - Demucs音源分離を含むため**数分かかる**。実行前にユーザーへ「数分かかります」と伝える
