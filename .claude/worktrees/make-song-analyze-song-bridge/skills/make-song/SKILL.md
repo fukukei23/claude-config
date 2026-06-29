@@ -67,7 +67,7 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
   - サイバー和モダン → `references/[THEME]サイバー和モダン.md` 読込
 - **リファレンス仕様書の持ち込み**があれば読込（`reverse-engineer-song` 経由）
 - **起点曲の定量解析**（`0d`・任意・analyze-song連携）: 「この曲っぽく作りたい」と起点曲（曲名/YouTube URL/MP3パス・DB登録済み曲・DB外どちらも可）が挙がった場合に実行
-  - コマンド（`cd /home/yn4416/projects/claude-config/skills/analyze-song` で実行）:
+  - コマンド（`cd /home/yn4416/projects/claude-config/skills/analyze-song` で実行）。`<timestamp>` は実行前に `date +%Y%m%d_%H%M%S` 等で1つ確定し、以下2コマンドで同じ値を使うこと:
     ```bash
     /home/yn4416/projects/claude-config/.venv/bin/python scripts/analyze_song.py \
       <起点曲(URL/MP3パス)> -o /tmp/make-song-query/<timestamp> -t <仮タイトル>
