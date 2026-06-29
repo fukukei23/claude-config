@@ -45,7 +45,7 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
 - **Layer 1.5**: 潮流・サンプル参照（月更新・陳腐化リスク）→ `references/[L1.5]*`
 - **Layer 2**: MiniMax固有の実測知見（即時更新）→ `references/[L2]*`
 - **META**: ポータビリティ（AI変更時の差し替え手順）→ `references/[META]*`
-- **THEME**: テーマ固有作曲知識（三国志HIPHOP/サイバー和モダン・Phase 0 選択時のみ）→ `references/[THEME]*`（既存スキル sangoku-song/cyber-wa-song の資産を cross-reference・DRY）
+- **THEME**: テーマ固有作曲知識（三国志HIPHOP/サイバー和モダン・Phase 0 選択時のみ）→ `references/[THEME]*`（旧 sangoku-song/cyber-wa-song の固有資産を本体化・2026-06-29統合）
 
 ### 昇格ルール（循環）
 ③④（仮説）→ 実測で効果確認 → ①②（確定/実測）へ昇格。①のうち特定AIで効かないものは②へ降格。
