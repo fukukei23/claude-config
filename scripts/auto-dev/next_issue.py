@@ -131,6 +131,38 @@ def load_state(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def should_fetch(state: dict) -> bool:
+    """auto モード・pending 枯渇・current 無し の時に fetch を呼ぶべきか。
+
+    Args:
+        state: state.json の内容。
+
+    Returns:
+        fetch_issues 呼出が必要なら True。
+    """
+    if state.get("mode") != "auto":
+        return False
+    if state.get("current") is not None:
+        return False
+    return not state.get("pending")
+
+
+def reached_max(state: dict) -> bool:
+    """auto モードの1セッション上限に到達したか。
+
+    Args:
+        state: state.json の内容。
+
+    Returns:
+        session_task_count >= max_tasks_per_session なら True。
+    """
+    if state.get("mode") != "auto":
+        return False
+    count = state.get("session_task_count", 0)
+    maximum = state.get("max_tasks_per_session", 3)
+    return count >= maximum
+
+
 def save_state(path: Path, state: dict) -> None:
     """state.json を書く（インデント付き）。"""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -159,12 +191,46 @@ def main() -> None:
 
     project = state.get("project", "unknown")
 
-    # 初回起動ロジック削除: approve.py が current を直接セットする（E2E 二重実行防止）
+    # auto モード: current 無し時の自動昇格・fetch 補充・max 停止
     if state.get("current") is None:
-        return  # approve.py 未起動（承認前）・何もしない
+        if state.get("mode") != "auto":
+            return  # manual モード・approve.py 未起動・何もしない
+        # auto モード上限到達で停止
+        if reached_max(state):
+            state["active"] = False
+            save_state(STATE, state)
+            log(f"[{project}] auto上限到達({state.get('session_task_count')})・停止")
+            return
+        # auto モード・pending 枯渇で fetch 補充
+        if should_fetch(state):
+            try:
+                import fetch_issues
+                new_tasks = fetch_issues.run()
+                state = load_state(STATE)  # fetch_issues.run は読むだけ・ここで再取得
+                state.setdefault("pending", [])
+                added = fetch_issues.filter_duplicates(new_tasks, state)
+                state["pending"].extend(added)
+                log(f"[{project}] auto fetch: {len(added)}件補充")
+            except Exception as e:
+                log(f"[{project}] auto fetch失敗: {e}")
+        # pending 仍 空 なら停止
+        if not state.get("pending"):
+            state["active"] = False
+            save_state(STATE, state)
+            log(f"[{project}] auto: 対象Issue空・停止")
+            return
+        # pending 先頭を current に昇格（承認スキップ）
+        state["current"] = state["pending"].pop(0)
+        save_state(STATE, state)
+        log(f"[{project}] 🚀 auto起動: {state['current'].get('title')}")
+        _launch_current(state["current"])
+        return
 
     # 検証結果で遷移
     verify_ok = read_verify_result(VERIFY_RESULT)
+    # session_task_count インクリメント（auto モードの完了カウント）
+    if state.get("mode") == "auto" and verify_ok:
+        state["session_task_count"] = state.get("session_task_count", 0) + 1
     state = advance_state(state, verify_ok=verify_ok)
     save_state(STATE, state)
 

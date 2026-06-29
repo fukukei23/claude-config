@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import next_issue  # noqa: E402
 from next_issue import advance_state, read_verify_result, _launch_current  # noqa: E402
 
 
@@ -103,3 +104,42 @@ def test_launch_current_uses_task_repo(monkeypatch):
     _launch_current(current)
     assert captured["cwd"] == "/home/yn4416/projects/NexusCore"
     assert captured["cmd"][0] == "setsid"
+
+
+def test_should_fetch_auto_枯渇時():
+    state = {"mode": "auto", "pending": [], "current": None, "active": True}
+    assert next_issue.should_fetch(state) is True
+
+
+def test_should_fetch_manual_時はFalse():
+    state = {"mode": "manual", "pending": [], "current": None, "active": True}
+    assert next_issue.should_fetch(state) is False
+
+
+def test_should_fetch_pending_ありはFalse():
+    state = {"mode": "auto", "pending": [{"title": "x"}], "current": None, "active": True}
+    assert next_issue.should_fetch(state) is False
+
+
+def test_max到達で停止():
+    state = {
+        "mode": "auto",
+        "max_tasks_per_session": 3,
+        "session_task_count": 3,
+        "pending": [{"title": "x"}],
+        "current": None,
+        "active": True,
+    }
+    assert next_issue.reached_max(state) is True
+
+
+def test_max未到達():
+    state = {
+        "mode": "auto",
+        "max_tasks_per_session": 3,
+        "session_task_count": 2,
+        "pending": [],
+        "current": None,
+        "active": True,
+    }
+    assert next_issue.reached_max(state) is False
