@@ -66,6 +66,22 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
   - 三国志HIPHOP → `references/[THEME]三国志_HIPHOP.md` 読込
   - サイバー和モダン → `references/[THEME]サイバー和モダン.md` 読込
 - **リファレンス仕様書の持ち込み**があれば読込（`reverse-engineer-song` 経由）
+- **起点曲の定量解析**（`0d`・任意・analyze-song連携）: 「この曲っぽく作りたい」と起点曲（曲名/YouTube URL/MP3パス・DB登録済み曲・DB外どちらも可）が挙がった場合に実行
+  - コマンド（`cd /home/yn4416/projects/claude-config/skills/analyze-song` で実行）:
+    ```bash
+    /home/yn4416/projects/claude-config/.venv/bin/python scripts/analyze_song.py \
+      <起点曲(URL/MP3パス)> -o /tmp/make-song-query/<timestamp> -t <仮タイトル>
+    /home/yn4416/projects/claude-config/.venv/bin/python -m scripts.match_song \
+      /tmp/make-song-query/<timestamp>/features.json \
+      /home/yn4416/projects/claude-config/skills/analyze-song/reference/名曲DB \
+      -o /tmp/make-song-query/<timestamp>/match_report.md
+    ```
+  - Demucs音源分離を含むため**数分かかる**。実行前にユーザーへ「数分かかります」と伝える
+  - 失敗時（YouTube DL失敗・Demucs失敗・対応外フォーマット等）は本ルートを諦め、下記「エラー処理・フォールバック」表の該当行に従う
+  - 成功時: `/tmp/make-song-query/<timestamp>/make_song_input.json` を Phase 0.5/1 で参照する（詳細は Phase 0.5/1 セクション参照）
+  - **オプトイン確認 🔴（人間）**: 解析完了後、必ず一度「このDBに恒久登録しますか？」とユーザーに尋ねる
+    - Yes → 曲ID/タイトル/アーティスト/ジャンル/commercial-rank/era/selection-reason を聞き、`analyze-song` SKILL.md の「使い方（Phase 2・名曲DB登録）」コマンド（`register_song`）を実行
+    - No（デフォルト） → 何もしない。`/tmp/make-song-query/<timestamp>/` は本セッション終了後に削除して構わない（永続化不要）
 - 楽曲の目的: フックonly / 60秒 / フル3-4分
 
 > **発動の使い分け**: 「曲作って」「作曲して」等=本スキル（Phase 0 でテーマ選択可）。※「武将で曲作って」「サイバー和で曲作って（**映像まで**）」=既存スキル（sangoku-song/cyber-wa-song）が優先。**曲+詞だけ**なら本スキルで Phase 0 テーマ選択が可能。
