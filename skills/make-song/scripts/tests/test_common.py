@@ -16,8 +16,9 @@ def test_loads_theme_map_cyber_wa():
 
 
 def test_ha_wa_particle():
+    # は粒子はjanome読みの「は」のまま（原スクリプトと同じ挙動）
     result = kanji_to_hiragana("曹仁は樊城を守る", theme="sangoku")
-    assert "そうじん" in result and "はんじょう" in result and "わ" in result
+    assert "そうじん" in result and "はんじょう" in result and "は" in result
 
 
 def test_basic_kanji_fukutsu():
