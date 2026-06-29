@@ -189,6 +189,7 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
 | 🔴 知見の陳腐化 | 90日経過項目は信頼度を下げる（メタルール） | META |
 
 ## 関連
-- 既存スキル: `cyber-wa-song` / `sangoku-song`（テーマ固有カタログ＋本スキル呼出）/ `reverse-engineer-song`（参考曲仕様書→Phase 0 持ち込み）
+- 既存スキル: `cyber-wa-song` / `sangoku-song`（テーマ固有カタログ＋本スキル呼出）/ `reverse-engineer-song`（参考曲仕様書→Phase 0 持ち込み・定性分析）/ `analyze-song`（起点曲の定量解析→Phase 0d・`make_song_input.json`連携）
 - 設計書: `obsidian-ssot/01_DECISIONS/ai-music/2026-06-16_AI作曲スキル_design.md`
 - 実装計画: `obsidian-ssot/01_DECISIONS/ai-music/2026-06-16_AI作曲スキル_plan.md`
+- 連携設計書: `obsidian-ssot/docs/superpowers/specs/2026-06-29-make-song-analyze-song-bridge-design.md`
