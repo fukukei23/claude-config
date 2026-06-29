@@ -199,7 +199,7 @@ def main() -> None:
         if reached_max(state):
             state["active"] = False
             save_state(STATE, state)
-            log(f"[{project}] auto上限到達({state.get('session_task_count')})・停止")
+            log(f"[{project}] auto上限到達({state.get('session_task_count', 0)})・停止")
             return
         # auto モード・pending 枯渇で fetch 補充
         if should_fetch(state):
@@ -208,11 +208,14 @@ def main() -> None:
                 new_tasks = fetch_issues.run()
                 state = load_state(STATE)  # fetch_issues.run は読むだけ・ここで再取得
                 state.setdefault("pending", [])
+                # run() 内部でも重複除外済だが、並行セッション・state 更新タイミング差異に
+                # 備え防御的に再 filter する（冪等）
                 added = fetch_issues.filter_duplicates(new_tasks, state)
                 state["pending"].extend(added)
                 log(f"[{project}] auto fetch: {len(added)}件補充")
-            except Exception as e:
-                log(f"[{project}] auto fetch失敗: {e}")
+            except Exception:
+                import traceback
+                log(f"[{project}] auto fetch失敗: {traceback.format_exc()}")
         # pending 仍 空 なら停止
         if not state.get("pending"):
             state["active"] = False
