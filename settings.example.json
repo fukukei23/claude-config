@@ -396,20 +396,6 @@
       "env": {
         "GLM_API_KEY": "97c1***MASKED***"
       }
-    },
-    "minimax-official": {
-      "type": "stdio",
-      "command": "bash",
-      "args": [
-        "/home/yn4416/.claude/scripts/mcp/start-minimax-official-mcp.sh"
-      ]
-    },
-    "minimax-video": {
-      "type": "stdio",
-      "command": "bash",
-      "args": [
-        "/home/yn4416/.claude/scripts/mcp/start-minimax-video-mcp.sh"
-      ]
     }
   },
   "autoDream": {
