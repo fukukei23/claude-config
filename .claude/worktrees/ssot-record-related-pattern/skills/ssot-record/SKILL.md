@@ -65,6 +65,53 @@ SSOT内のタグマッピング設定ファイルを読み込み、プロジェ�
 
 ---
 
+## フェーズ0.8: 関連パターン候補収集（LLM呼び出しなし）
+
+フェーズ1の分類判定LLM呼び出しの**前**に、過去の記録との根本原因の一致を判定するための候補をファイルI/Oだけで収集する（追加のLLM呼び出しは発生しない）。
+
+### 候補収集パイプライン
+
+```bash
+TODAY=$(date +%Y-%m-%d)
+SEVEN_DAYS_AGO=$(date -d "7 days ago" +%Y-%m-%d)
+
+# 全01_DECISIONSエントリのfrontmatter date:行を、ファイルパス付きで抽出し日付降順ソート
+grep -rH "^date: " ~/projects/obsidian-ssot/01_DECISIONS/*/2*.md 2>/dev/null \
+  | sed -E 's/^(.*):date: *([0-9-]+)$/\2 \1/' \
+  | sort -r > /tmp/ssot-record-candidates-sorted.txt
+
+# 集合A: 過去7日以内（当日含む）
+awk -v d="$SEVEN_DAYS_AGO" '$1 >= d' /tmp/ssot-record-candidates-sorted.txt > /tmp/ssot-record-setA.txt
+
+# 集合B: 日付に関係なく直近5件
+head -5 /tmp/ssot-record-candidates-sorted.txt > /tmp/ssot-record-setB.txt
+
+# 候補 = A ∪ B（重複排除）
+cat /tmp/ssot-record-setA.txt /tmp/ssot-record-setB.txt | sort -u > /tmp/ssot-record-candidates.txt
+rm -f /tmp/ssot-record-candidates-sorted.txt /tmp/ssot-record-setA.txt /tmp/ssot-record-setB.txt
+```
+
+ファイル名やパス文字列ではなく、**frontmatterの`date:`行のみ**を対象にする（誤爆防止。詳細はspec参照）。
+
+### 候補情報の整形
+
+`/tmp/ssot-record-candidates.txt`の各行（`日付 ファイルパス`）について、以下を取得する:
+
+1. 各ファイルをReadし、frontmatterの`tags`・`root_cause`（あれば）を取得
+2. 対応する`01_DECISIONS/<project>/_INDEX.md`の該当行（1行サマリー）を取得（既に開いている場合は再読込不要）
+
+整形した候補リストはフェーズ1のプロンプトに渡す（Task 2参照）。
+
+### 候補が0件の場合
+
+`/tmp/ssot-record-candidates.txt`が空（grep該当0件）の場合、候補リストを空のままフェーズ1に進む。フェーズ1のJSON出力では`related_pattern: null`になる（Task 2のプロンプト仕様に従う）。
+
+### 後片付け
+
+一時ファイル（`/tmp/ssot-record-candidates*.txt`）はこのフェーズ内で使い切ったら削除する。
+
+---
+
 ## フェーズ1: 分類判定
 
 ### 環境別の判定方法
