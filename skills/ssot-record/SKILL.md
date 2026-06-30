@@ -158,6 +158,21 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
 - CC機能に関係ない場合は `cc_guide_page: null` にする
 - 複数ページに該当する場合は最初の1つだけを返す
 
+【関連パターン判定（フェーズ0.8の候補を使う）】
+フェーズ0.8で収集した候補リスト（あれば）を以下のように提示し、今回の記録内容と根本原因が共通していないか判定させる。候補が0件の場合はこのセクション自体を省略してよい。
+
+候補リストの提示形式:
+```
+過去の関連候補（参考情報。project/tagsの分類には使わないこと）:
+1. [project: <project>] <_INDEX.mdの1行サマリー>（root_cause: <あれば category+description、なければ「未記録」>）
+2. ...
+```
+
+判定ルール:
+- **思考順序を分離すること**: まず「今回の記録内容」だけを見て`project`・`tags`・`category`等の通常の分類判定を完了させる。その後で初めて、別タスクとして候補リストと照合して`related_pattern`を判定する。候補リストを見ながら分類判定を行わない（過去ログの語彙に引っ張られて`tags`がブレるのを防ぐため）
+- 今回の記録内容と候補の間に、表面的な症状ではなく**根本原因・構造的な前提**が共通すると判断できる場合のみ`related_pattern`を埋める
+- 少しでも確信が持てない場合は`related_pattern: null`を返す（過剰検出を避ける）
+
 返答フォーマット（JSON のみ、コードブロック不要）:
 {
   "primary": "01_DECISIONS",
@@ -175,13 +190,65 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
   },
   "tags": ["タグ1", "タグ2", "タグ3"],
   "filename_hint": "ファイル名に使う日本語の短い説明",
-  "reason": "判定理由（1行）"
+  "reason": "判定理由（1行）",
+  "root_cause": {
+    "category": "code_defect or design_mismatch or requirement_change or external_dependency or operational_error or unknown",
+    "description": "1行の根本原因説明（categoryがunknownの場合は空でもよい）"
+  },
+  "related_pattern": null
+}
+```
+
+**出力例1（関連パターンあり）:**
+```json
+{
+  "primary": "01_DECISIONS",
+  "project": "claude-code",
+  "category": "技術的決定",
+  "also_daily": true,
+  "guide_needed": false,
+  "guide_target": null,
+  "cc_guide_page": null,
+  "tags": ["claude-code", "cron", "Windows-Desktop"],
+  "filename_hint": "Windows-Desktop版cron実行状況確認問題",
+  "reason": "Windows Desktop環境固有の技術的問題解決のため",
+  "root_cause": {
+    "category": "design_mismatch",
+    "description": "Windows DesktopとWSL2は別ホームディレクトリを持つ別OSである"
+  },
+  "related_pattern": {
+    "entry": "01_DECISIONS/claude-code/2026-06-30_Windows-Desktop版WSLパス変換フック実装.md",
+    "reason": "Windows DesktopとWSL2が別ホームディレクトリを持つことに起因する点で根本原因が共通",
+    "common_tags": ["claude-code", "Windows-Desktop"]
+  }
+}
+```
+
+**出力例2（関連パターンなし）:**
+```json
+{
+  "primary": "01_DECISIONS",
+  "project": "reserve-optimizer",
+  "category": "技術的決定",
+  "also_daily": true,
+  "guide_needed": false,
+  "guide_target": null,
+  "cc_guide_page": null,
+  "tags": ["reserve-optimizer", "CRMService"],
+  "filename_hint": "CRMService匿名ID化実装",
+  "reason": "プロジェクト固有の機能実装のため",
+  "root_cause": {
+    "category": "design_mismatch",
+    "description": "顧客IDの主キーに電話番号(PII)を使っていた"
+  },
+  "related_pattern": null
 }
 ```
 
 **LLMがJSONを返さなかった場合（説明文が混入・エラー等）**:
 - レスポンスから `{...}` 部分を正規表現で抽出して再パースを試みる
 - それでも失敗した場合は自分（Claude）でデフォルト判定して進み、フェーズ2でユーザーに確認する
+- いずれのフォールバックでも`related_pattern`は無理に判定せず`null`扱いとする
 
 **LLMが不正なプロジェクト名を返した場合の照合**:
 - `primary: "01_DECISIONS"` のとき、返された `project` が実在するか確認する:
