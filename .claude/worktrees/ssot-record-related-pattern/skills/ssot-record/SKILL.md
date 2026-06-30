@@ -396,7 +396,7 @@ tags: [tag1, tag2, tag3]
 root_cause:
   category: <フェーズ1のroot_cause.category>
   description: <フェーズ1のroot_cause.description>
-related_entries:  ← related_patternが非nullだった場合のみ追加。nullならこのフィールド自体を省略
+related_entries:
   - <related_pattern.entry>
 ---
 
