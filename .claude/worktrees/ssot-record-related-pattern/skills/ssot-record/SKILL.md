@@ -393,6 +393,11 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 project: <project>
 date: YYYY-MM-DD
 tags: [tag1, tag2, tag3]
+root_cause:
+  category: <フェーズ1のroot_cause.category>
+  description: <フェーズ1のroot_cause.description>
+related_entries:  ← related_patternが非nullだった場合のみ追加。nullならこのフィールド自体を省略
+  - <related_pattern.entry>
 ---
 
 # <タイトル>
@@ -409,6 +414,8 @@ tags: [tag1, tag2, tag3]
 ## 未解決
 - <残タスク>  ← なければ「なし」
 ```
+
+`root_cause`の`category`は以下から選ぶ: `code_defect`（コード上の不具合） / `design_mismatch`（設計・前提のズレ） / `requirement_change`（要件変更） / `external_dependency`（外部要因） / `operational_error`（運用ミス） / `unknown`（不明）。フェーズ1のJSON出力をそのまま転記する。
 
 **00_SYSTEM の場合** (`/home/yn4416/projects/obsidian-ssot/00_SYSTEM/<適切なサブフォルダ or 直下>/<ファイル名>.md`):
 まず `ls /home/yn4416/projects/obsidian-ssot/00_SYSTEM/` でフォルダ構成を確認してから配置する。
