@@ -3,6 +3,8 @@
 import importlib.util
 from pathlib import Path
 
+# path-rewrite.py はハイフン入りファイル名のため `import path_rewrite` で
+# 直接読み込めない。ファイルパスを指定して動的にロードする。
 _spec = importlib.util.spec_from_file_location(
     "path_rewrite", Path(__file__).parent / "path-rewrite.py"
 )
