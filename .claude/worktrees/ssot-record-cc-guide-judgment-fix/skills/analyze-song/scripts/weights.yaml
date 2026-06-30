@@ -1,7 +1,0 @@
-weights:
-  bpm: 0.35
-  key: 0.25
-  chord: 0.25
-  range: 0.15
-k: 5
-low_confidence_range_max: 48
