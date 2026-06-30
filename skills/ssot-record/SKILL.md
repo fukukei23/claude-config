@@ -65,6 +65,54 @@ SSOT内のタグマッピング設定ファイルを読み込み、プロジェ�
 
 ---
 
+## フェーズ0.8: 関連パターン候補収集（LLM呼び出しなし）
+
+フェーズ1の分類判定LLM呼び出しの**前**に、過去の記録との根本原因の一致を判定するための候補をファイルI/Oだけで収集する（追加のLLM呼び出しは発生しない）。
+
+### 候補収集パイプライン
+
+「過去7日」「直近5件」は、繁忙期も閑散期も取りこぼさないための折衷値（詳細はspec参照）。一時ファイル名には`$$`（プロセスID）を含め、並行セッションでの衝突を避ける。
+
+```bash
+SEVEN_DAYS_AGO=$(date -d "7 days ago" +%Y-%m-%d)
+
+# 全01_DECISIONSエントリのfrontmatter date:行を、ファイルパス付きで抽出し日付降順ソート
+grep -rH "^date: " ~/projects/obsidian-ssot/01_DECISIONS/*/2*.md 2>/dev/null \
+  | sed -E 's/^(.*):date: *([0-9-]+)$/\2 \1/' \
+  | sort -r > /tmp/ssot-record-candidates-sorted-$$.txt
+
+# 集合A: 過去7日以内（当日含む）
+awk -v d="$SEVEN_DAYS_AGO" '$1 >= d' /tmp/ssot-record-candidates-sorted-$$.txt > /tmp/ssot-record-setA-$$.txt
+
+# 集合B: 日付に関係なく直近5件
+head -5 /tmp/ssot-record-candidates-sorted-$$.txt > /tmp/ssot-record-setB-$$.txt
+
+# 候補 = A ∪ B（重複排除）
+cat /tmp/ssot-record-setA-$$.txt /tmp/ssot-record-setB-$$.txt | sort -u > /tmp/ssot-record-candidates-$$.txt
+rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tmp/ssot-record-setB-$$.txt
+```
+
+ファイル名やパス文字列ではなく、**frontmatterの`date:`行のみ**を対象にする（誤爆防止。詳細はspec参照）。
+
+### 候補情報の整形
+
+`/tmp/ssot-record-candidates-$$.txt`の各行（`日付 ファイルパス`）について、以下を取得する:
+
+1. 各ファイルをReadし、frontmatterの`tags`・`root_cause`（あれば）を取得
+2. 対応する`01_DECISIONS/<project>/_INDEX.md`の該当行（1行サマリー）を取得（既に開いている場合は再読込不要）
+
+整形した候補リストはフェーズ1のプロンプトに渡す（Task 2参照）。
+
+### 候補が0件の場合
+
+`/tmp/ssot-record-candidates-$$.txt`が空（grep該当0件）の場合、候補リストを空のままフェーズ1に進む。フェーズ1のJSON出力では`related_pattern: null`になる（Task 2のプロンプト仕様に従う）。
+
+### 後片付け
+
+一時ファイル（`/tmp/ssot-record-candidates*-$$.txt`）はこのフェーズ内で使い切ったら削除する。
+
+---
+
 ## フェーズ1: 分類判定
 
 ### 環境別の判定方法
@@ -110,6 +158,21 @@ SSOT内のタグマッピング設定ファイルを読み込み、プロジェ�
 - CC機能に関係ない場合は `cc_guide_page: null` にする
 - 複数ページに該当する場合は最初の1つだけを返す
 
+【関連パターン判定（フェーズ0.8の候補を使う）】
+フェーズ0.8で収集した候補リスト（あれば）を以下のように提示し、今回の記録内容と根本原因が共通していないか判定させる。候補が0件の場合はこのセクション自体を省略してよい。
+
+候補リストの提示形式:
+```
+過去の関連候補（参考情報。project/tagsの分類には使わないこと）:
+1. [project: <project>] <_INDEX.mdの1行サマリー>（root_cause: <あれば category+description、なければ「未記録」>）
+2. ...
+```
+
+判定ルール:
+- **思考順序を分離すること**: まず「今回の記録内容」だけを見て`project`・`tags`・`category`等の通常の分類判定を完了させる。その後で初めて、別タスクとして候補リストと照合して`related_pattern`を判定する。候補リストを見ながら分類判定を行わない（過去ログの語彙に引っ張られて`tags`がブレるのを防ぐため）
+- 今回の記録内容と候補の間に、表面的な症状ではなく**根本原因・構造的な前提**が共通すると判断できる場合のみ`related_pattern`を埋める
+- 少しでも確信が持てない場合は`related_pattern: null`を返す（過剰検出を避ける）
+
 返答フォーマット（JSON のみ、コードブロック不要）:
 {
   "primary": "01_DECISIONS",
@@ -127,13 +190,86 @@ SSOT内のタグマッピング設定ファイルを読み込み、プロジェ�
   },
   "tags": ["タグ1", "タグ2", "タグ3"],
   "filename_hint": "ファイル名に使う日本語の短い説明",
-  "reason": "判定理由（1行）"
+  "reason": "判定理由（1行）",
+  "root_cause": {
+    "category": "code_defect or design_mismatch or requirement_change or external_dependency or operational_error or unknown",
+    "description": "1行の根本原因説明（categoryがunknownの場合は空でもよい）"
+  },
+  "related_pattern": null
+}
+```
+
+**出力例1（関連パターンあり）:**
+```json
+{
+  "primary": "01_DECISIONS",
+  "project": "claude-code",
+  "category": "技術的決定",
+  "also_daily": true,
+  "guide_needed": false,
+  "guide_target": null,
+  "cc_guide_page": null,
+  "tags": ["claude-code", "cron", "Windows-Desktop"],
+  "filename_hint": "Windows-Desktop版cron実行状況確認問題",
+  "reason": "Windows Desktop環境固有の技術的問題解決のため",
+  "root_cause": {
+    "category": "design_mismatch",
+    "description": "Windows DesktopとWSL2は別ホームディレクトリを持つ別OSである"
+  },
+  "related_pattern": {
+    "entry": "01_DECISIONS/claude-code/2026-06-30_Windows-Desktop版WSLパス変換フック実装.md",
+    "reason": "Windows DesktopとWSL2が別ホームディレクトリを持つことに起因する点で根本原因が共通",
+    "common_tags": ["claude-code", "Windows-Desktop"]
+  }
+}
+```
+
+**出力例2（関連パターンなし）:**
+```json
+{
+  "primary": "01_DECISIONS",
+  "project": "reserve-optimizer",
+  "category": "技術的決定",
+  "also_daily": true,
+  "guide_needed": false,
+  "guide_target": null,
+  "cc_guide_page": null,
+  "tags": ["reserve-optimizer", "CRMService"],
+  "filename_hint": "CRMService匿名ID化実装",
+  "reason": "プロジェクト固有の機能実装のため",
+  "root_cause": {
+    "category": "design_mismatch",
+    "description": "顧客IDの主キーに電話番号(PII)を使っていた"
+  },
+  "related_pattern": null
+}
+```
+
+**出力例3（root_cause不明な単純記録）:**
+```json
+{
+  "primary": "01_DECISIONS",
+  "project": "claude-code-guide",
+  "category": "ノウハウ",
+  "also_daily": false,
+  "guide_needed": false,
+  "guide_target": null,
+  "cc_guide_page": null,
+  "tags": ["claude-code-guide", "typo"],
+  "filename_hint": "READMEのtypo修正",
+  "reason": "単純な誤字修正で根本原因の分析対象ではないため",
+  "root_cause": {
+    "category": "unknown",
+    "description": ""
+  },
+  "related_pattern": null
 }
 ```
 
 **LLMがJSONを返さなかった場合（説明文が混入・エラー等）**:
 - レスポンスから `{...}` 部分を正規表現で抽出して再パースを試みる
 - それでも失敗した場合は自分（Claude）でデフォルト判定して進み、フェーズ2でユーザーに確認する
+- いずれのフォールバックでも`related_pattern`は無理に判定せず`null`扱いとする
 
 **LLMが不正なプロジェクト名を返した場合の照合**:
 - `primary: "01_DECISIONS"` のとき、返された `project` が実在するか確認する:
@@ -184,6 +320,23 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 - `📖 ガイド転記` の行に「追記先ファイル名」と「何を書くかの1行概要」を必ず記載する
 - 「転記内容の詳細を先に見せますか？」は**聞かない** — yes承認後に直接書く
 - ユーザーが承認したら次のフェーズへ。修正指示があれば反映してから再確認。
+
+**関連パターン検知ありの場合（`related_pattern`が非nullの場合）:**
+
+全パターン（基本/ガイド転記あり/プロジェクトドキュメント更新あり/CCガイド追記あり）の末尾に、以下のブロックを追加する:
+
+```
+🔗 関連パターン検知（過去7日 + 直近5件・横断）
+「<related_pattern.entry>」と根本原因が共通する可能性があります
+（理由: <related_pattern.reason>・共通タグ: #<common_tags[0]> #<common_tags[1]>）
+構造的な文書への追記も検討しますか？[y/N]
+```
+
+- `y`の場合: 「この洞察はどこに書くのが適切だと思いますか？（既存ドキュメント名 or『なし』）」とユーザーに一言確認し、回答をフェーズ3のファイル作成・更新タスクに追加タスクとして組み込む
+- `N`の場合: 何もせずフェーズ3へ進む
+- このブロックは「この振り分けでよいですか？」の確認とは独立した別の確認事項として扱う（同じ`[yes/修正指示]`の応答に混ぜず、関連パターンの`y/N`は別途聞く）
+- **非対話実行時のフォールバック**: 自律ループ等の自動実行コンテキストから`ssot-record`が呼ばれ、ユーザーの応答を待てない場合は、構造的文書への追記は行わずデフォルトで`N`相当として扱う。この場合も`related_pattern`自体はTask4の`related_entries`としてfrontmatterには記録する（検知結果そのものは失わない）
+- **追記時のガードレール**: `y`の流れで既存の構造的文書（例: `01_基礎概念.md`等）に追記する場合、**末尾への追加のみとし、既存の見出し・本文・他のセクションは一切編集・削除しない**。対象ファイルの構造を壊さないことを最優先する
 
 **プロジェクトドキュメント更新対象ありの場合（フェーズ0.5で検出された場合）:**
 
@@ -240,6 +393,11 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 project: <project>
 date: YYYY-MM-DD
 tags: [tag1, tag2, tag3]
+root_cause:
+  category: <フェーズ1のroot_cause.category>
+  description: <フェーズ1のroot_cause.description>
+related_entries:
+  - <related_pattern.entry>
 ---
 
 # <タイトル>
@@ -256,6 +414,10 @@ tags: [tag1, tag2, tag3]
 ## 未解決
 - <残タスク>  ← なければ「なし」
 ```
+
+`root_cause`の`category`は以下から選ぶ: `code_defect`（コード上の不具合） / `design_mismatch`（設計・前提のズレ） / `requirement_change`（要件変更） / `external_dependency`（外部要因） / `operational_error`（運用ミス） / `unknown`（不明）。フェーズ1のJSON出力をそのまま転記する。
+
+`related_entries`は`related_pattern`が非nullだった場合のみ追加し、nullの場合はフィールド自体を省略する。
 
 **00_SYSTEM の場合** (`/home/yn4416/projects/obsidian-ssot/00_SYSTEM/<適切なサブフォルダ or 直下>/<ファイル名>.md`):
 まず `ls /home/yn4416/projects/obsidian-ssot/00_SYSTEM/` でフォルダ構成を確認してから配置する。
@@ -573,6 +735,7 @@ git push
 📦 プロジェクトdocs: docs/変更履歴.md 等（更新あり/なし）  ← フェーズ3-6で更新した場合
 🏷️ タグ: #claude-code #バグ修正
 📖 ガイド転記: なし（または「あり → <章名>」）
+🔗 関連パターン追記: なし（または「あり → <追記先ファイル名>」）  ← related_patternが非nullで`y`回答だった場合のみ表示。null または `N` の場合は「なし」
 🔗 コミット: <hash>
 ```
 
