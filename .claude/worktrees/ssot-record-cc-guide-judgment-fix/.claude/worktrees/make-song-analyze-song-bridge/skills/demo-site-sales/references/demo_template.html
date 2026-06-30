@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{店舗名}} | {{業種}}</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #f8fafc;
+    --text: #1e293b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--text); background: var(--bg); line-height: 1.7; }
+
+  header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    padding: 60px 20px;
+    text-align: center;
+  }
+  header h1 { font-size: 2rem; margin-bottom: 12px; }
+  header p { font-size: 1.1rem; opacity: 0.92; }
+
+  .cta-button {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 14px 32px;
+    background: #fff;
+    color: var(--primary-dark);
+    font-weight: bold;
+    border-radius: 999px;
+    text-decoration: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  }
+
+  section { max-width: 900px; margin: 0 auto; padding: 50px 20px; }
+  section h2 { font-size: 1.5rem; margin-bottom: 20px; border-left: 6px solid var(--primary); padding-left: 12px; }
+
+  .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+  .service-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .service-card h3 { color: var(--primary-dark); margin-bottom: 8px; }
+  .price { font-size: 1.4rem; font-weight: bold; color: var(--primary); margin-top: 8px; }
+
+  .info-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .info-table td { padding: 14px 18px; border-bottom: 1px solid #e2e8f0; }
+  .info-table td:first-child { font-weight: bold; width: 130px; background: #f1f5f9; }
+
+  .map { margin-top: 20px; border-radius: 12px; overflow: hidden; }
+  .map iframe { width: 100%; height: 300px; border: 0; }
+
+  footer { text-align: center; padding: 40px 20px; background: #1e293b; color: #cbd5e1; font-size: 0.9rem; }
+
+  .demo-badge {
+    position: fixed; top: 10px; right: 10px;
+    background: #facc15; color: #1e293b; font-weight: bold;
+    padding: 6px 14px; border-radius: 999px; font-size: 0.8rem;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 999;
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-badge">DEMO（試作版・未公開）</div>
+
+<header>
+  <h1>{{店舗名}}</h1>
+  <p>{{キャッチコピー（例：地域密着の{{業種}}、迅速・丁寧な対応）}}</p>
+  <a class="cta-button" href="tel:{{電話番号}}">今すぐ電話で相談</a>
+</header>
+
+<section>
+  <h2>サービス内容</h2>
+  <div class="services">
+    <div class="service-card">
+      <h3>{{サービス名1}}</h3>
+      <p>{{サービス説明1}}</p>
+      <div class="price">{{料金1}}〜</div>
+    </div>
+    <div class="service-card">
+      <h3>{{サービス名2}}</h3>
+      <p>{{サービス説明2}}</p>
+      <div class="price">{{料金2}}〜</div>
+    </div>
+    <div class="service-card">
+      <h3>{{サービス名3}}</h3>
+      <p>{{サービス説明3}}</p>
+      <div class="price">{{料金3}}〜</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>当店が選ばれる理由</h2>
+  <div class="services">
+    <div class="service-card">
+      <h3>プロのスタッフ</h3>
+      <p>経験豊富なスタッフが丁寧に対応します。</p>
+    </div>
+    <div class="service-card">
+      <h3>安心価格</h3>
+      <p>明確な料金体系で安心してご利用いただけます。</p>
+    </div>
+    <div class="service-card">
+      <h3>丁寧な作業</h3>
+      <p>細部までこだわった丁寧な仕上がりをお約束します。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>店舗情報</h2>
+  <table class="info-table">
+    <tr><td>店舗名</td><td>{{店舗名}}</td></tr>
+    <tr><td>住所</td><td>{{住所}}</td></tr>
+    <tr><td>電話番号</td><td>{{電話番号}}</td></tr>
+    <tr><td>営業時間</td><td>{{営業時間}}</td></tr>
+    <tr><td>定休日</td><td>{{定休日}}</td></tr>
+    <tr><td>最寄駅</td><td>{{最寄駅}}</td></tr>
+  </table>
+  <div class="map">
+    <iframe src="{{GoogleマップEmbedURL}}" loading="lazy"></iframe>
+  </div>
+</section>
+
+<footer>
+  &copy; {{年}} {{店舗名}} — このページはデモ用試作サイトです。許可なく転載・公開しないでください。
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "glm": {
+      "command": "wsl",
+      "args": ["-d", "Ubuntu", "--", "bash", "/home/yn4416/.claude/scripts/start-glm-mcp.sh"]
+    },
+    "minimax": {
+      "command": "wsl",
+      "args": ["-d", "Ubuntu", "--", "bash", "/home/yn4416/.claude/scripts/start-minimax-mcp.sh"]
+    }
+  }
+}
