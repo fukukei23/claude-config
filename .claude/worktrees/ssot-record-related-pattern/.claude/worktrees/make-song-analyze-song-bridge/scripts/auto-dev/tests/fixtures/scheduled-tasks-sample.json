@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "a1", "cron": "3 3 * * 0,2,4", "prompt": "Knowledge Lint: bash ~/.claude/scripts/knowledge-lint/run-lint.sh", "durable": true},
+    {"id": "a5", "cron": "5 15 * * *", "prompt": "使用量集計: bash ~/.claude/scripts/stats/collect-daily-stats.py", "durable": true},
+    {"id": "a9", "cron": "7 6 * * *", "prompt": "Daily Triage: bash ~/.claude/scripts/auto-dev/daily-triage.sh --notify-discord", "durable": true},
+    {"id": "ghost-1", "cron": "0 0 * * *", "prompt": "旧Cronのゴースト（定義にない）", "durable": true}
+  ]
+}

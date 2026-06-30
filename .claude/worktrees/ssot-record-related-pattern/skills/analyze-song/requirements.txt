@@ -1,0 +1,12 @@
+# analyze-song Phase1b 依存（venv: /home/yn4416/projects/claude-config/.venv）
+# torch/torchaudio は CPU 版 index で導入すること:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+torch>=2.12
+torchaudio>=2.11
+demucs>=4.0.1
+librosa
+basic-pitch
+music21
+
+# Phase2: 名曲特徴量DB
+PyYAML>=6.0

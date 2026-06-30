@@ -1,0 +1,87 @@
+# ===== 【重要】追跡対象ディレクトリ（削除禁止・gitignoreに書かない）=====
+# lib/, docs/, agents/, scheduled-tasks/, plugins/, workflows/
+
+# ===== 認証・機密情報（絶対除外）=====
+.credentials.json
+settings.json
+settings.local.json
+*.key
+*.pem
+*.token
+
+# ===== 会話ログ（JSONL）=====
+history.jsonl
+**/*.jsonl
+
+# ===== セッション・一時データ =====
+sessions/
+paste-cache/
+shell-snapshots/
+stats-cache.json
+statsig/
+telemetry/
+mcp-needs-auth-cache.json
+todos/
+temp/
+debug/
+cache/
+file-history/
+session-env/
+ide/
+vercel-plugin-device-id
+vercel-plugin-telemetry-preference
+
+# ===== バックアップ =====
+backups/
+backup-*/
+*.bak
+*~
+*.orig
+
+# ===== OS・エディタ =====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== Node.js =====
+node_modules/
+*.log
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# ===== その他一時ファイル =====
+*.tmp
+*.temp
+.env
+*.env
+!.env.example
+!.env.template
+
+# ===== scripts/ ランタイム生成物 =====
+scripts/auto-dev/loop.log
+scripts/auto-dev/state.json
+
+# ===== ランタイム状態ファイル（Claude Codeが自動生成）=====
+security_warnings_state_*.json
+krotam_*.json
+scheduled_tasks.json
+scheduled_tasks.lock
+channels/
+krotam_inbox/
+logs/
+plans/
+tasks/
+projects/

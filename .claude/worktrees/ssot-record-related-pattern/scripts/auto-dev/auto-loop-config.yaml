@@ -1,0 +1,9 @@
+# OSS Issue自律ループ設定（Loop Engineering Phase4）
+# fetch_issues.py が読込。対象リポジトリ・ラベル・autoモード上限。
+repos:
+  - name: NexusCore
+    path: /home/yn4416/projects/NexusCore
+  - name: atelier-kyo-manager
+    path: /home/yn4416/projects/atelier-kyo-manager
+label: auto-loop
+max_tasks_per_session: 3
