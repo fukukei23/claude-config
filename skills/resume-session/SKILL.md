@@ -146,6 +146,16 @@ cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commi
 - hook が失敗した・文脈が足りないと感じた時のフォールバック
 - 会話途中で「やっぱり前の文脈を思い出して」と言われた時
 
+## 補足: Windows Desktop版での実行に関する注意
+
+handoffファイルはWSL CLI版が`~/projects/...`形式のWSLパスで書くため、Windows Desktop版がこのスキルでhandoffを読み込む際、かつてはパス解決やGitHub認証で問題が起きていた（Windows DesktopとWSL2は別ホームディレクトリを持つ別OSであるため）。
+
+2026-06-30時点でこの2点は解決済み:
+- パス変換: PreToolUseフック（`path-rewrite.py`）が`~/projects/`・`~/.claude/`等を自動でUNCパスに変換 → [05_フック](../../../obsidian-ssot/00_SYSTEM/Claude-Codeガイド/05_フック.md)
+- GitHub認証: HTTPS + GitHub CLI方式で`git push`が動作 → [08_設定ファイル](../../../obsidian-ssot/00_SYSTEM/Claude-Codeガイド/08_設定ファイル.md)
+
+詳細: [01_基礎概念「Windows Desktop版とWSL2版は別のホームディレクトリ」](../../../obsidian-ssot/00_SYSTEM/Claude-Codeガイド/01_基礎概念.md)
+
 ## LLM割り当て
 
 | ステップ | LLM | 理由 |
