@@ -45,7 +45,7 @@
    - `command`: `wsl bash -c "python3 /home/yn4416/.claude/scripts/security/path-rewrite.py"`
 3. スクリプトの処理:
    - stdinから渡される hook入力JSONの `tool_input.command` を読む（コマンドライン引数ではなくstdin経由で受け取り、ユーザー/LLM生成文字列をシェル引数に渡さない）
-   - コマンド文字列中で **既知のホワイトリストプレフィックス**（`~/projects/`、`~/.claude/`）に一致する箇所のみを `//wsl.localhost/Ubuntu/home/yn4416/projects/`、`//wsl.localhost/Ubuntu/home/yn4416/.claude/` へ単純な文字列置換する（後述「ホワイトリスト方式にした理由」）
+   - コマンド文字列中で **既知のホワイトリストプレフィックス**（`~/projects/`、`~/.claude/`、`/home/yn4416/projects/`、`/home/yn4416/.claude/`）に一致する箇所のみを対応するUNCパス（`//wsl.localhost/Ubuntu/home/yn4416/projects/`、`//wsl.localhost/Ubuntu/home/yn4416/.claude/`）へ単純な文字列置換する（後述「ホワイトリスト方式にした理由」）。絶対パス形式（`/home/yn4416/...`）もWSL CLI版の共有ファイルに出現しうるため対象に含める（GLMレビューで指摘）
    - 置換が発生した場合のみ、以下をexit code 0で標準出力に書く（stderrには何も書かない）:
      ```json
      {
@@ -85,6 +85,15 @@
 - ホワイトリストに含まれない `~/`形式パス（`~/projects/`・`~/.claude/`以外）、`/home/yn4416/...` の絶対パス形式、Windowsネイティブパスが明示的に必要な場面は対象外。引き続き手動で `\\wsl.localhost\Ubuntu\home\yn4416\` への変換が必要
 - **Bashツール以外（Read/Write/Edit等）への波及は対象外**。これらのツールはファイルパスを直接引数に取るため、`~`展開の経路がBashとは異なり、本フック（matcher=Bash）では救えない。共有ファイルを開く際はBash経由（`cat`等）にするか、引き続き呼び出し側でパスを変換する
 - フックの起動レイテンシ（`wsl bash -c "python3 ..."` を毎回起動するコスト。WSLディストロが停止中だと数秒のブロックが発生し得る）は許容トレードオフとして受け入れる。実装後に体感が問題になれば、Windows側の常駐プロセス化等の最適化を別途検討する
+
+## GLMレビューでの追加指摘と判断（3回目のレビュー）
+
+- **採用**: 絶対パス形式（`/home/yn4416/projects/`・`/home/yn4416/.claude/`）もホワイトリストに追加した（上記「処理内容」に反映済み）
+- **既知の制約として明記（対応しない）**: 単純な文字列置換であるため、ヒアドキュメントやクォート内の文字列（例: `grep -r 'memo:~/projects/x'` のような検索文字列自体）に偶然これらのプレフィックスが含まれる場合、意図せず書き換わる。発生頻度は低いと判断し、MVPでは許容する
+- **不採用（実証結果と矛盾するため）**: 「UNCパスはスラッシュ形式(`//wsl.localhost/...`)ではなくバックスラッシュ形式(`\\wsl.localhost\...`)にすべき」という指摘。本セッション内で `cd "//wsl.localhost/Ubuntu/home/yn4416"`・`ls`・UNC先へのシンボリックリンク作成を実際にスラッシュ形式で繰り返し実行し、すべて正常動作することを実証済みのため、現行のスラッシュ形式を維持する
+- **将来の拡張候補（今回のMVPではスコープ外のまま据え置き）**:
+  - `PreToolUse`のmatcherを`Read`/`Write`/`Edit`にも広げ、`tool_input.file_path`を同様にホワイトリスト置換する（Bash以外への波及というスコープ外事項を将来解消する選択肢）
+  - WSL起動レイテンシを避けるため、`wsl bash -c "python3 ..."`の代わりにWindowsネイティブのNode.jsスクリプトで同じ文字列置換を行う（既存パターンとの整合より速度を優先したい場合の代替）
 
 ## テスト方針（plan策定時に詳細化）
 
