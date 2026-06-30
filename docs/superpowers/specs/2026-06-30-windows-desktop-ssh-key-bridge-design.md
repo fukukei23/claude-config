@@ -1,4 +1,4 @@
-# Windows Desktop版 Claude Code のSSH鍵共有 設計
+# Windows Desktop版 Claude Code のGitHub認証 設計
 
 ## 背景・課題
 
@@ -6,62 +6,71 @@
 - 調査の結果、Windows側`C:\Users\yn441\.ssh`にはGitHub用の秘密鍵が一切存在せず（`known_hosts`のみ）、本物の鍵（`id_ed25519`）はWSL側`~/.ssh`にのみ存在することが判明した
 - 両環境とも`ssh-agent`は起動しておらず、gitはデフォルトの鍵ファイル探索に依存している
 
-## 検討した3案
+## 検討した案の変遷
 
-### 案A: WSL側の既存鍵をWindows側からUNC経由で参照（採用）
+### 案A: WSL側の既存鍵をWindows側からUNC経由で参照（最初に採用→却下）
+
 Windows側の`~/.ssh/config`で`IdentityFile`をUNCパス（`//wsl.localhost/Ubuntu/home/yn4416/.ssh/id_ed25519`）に向ける。
 
-### 案B: Windows Desktop専用の新しい鍵ペアを発行
-`ssh-keygen`でWindows用に新規鍵を作成し、GitHubアカウントに2つ目のSSH鍵として追加登録する。環境ごとに鍵を分離するベストプラクティスだが、GitHub側の手動登録が必要。
+実機検証では`ssh -i`・`git fetch`・`git push`いずれも成功し、技術的には動作した。しかしGLMレビューで以下の懸念が指摘され、再検討の結果却下した:
+- OpenSSHは通常、秘密鍵のパーミッションが緩い場合に警告・拒否するが、UNCパス越しだとこのチェックが機能しない可能性が高く、本来の安全機構を迂回している
+- Windows側が万一侵害された場合、UNC経由でWSL側の本鍵（GitHubアカウント全体にアクセス可能な唯一の鍵）まで到達されるリスクがある（侵害時の被害範囲＝ブラストレディウスが環境分離している場合より大きい）
+- `\\wsl.localhost\...`はMicrosoftが互換性を保証する正式なシステムパスではなく、将来のWindows Update・WSLアーキテクチャ変更で動かなくなるリスクがある
 
-### 案C: WSL側の秘密鍵をWindows側にファイルコピー
-最も手軽だが、同じ秘密鍵を2つのOS環境に複製することになり、片方が漏れた場合に両方失効が必要になるなどセキュリティ衛生上案Bより劣る。
+### 案B: Windows Desktop専用の新しい鍵ペアを発行（検討したが見送り）
 
-## 採用案: 案A（UNC経由でWSL側の既存鍵を参照）
+`ssh-keygen`でWindows用に新規鍵を作成し、GitHubアカウントに2つ目のSSH鍵として追加登録する。環境ごとに鍵を分離するベストプラクティスで、却下した案Aの懸念（ブラストレディウス）を解消できる。
 
-### 実証済みの動作確認
+ただし、最終的に採用した案2（HTTPS + gh CLI）の方が鍵管理そのものから解放される点で優れていたため、こちらは不採用とした。
 
-実装前に一時的な`ssh -F <一時config>`で以下を実機検証し、いずれも成功した:
-- `ssh -i "//wsl.localhost/Ubuntu/home/yn4416/.ssh/id_ed25519" -T git@github.com` → `Hi fukukei23! You've successfully authenticated...`（認証成功。exit code 1はGitHub仕様上の正常終了）
-- `GIT_SSH_COMMAND="ssh -F <一時config>" git fetch origin`（claude-configリポジトリ） → 成功
-- `GIT_SSH_COMMAND="ssh -F <一時config>" git push`（claude-configリポジトリ） → 成功、実際にコミットがリモートに反映された
+### 案C: WSL側の秘密鍵をWindows側にファイルコピー（却下）
 
-当初「OpenSSHはUNC経由のファイルを権限エラーで拒否する可能性がある」と懸念していたが、実機では問題なく動作した。この懸念は払拭されたため、案Bの「環境分離のメリット」と天秤にかけても、**鍵を増やさず・GitHub側の設定変更もゼロで完結する案Aを採用する**。
+最も手軽だが、同じ秘密鍵を2つのOS環境に複製することになり、片方が漏れた場合に両方失効が必要になるなどセキュリティ衛生上劣る。
+
+## 採用案: HTTPS + GitHub CLI（`gh`）
+
+SSH鍵の運用そのものをやめ、HTTPS経由のgit操作をGitHub CLI（`gh`）の認証情報（Windows資格情報マネージャー連携）に任せる。
 
 ### 採用理由
 
-- 秘密鍵の実体はWSL側1箇所のみで完結し、複製されない（案Cより安全）
-- GitHubアカウント側の設定変更が不要（案Bより手間が少ない）
-- 実機検証済みで動作確実性が高い
+- SSH鍵を一切増やさない・複製しない・UNC経由の参照も行わないため、案A/B/Cすべてが抱えていた「秘密鍵そのものの管理」という問題が構造的になくなる
+- `gh`は`winget`で即座にインストール可能（`winget search GitHub.cli`で存在確認済み、インストールに追加の前提条件は不要）
+- 認証情報はWindows資格情報マネージャーが管理するため、`\\wsl.localhost\...`のようなWSLの実装詳細への依存がなくなる（将来のWindows Update等で壊れるリスクを案A/Bより低減できる）
+
+### 共有リポジトリ問題の解決（重要な設計判断）
+
+Windowsからは`\\wsl.localhost\...`経由でWSL側と**同じ物理リポジトリファイル**（`.git/config`を含む）を見ているため、各リポジトリの`git remote`URLを直接書き換えると、WSL CLI版の動作（現在SSHで正常動作している）にも影響してしまう。
+
+これを避けるため、**個々のリポジトリの`remote` URLは変更せず**、Windows側のグローバルgitconfig（`C:\Users\yn441\.gitconfig`）にのみ以下の書き換えルールを追加する:
+
+```
+[url "https://github.com/"]
+	insteadOf = git@github.com:
+```
+
+`C:\Users\yn441\.gitconfig`と WSL側の`~/.gitconfig`（実体は`/home/yn4416/.gitconfig`）は完全に別ファイルであることを確認済み（`git config --global --list --show-origin`で実体パスを確認）。そのため、このルールはWindows側のgit実行時にのみ適用され、WSL CLI版の動作には一切影響しない。
 
 ### 処理内容
 
-`C:\Users\yn441\.ssh\config` を新規作成する（現状このファイルは存在しない）:
-
-```
-Host github.com
-  HostName github.com
-  User git
-  IdentityFile //wsl.localhost/Ubuntu/home/yn4416/.ssh/id_ed25519
-  IdentitiesOnly yes
-```
-
-- `IdentitiesOnly yes`: 他の鍵を誤って試行させない
-- `Host github.com`に限定し、他のSSHホストへの接続には影響を与えない
+1. `winget install GitHub.cli` でインストール
+2. `gh auth login` を実行し、ブラウザでGitHub認証する（**ここはユーザー操作が必要** — ブラウザでのデバイスコード承認を伴うため自動化できない）
+3. `C:\Users\yn441\.gitconfig` に上記`insteadOf`ルールを追加する
+4. `claude-config`・`obsidian-ssot`それぞれで`git push`が成功することを確認する
 
 ### 安全性・スコープ
 
-- 秘密鍵ファイル自体はコピーも生成もしない。WSL側の既存ファイルを参照するだけ
-- 設定は`Host github.com`に限定。他のリモートサーバーへのSSH接続には影響しない
-- ロールバックは`C:\Users\yn441\.ssh\config`を削除するだけ
+- 秘密鍵ファイルの新規作成・コピー・UNC参照を一切行わない
+- 変更はWindows側のグローバルgitconfigの1ルール追加のみ。リポジトリ本体（`.git/config`）・WSL側の設定は無変更
+- ロールバックは`C:\Users\yn441\.gitconfig`から該当の`[url ...]`セクションを削除するだけ（`gh`のアンインストールは任意、残しておいても害はない）
 
 ### 残るスコープ外の事項（このspecでは扱わない）
 
-- WSLディストロが完全に停止している状態からの初回アクセスでは、`\\wsl.localhost\...`の解決に数秒のラグが生じる可能性がある（本セッション中に一度I/Oエラーが発生した実績あり）。致命的な失敗ではなく許容トレードオフとする
-- `ssh-agent`の常駐化・WSL側とのエージェント転送（agent forwarding）は今回は扱わない。現状の鍵ファイル直接参照方式で要件を満たすため、必要になれば将来別途検討する
+- `gh auth login`の認証フロー自体（デバイスコード方式かブラウザログイン方式か等）はplan策定時にユーザーと確認する
+- 他のSSHホスト（GitHub以外）への接続設定は本specの対象外（今回`insteadOf`は`github.com`専用ルールのみ追加する）
 
 ## テスト方針（plan策定時に詳細化）
 
-- `C:\Users\yn441\.ssh\config`作成後、設定ファイルを使わない素の`git push`（`claude-config`・`obsidian-ssot`双方）が成功することを確認
-- 他のSSHホスト（あれば）への接続が影響を受けていないことを確認
-- WSL CLI版側のgit push/pullに影響がないことを確認（Windows側の設定ファイルのみの変更のため、本来影響しないはず）
+- `gh auth status`で認証済みであることを確認
+- `claude-config`・`obsidian-ssot`双方で`git push`が成功することを確認
+- WSL CLI版側の`git push`/`git pull`が引き続き正常動作すること（SSH接続のまま変化なし）を確認
+- Windows側`C:\Users\yn441\.gitconfig`の変更がWSL側`~/.gitconfig`に波及していないことを確認
