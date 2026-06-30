@@ -245,6 +245,27 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
 }
 ```
 
+**出力例3（root_cause不明な単純記録）:**
+```json
+{
+  "primary": "01_DECISIONS",
+  "project": "claude-code-guide",
+  "category": "ノウハウ",
+  "also_daily": false,
+  "guide_needed": false,
+  "guide_target": null,
+  "cc_guide_page": null,
+  "tags": ["claude-code-guide", "typo"],
+  "filename_hint": "READMEのtypo修正",
+  "reason": "単純な誤字修正で根本原因の分析対象ではないため",
+  "root_cause": {
+    "category": "unknown",
+    "description": ""
+  },
+  "related_pattern": null
+}
+```
+
 **LLMがJSONを返さなかった場合（説明文が混入・エラー等）**:
 - レスポンスから `{...}` 部分を正規表現で抽出して再パースを試みる
 - それでも失敗した場合は自分（Claude）でデフォルト判定して進み、フェーズ2でユーザーに確認する
