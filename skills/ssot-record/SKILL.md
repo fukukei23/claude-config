@@ -71,31 +71,32 @@ SSOT内のタグマッピング設定ファイルを読み込み、プロジェ�
 
 ### 候補収集パイプライン
 
+「過去7日」「直近5件」は、繁忙期も閑散期も取りこぼさないための折衷値（詳細はspec参照）。一時ファイル名には`$$`（プロセスID）を含め、並行セッションでの衝突を避ける。
+
 ```bash
-TODAY=$(date +%Y-%m-%d)
 SEVEN_DAYS_AGO=$(date -d "7 days ago" +%Y-%m-%d)
 
 # 全01_DECISIONSエントリのfrontmatter date:行を、ファイルパス付きで抽出し日付降順ソート
 grep -rH "^date: " ~/projects/obsidian-ssot/01_DECISIONS/*/2*.md 2>/dev/null \
   | sed -E 's/^(.*):date: *([0-9-]+)$/\2 \1/' \
-  | sort -r > /tmp/ssot-record-candidates-sorted.txt
+  | sort -r > /tmp/ssot-record-candidates-sorted-$$.txt
 
 # 集合A: 過去7日以内（当日含む）
-awk -v d="$SEVEN_DAYS_AGO" '$1 >= d' /tmp/ssot-record-candidates-sorted.txt > /tmp/ssot-record-setA.txt
+awk -v d="$SEVEN_DAYS_AGO" '$1 >= d' /tmp/ssot-record-candidates-sorted-$$.txt > /tmp/ssot-record-setA-$$.txt
 
 # 集合B: 日付に関係なく直近5件
-head -5 /tmp/ssot-record-candidates-sorted.txt > /tmp/ssot-record-setB.txt
+head -5 /tmp/ssot-record-candidates-sorted-$$.txt > /tmp/ssot-record-setB-$$.txt
 
 # 候補 = A ∪ B（重複排除）
-cat /tmp/ssot-record-setA.txt /tmp/ssot-record-setB.txt | sort -u > /tmp/ssot-record-candidates.txt
-rm -f /tmp/ssot-record-candidates-sorted.txt /tmp/ssot-record-setA.txt /tmp/ssot-record-setB.txt
+cat /tmp/ssot-record-setA-$$.txt /tmp/ssot-record-setB-$$.txt | sort -u > /tmp/ssot-record-candidates-$$.txt
+rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tmp/ssot-record-setB-$$.txt
 ```
 
 ファイル名やパス文字列ではなく、**frontmatterの`date:`行のみ**を対象にする（誤爆防止。詳細はspec参照）。
 
 ### 候補情報の整形
 
-`/tmp/ssot-record-candidates.txt`の各行（`日付 ファイルパス`）について、以下を取得する:
+`/tmp/ssot-record-candidates-$$.txt`の各行（`日付 ファイルパス`）について、以下を取得する:
 
 1. 各ファイルをReadし、frontmatterの`tags`・`root_cause`（あれば）を取得
 2. 対応する`01_DECISIONS/<project>/_INDEX.md`の該当行（1行サマリー）を取得（既に開いている場合は再読込不要）
@@ -104,11 +105,11 @@ rm -f /tmp/ssot-record-candidates-sorted.txt /tmp/ssot-record-setA.txt /tmp/ssot
 
 ### 候補が0件の場合
 
-`/tmp/ssot-record-candidates.txt`が空（grep該当0件）の場合、候補リストを空のままフェーズ1に進む。フェーズ1のJSON出力では`related_pattern: null`になる（Task 2のプロンプト仕様に従う）。
+`/tmp/ssot-record-candidates-$$.txt`が空（grep該当0件）の場合、候補リストを空のままフェーズ1に進む。フェーズ1のJSON出力では`related_pattern: null`になる（Task 2のプロンプト仕様に従う）。
 
 ### 後片付け
 
-一時ファイル（`/tmp/ssot-record-candidates*.txt`）はこのフェーズ内で使い切ったら削除する。
+一時ファイル（`/tmp/ssot-record-candidates*-$$.txt`）はこのフェーズ内で使い切ったら削除する。
 
 ---
 
