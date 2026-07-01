@@ -129,3 +129,69 @@ def test_call_gemini_input_truncation(monkeypatch):
     result = mod.call_gemini(long_code)
     assert "切り詰め" in result
     assert len(captured["data"]["contents"][0]["parts"][0]["text"]) < len(long_code)
+
+
+# ===== Task 4: TOOLS + handle_request =====
+
+def test_tools_list():
+    resp = mod.handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    names = [t["name"] for t in resp["result"]["tools"]]
+    assert "review_with_gemini" in names
+
+
+def test_initialize():
+    resp = mod.handle_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+    assert resp["result"]["serverInfo"]["name"] == "gemini-mcp"
+
+
+def test_review_with_gemini(monkeypatch):
+    monkeypatch.setattr(mod, "GEMINI_KEY", "k")
+    captured = {}
+    def fake_call(prompt, model=mod.DEFAULT_MODEL, max_tokens=4000):
+        captured["prompt"] = prompt
+        captured["model"] = model
+        return "OK"
+    monkeypatch.setattr(mod, "call_gemini", fake_call)
+    resp = mod.handle_request({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": {"name": "review_with_gemini",
+                   "arguments": {"code": "print(1)", "focus": "bug", "model": "gemini-3.1-pro-preview"}}
+    })
+    assert resp["result"]["content"][0]["text"] == "OK"
+    assert "print(1)" in captured["prompt"]
+    assert "バグ" in captured["prompt"]
+    assert captured["model"] == "gemini-3.1-pro-preview"
+
+
+def test_review_with_gemini_default_focus(monkeypatch):
+    monkeypatch.setattr(mod, "GEMINI_KEY", "k")
+    captured = {}
+    def fake_call(prompt, model=mod.DEFAULT_MODEL, max_tokens=4000):
+        captured["prompt"] = prompt
+        return "OK"
+    monkeypatch.setattr(mod, "call_gemini", fake_call)
+    mod.handle_request({
+        "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+        "params": {"name": "review_with_gemini", "arguments": {"code": "x = 1"}}
+    })
+    assert "バグ" in captured["prompt"]  # all に バグ 等の観点が含まれる
+
+
+# ===== Task 5: stdin ループ =====
+
+class _IterIO:
+    """文字列をファイル風に1行ずつ返すヘルパー."""
+    def __init__(self, s):
+        self._lines = s.splitlines(True)
+    def __iter__(self):
+        return iter(self._lines)
+
+
+def test_stdin_loop_end_to_end(monkeypatch, capsys):
+    """stdin に tools/list を流すと JSON-RPC レスポンスが出る."""
+    monkeypatch.setattr(mod, "GEMINI_KEY", "k")
+    lines = '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n\n'
+    monkeypatch.setattr("sys.stdin", _IterIO(lines))
+    mod.run_loop()
+    out = capsys.readouterr().out
+    assert '"tools"' in out and "review_with_gemini" in out
