@@ -54,7 +54,7 @@ mkdir -p "$(dirname "$WSL_DEST")"
 cp "$WIN_SRC" "$WSL_DEST" 2>/dev/null || exit 0
 
 cd /home/yn4416/projects/claude-config || exit 0
-git add "skills/" 2>/dev/null || exit 0
+git add "skills/$REL" 2>/dev/null || exit 0
 if ! git diff --cached --quiet; then
   SKILL_NAME=$(echo "$REL" | cut -d/ -f1)
   git commit -m "chore: Windows Desktop編集を自動同期(${SKILL_NAME})" --quiet 2>/dev/null || true
@@ -65,17 +65,22 @@ exit 0
 
 ### 登録
 
-Windows Desktop側`settings.json`のPostToolUse配列に、既存2エントリと並列で以下を追加する:
+Windows Desktop側`settings.json`のPostToolUseに、**既存2エントリとは別のmatcherグループ**として以下を追加する（GLMレビュー反映: `matcher`を`Edit|Write`に限定し、無関係なツール呼び出しでの無駄な発火を削減）:
 
 ```json
 {
-  "type": "command",
-  "command": "wsl bash /home/yn4416/projects/claude-config/scripts/skills/sync-windows-edit-to-wsl.sh",
-  "timeout": 8000
+  "matcher": "Edit|Write",
+  "hooks": [
+    {
+      "type": "command",
+      "command": "wsl bash /home/yn4416/projects/claude-config/scripts/skills/sync-windows-edit-to-wsl.sh",
+      "timeout": 15000
+    }
+  ]
 }
 ```
 
-matcherは既存のPostToolUseエントリと同様に空文字（全ツール呼び出しで発火し、スクリプト内でパス判定して即exitする方式。`mirror-to-custom.sh`と同じ設計）。
+タイムアウトは8000→**15000**に変更（GLMレビュー反映: `wsl bash`起動コスト＋`python3`＋`cp`＋`git`の連続実行を考慮し、既存の`sync-skills-windows.sh`と同じ15000msに合わせる）。
 
 ### データフロー
 
@@ -94,6 +99,18 @@ Edit/Writeツール実行（Windows側パス C:\Users\yn441\.claude\skills\...�
 - パス不一致・コピー失敗・git操作失敗のいずれでも**exit 0で無害化**（既存の`path-rewrite.py`・`mirror-to-custom.sh`と同じ設計思想。フック失敗でセッションをブロックしない）
 - commit対象の差分がない場合はcommitをスキップ（空コミット防止。`git diff --cached --quiet`で判定）
 - 新規スキル作成（新しいディレクトリ）の場合も`mkdir -p`で対応
+
+### GLMレビュー反映事項
+
+| GLM指摘 | 対応 |
+|---|---|
+| `matcher`を絞るべき | `""`（全ツール）→`"Edit|Write"`に限定 |
+| `git add skills/`が広すぎる（無関係な変更を巻き込む） | `git add "skills/$REL"`（対象ファイルのみ）に変更 |
+| タイムアウト8秒は`wsl bash`起動コスト等を考慮すると短い | 15000msに変更（既存`sync-skills-windows.sh`と同値） |
+| 往復コピー（WSL→Windows一方向同期との相互作用）のリスク | 検証の結果、内容が同一であれば実害（データ破損）はなく冗長コピーに留まるため許容。仕組み上のtouch同期等は追加しない（過剰設計のため） |
+| JSON解析にPythonでなく`jq`を使うべき | 既存`mirror-to-custom.sh`が同一のPython呼び出しパターンを採用しており、一貫性のため踏襲する（Surgical Changes優先） |
+| `cut -d/ -f1`でのスキル名抽出が脆弱 | 許容（`REL`は常に`<スキル名>/<ファイル>`の構造のため実害なし） |
+| git競合・ロック時のエラーハンドリングが薄い | 許容（既存の全フックが同じ「exit 0で無害化」方針を採用しており、pushは別機構に委ねているため致命的破壊には至らない） |
 
 ### 対象範囲外（このspecでは扱わない）
 
