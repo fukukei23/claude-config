@@ -100,7 +100,16 @@ Edit/Writeツール実行（Windows側パス C:\Users\yn441\.claude\skills\...�
 - commit対象の差分がない場合はcommitをスキップ（空コミット防止。`git diff --cached --quiet`で判定）
 - 新規スキル作成（新しいディレクトリ）の場合も`mkdir -p`で対応
 
-### GLMレビュー反映事項
+### 実装計画（plan）段階でのGLM再レビュー反映
+
+plan策定後にGLMへ再レビューを依頼し、以下を追加反映した:
+- `matcher`を`Edit|Write`→`Edit|Write|MultiEdit`に拡張（`MultiEdit`ツール経由の編集も対象に含める）
+- スクリプト内の`cp`/`git add`/`git commit`失敗時、`/tmp/skill-sync-error.log`経由でエラー内容をstderrに出力（エラー握り潰し防止）
+- 動作確認手順を「WSL側に意図的な一時差分を作ってから実行」に変更（Windows/WSL側が既に同一内容だと、正常動作か非動作かの区別がつかない問題を解消）
+- 実装前にシンボリックリンクの前提（`~/.claude/skills` → `claude-config/skills`）を再確認するStepを追加
+- GLM提案の「テストcommitを`git reset --hard`で削除」は**破壊的git操作のため不採用**（テストcommitがログに残ること自体は許容）
+
+### GLMレビュー反映事項（spec初稿時点）
 
 | GLM指摘 | 対応 |
 |---|---|
