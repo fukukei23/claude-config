@@ -47,9 +47,9 @@ Run: `ls -d ~/projects/claude-config/skills/*/`
 対象数をユーザーに提示（例: 「27スキルを点検します」）。
 対象が0件の場合は「監査対象スキルなし」と表示して終了する。
 
-### 監査Step 2: 横断点検（5観点 × 全スキル）
+### 監査Step 2: 横断点検（6観点 × 全スキル）
 
-各スキルの SKILL.md を読み、以下5観点でチェックする。機械的チェック（grep）を併用して高速化する。
+各スキルの SKILL.md を読み、以下6観点でチェックする。機械的チェック（grep）を併用して高速化する。
 
 以下の grep は `<対象>` を各スキルのディレクトリ名に置換して、全スキル分繰り返し実行する。
 
@@ -75,6 +75,24 @@ Run: `grep -n "~/\|\$HOME\|//wsl.localhost\|/home/yn4416\|/c/Users" ~/projects/c
 Run: `grep -ni "api.key\|secret\|token\|password" ~/projects/claude-config/skills/<対象>/SKILL.md`
 - APIキー**値**の直書きが無いか（キー名はOK・値はNG）
 - 外部公開リポジトリへの機密情報書き込みが無いか
+
+#### 観点6: カタログ掲載一致性（※SKILL.md本文ではなく外部カタログをチェック）
+
+各スキルが、利用者が検索する**一覧表カタログ**（全スキル掲載が期待されるページ）に掲載されているか。未掲載のまま放置されると「スキルを作ったのに一覧から見つからない」陳腐化（過去 demo-site-sales・resume-session・sentaku 等の漏れ事例）を検出する。
+
+Run（監査Step 1 で抽出した全スキル名で一括チェック）:
+```bash
+# SKILL_CATALOG.md（一覧表マスター・全スキル掲載が期待される）に掲載されているか
+for s in $(ls -d ~/.claude/skills/*/ | xargs -n1 basename); do
+  hit=$(grep -c "\`${s}\`" ~/projects/obsidian-ssot/00_SYSTEM/Claude-Codeガイド/SKILL_CATALOG.md)
+  [ "$hit" = "0" ] && echo "${s}: 一覧表に未掲載"
+done
+```
+
+- **判定**: 一覧表（`SKILL_CATALOG.md`）=0 のスキルを 🟡中程度 で検出
+- **詳細版 `03_スキルシステム.md` は自動チェック対象外**: 同ページは「主要スキルの詳細説明」のみを掲載する設計（全スキル掲載を意図しない）。何を「主要」とするかは人間判断のため、本観点では一覧表のみ検証する
+- **公開版（`claude-code-guide/source/SKILL_CATALOG.md`）への伝播** は update-guide の担当。本観点はSSOTマスター（`00_SYSTEM/Claude-Codeガイド/SKILL_CATALOG.md`）の掲載のみ検証する
+- **除外規準**: 内部用・deprecated のみ人間判断で除外可
 
 ### 監査Step 3: ランキング化
 
