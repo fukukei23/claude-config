@@ -37,23 +37,27 @@ WSL_DEST="$WSL_SKILLS_DIR/$REL"
 [[ -f "$WIN_SRC" ]] || exit 0
 
 mkdir -p "$(dirname "$WSL_DEST")"
-if ! cp "$WIN_SRC" "$WSL_DEST" 2>/tmp/skill-sync-error.log; then
-  echo "[skill-sync] Error: cp失敗 $(cat /tmp/skill-sync-error.log)" >&2
+ERR_LOG=$(mktemp /tmp/skill-sync-error.XXXXXX.log)
+if ! cp "$WIN_SRC" "$WSL_DEST" 2>"$ERR_LOG"; then
+  echo "[skill-sync] Error: cp失敗 $(cat "$ERR_LOG")" >&2
+  rm -f "$ERR_LOG"
   exit 0
 fi
 
-cd /home/yn4416/projects/claude-config || exit 0
-if ! git add "skills/$REL" 2>/tmp/skill-sync-error.log; then
-  echo "[skill-sync] Error: git add失敗 $(cat /tmp/skill-sync-error.log)" >&2
+cd /home/yn4416/projects/claude-config || { rm -f "$ERR_LOG"; exit 0; }
+if ! git add "skills/$REL" 2>"$ERR_LOG"; then
+  echo "[skill-sync] Error: git add失敗 $(cat "$ERR_LOG")" >&2
+  rm -f "$ERR_LOG"
   exit 0
 fi
 if ! git diff --cached --quiet; then
   SKILL_NAME=$(echo "$REL" | cut -d/ -f1)
-  if git commit -m "chore: Windows Desktop編集を自動同期(${SKILL_NAME})" --quiet 2>/tmp/skill-sync-error.log; then
+  if git commit -m "chore: Windows Desktop編集を自動同期(${SKILL_NAME})" --quiet 2>"$ERR_LOG"; then
     echo "[skill-sync] ${SKILL_NAME} をWSL側実体へ同期・commitしました" >&2
   else
-    echo "[skill-sync] Error: git commit失敗 $(cat /tmp/skill-sync-error.log)" >&2
+    echo "[skill-sync] Error: git commit失敗 $(cat "$ERR_LOG")" >&2
   fi
 fi
 
+rm -f "$ERR_LOG"
 exit 0
