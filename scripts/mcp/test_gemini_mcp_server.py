@@ -6,8 +6,12 @@ import json
 from pathlib import Path
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).parent))
-import gemini_mcp_server as mod
+# ハイフン入りファイル名(gemini-mcp-server.py)は直接import不可→importlibで読込
+import importlib.util
+_SPEC = importlib.util.spec_from_file_location(
+    "gemini_mcp_server", Path(__file__).parent / "gemini-mcp-server.py")
+mod = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(mod)
 
 
 # ===== Task 1: _load_key =====
