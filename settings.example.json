@@ -405,6 +405,12 @@
       "env": {
         "GLM_API_KEY": "97c1***MASKED***"
       }
+    },
+    "gemini": {
+      "command": "bash",
+      "args": [
+        "/home/yn4416/.claude/scripts/mcp/start-gemini-mcp.sh"
+      ]
     }
   },
   "autoDream": {
