@@ -53,7 +53,10 @@ class ProxyServer:
         await self._upstream.stop()
 
     def create_app(self) -> web.Application:
-        app = web.Application()
+        # client_max_size: 受信リクエストボディ上限。
+        # 未指定だとaiohttpデフォルト1MBになり、画像添付リクエストが413で弾かれる
+        # （CCは「Request too large (max 32MB)」と誤表示）。32MB=Anthropic API上限に合わせる。
+        app = web.Application(client_max_size=32 * 1024 * 1024)
         app.router.add_route("*", "/v1/{path:.*}", self._handle_api)
         app.router.add_get("/proxy/status", self._handle_status)
         return app
