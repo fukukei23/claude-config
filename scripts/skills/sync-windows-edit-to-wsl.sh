@@ -8,21 +8,28 @@
 TOOL_INPUT=$(cat)
 FILE_PATH=$(echo "$TOOL_INPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('file_path',''))" 2>/dev/null)
 
-WIN_SKILLS_PREFIX_1="C:\\Users\\yn441\\.claude\\skills\\"
-WIN_SKILLS_PREFIX_2="C:/Users/yn441/.claude/skills/"
 WSL_SKILLS_DIR="/home/yn4416/.claude/skills"
 
-REL=""
-case "$FILE_PATH" in
-  "$WIN_SKILLS_PREFIX_1"*) REL="${FILE_PATH#$WIN_SKILLS_PREFIX_1}" ;;
-  "$WIN_SKILLS_PREFIX_2"*) REL="${FILE_PATH#$WIN_SKILLS_PREFIX_2}" ;;
-  *) exit 0 ;;
-esac
+# Windows側 ~/.claude/skills/ 配下のパスかどうかをPythonで判定し、
+# 相対パス(スラッシュ区切り)へ正規化する。
+# bashのcase/パラメータ展開パターンマッチは "\" を含む文字列で
+# 期待通りに動かないため、非globな文字列処理としてPythonに委譲する。
+REL=$(python3 -c "
+import sys
+fp = sys.argv[1]
+prefixes = [
+    'C:\\\\Users\\\\yn441\\\\.claude\\\\skills\\\\',
+    'C:/Users/yn441/.claude/skills/',
+]
+for p in prefixes:
+    if fp.startswith(p):
+        rel = fp[len(p):]
+        print(rel.replace('\\\\', '/'))
+        sys.exit(0)
+sys.exit(1)
+" "$FILE_PATH") || exit 0
 
 [[ -z "$REL" ]] && exit 0
-
-# バックスラッシュ区切りの相対パスをスラッシュに正規化
-REL="${REL//\\//}"
 
 WIN_SRC="/mnt/c/Users/yn441/.claude/skills/$REL"
 WSL_DEST="$WSL_SKILLS_DIR/$REL"
