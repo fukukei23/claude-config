@@ -24,5 +24,11 @@
   "fallback": {
     "provider": "minimax",
     "model": "MiniMax-M3"
+  },
+  "peak_hours": {
+    "enabled": true,
+    "start_hour": 15,
+    "end_hour": 19,
+    "timezone_offset": 9
   }
 }
