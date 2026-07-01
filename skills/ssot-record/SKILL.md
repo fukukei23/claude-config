@@ -804,4 +804,3 @@ git push
 - 書いておいて / 記しておいて
 
 `record-decision` スキルの上位互換。`/record-decision` が呼ばれた場合もこのスキルで処理する。
-<!-- final-verify-marker -->
