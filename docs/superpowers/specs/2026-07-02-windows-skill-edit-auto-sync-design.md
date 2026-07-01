@@ -112,6 +112,12 @@ Edit/Writeツール実行（Windows側パス C:\Users\yn441\.claude\skills\...�
 | `cut -d/ -f1`でのスキル名抽出が脆弱 | 許容（`REL`は常に`<スキル名>/<ファイル>`の構造のため実害なし） |
 | git競合・ロック時のエラーハンドリングが薄い | 許容（既存の全フックが同じ「exit 0で無害化」方針を採用しており、pushは別機構に委ねているため致命的破壊には至らない） |
 
+### 深掘りで実機確認した事実
+
+- `sync-skills-windows.sh`は**WSL CLI側の`settings.json`にも`Stop`フックとして登録されている**（Windows Desktop側だけでなく、WSL CLI側のセッション終了でも発火する）。往復コピーの発生頻度は当初想定より高いが、内容が同一であれば実害（データ破損）はないことに変わりはない
+- 削除操作は対象外（`Edit|Write`ツールでは発生しない。`Bash`の`rm`経由の削除は既存の`path-rewrite.py`フックが直接WSL側実体を指すため、新設フックでカバーする必要がない）
+- `/mnt/c/Users/yn441/.claude/skills/`経由でWindows Desktop側ファイルへ正しくアクセスできることを実機確認済み
+
 ### 対象範囲外（このspecでは扱わない）
 
 - Windows→WSLの**逆方向のpush**は自動化しない（既存のStop hook起点の自動push機構が担う）
