@@ -1,11 +1,11 @@
 ---
 name: html-guide
-description: claude-code-guide に新しいHTMLページを追加する際のルール（CSS変数・ダーク/ライトモード対応・視認性チェック・CIテスト通過）を自動適用するスキル。ユーザーが「新しいHTMLページを作って」「インタラクティブな章を追加したい」「HTML章を追加して」と言った時、または /html-guide を呼んだ時にトリガー。
+description: ガイドサイト（claude-code-guide / loop-engineering-guide 等、convert.py経由・手書きHTML問わず全ガイドrepo）に新しいHTMLページを追加する際のルール（CSS変数・ダーク/ライトモード対応・視認性チェック・CIテスト通過）を自動適用するスキル。ユーザーが「新しいHTMLページを作って」「インタラクティブな章を追加したい」「HTML章を追加して」と言った時、または /html-guide を呼んだ時にトリガー。
 ---
 
 > ⚠️ 画像確認時は `00_SYSTEM/共通ルール/画像読込運用規約.md` 準拠（Read base64廃止・browser_snapshot/ビューポート分割/別窓1枚）
 
-# スキル: html-guide — claude-code-guide 用インタラクティブHTMLページ作成
+# スキル: html-guide — ガイドサイト用インタラクティブHTMLページ作成
 
 ## トリガーワード
 - 「新しいHTMLページを作って」
@@ -14,8 +14,12 @@ description: claude-code-guide に新しいHTMLページを追加する際のル
 - `/html-guide`
 
 ## 概要
-claude-code-guide に新しいHTMLページを追加する際のルールを自動適用するスキル。
+ガイドサイト（claude-code-guide / loop-engineering-guide 等）に新しいHTMLページを追加する際のルールを自動適用するスキル。
 CSS変数・ダーク/ライトモード対応・視認性チェック・CIテスト通過を保証する。
+
+> **適用範囲**: convert.py パイプラインを持つ repo（claude-code-guide: `docs/chapters/`）と、
+> 手書きHTMLの repo（loop-engineering-guide: ルート `*.html`）の**両方**に対応する。
+> 各 repo の構造差は Step 2 と Step 5 で吸収する。
 
 ---
 
