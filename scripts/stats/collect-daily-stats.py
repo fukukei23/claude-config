@@ -16,7 +16,11 @@ DESKTOP_SESSIONS = "/mnt/c/Users/yn441/AppData/Local/Packages/Claude_pzs8sxrjxfj
 GIT_REPOS = Path.home() / "projects"
 EXCLUDED_REPOS = {"tweetly"}
 
-# --- コスト計算（Sonnet 4.6料金） ---
+# --- コスト計算（Claude公式Sonnet単価換算・機会コスト表示） ---
+# NOTE: このコストは「Claude公式API従量単価($3/$15/$0.3 per 1M tok)換算」の
+# 機会コスト表示。ユーザーは GLM(ZAI) / MiniMax を月額サブスクで運用（従量課金なし）
+# のため、実際の支払いは月額定額。この数値は「Claude公式APIで処理したらいくらか」の
+# 比較目安であり、GLM/MiniMax間のコスト差を意味するものではない（両方とも月額サブスク）。
 def calc_cost(in_tok, out_tok, cache_read):
     return (in_tok * 3 + out_tok * 15 + cache_read * 0.3) / 1_000_000
 
@@ -208,7 +212,7 @@ def main():
     print(f"   WSL CLI: sessions={cli['sessions']} prompts={cli['prompts']} api_calls={cli['api_calls']} tool_uses={cli['tool_uses']}")
     print(f"   Models: {cli['models']}")
     print(f"   Tokens: in={cli['input_tokens']:,} out={cli['output_tokens']:,} cache_read={cli['cache_read_tokens']:,}")
-    print(f"   Cost: ${cli['cost_usd_estimate']:.4f}")
+    print(f"   Cost: ${cli['cost_usd_estimate']:.4f} (Claude公式API換算・実際はGLM/MiniMax月額サブスク)")
     print(f"   Desktop: sessions={dsk['sessions']} models={dsk['models']}")
     print(f"   Git: commits={git['commits_total']} repos={git['repos_active']}")
 
