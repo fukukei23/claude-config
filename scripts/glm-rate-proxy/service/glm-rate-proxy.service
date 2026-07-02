@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/bin/bash -c 'set -a; source %h/.claude/.env 2>/dev/null; source %h/.secrets.env 2>/dev/null; set +a; cd %h/projects/claude-config/scripts/glm-rate-proxy; PYTHONPATH=src exec /usr/bin/python3 -m glm_rate_proxy'
-Restart=on-failure
+Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
