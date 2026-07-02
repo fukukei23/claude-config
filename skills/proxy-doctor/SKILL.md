@@ -42,6 +42,34 @@ pkill -f glm_rate_proxy
 # 次に新しいターミナルで claude を起動すれば自動でZAI直結になる
 ```
 
+### 🔧 switch-backend.sh — 接続先切替自救ツール（より確実・推奨）
+
+`.bashrc` の claude() 自動判定に頼らず、**settings.json を直接書換えて確実に切替**。プロキシ完全死亡時の確実な自救。
+
+```bash
+# 現在の設定確認（変更なし・dry-run）
+bash ~/.claude/scripts/switch-backend.sh status
+
+# 通常運用（プロキシ経由）に戻す
+bash ~/.claude/scripts/switch-backend.sh normal
+
+# ZAI直結（推奨自救・GLM直接・課金増なし）
+bash ~/.claude/scripts/switch-backend.sh zai
+
+# MiniMax直結（※認証方式の実機検証が未完・動かなければ zai で確実）
+bash ~/.claude/scripts/switch-backend.sh minimax
+```
+
+**仕組み**:
+- モード別に `BASE_URL` + 認証キーを **両方** 書換（キー汚染防止）
+  - normal/zai → `ANTHROPIC_AUTH_TOKEN`（`Authorization: Bearer` 送信）
+  - minimax → `ANTHROPIC_API_KEY`（`x-api-key` 送信・プロキシと同じ方式）
+- キー供給元: `~/.claude/.env`（ANTHROPIC_AUTH_TOKEN / MINIMAX_API_KEY）
+- atomic置換（tmp→mv）+ 3世代バックアップ（settings.json.bak.1/2/3）
+- **書換後は Claude Code CLI の再起動が必須**（環境変数は起動時読込）
+
+> ⚠️ minimax モードは `ANTHROPIC_API_KEY` 設定時の CLI 挙動が未検証。動かなければ `zai` モードで確実に自救可。
+
 ---
 
 ## Phase 1: 情報収集（必ず4つ全部実行）
