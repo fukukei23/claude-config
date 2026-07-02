@@ -182,7 +182,7 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
    - Edit ツールで該当行の状態列セルのみ置換（行全体を再描画しない）
    - ※ 🟢表は廃止済（2026-07-02 単一表化）。旧「2b 🟢表から削除」は不要・状態列変更だけで占有解放
    - ※継続する意思がある場合は🟢のまま残す（前回占有タスクとしてhandoffに記載される）
-3. **✅行の定期GC**: ✅行が10件超の場合、古い順（表の下）に削除して10件に抑える（handoffが履歴SSOT・アーカイブ不要）
+3. **✅行の定期GC**: **開始日（MM-DD）から30日経過した✅行を削除**（handoffが履歴SSOT・アーカイブ不要）。過去行（HH:MMのみ・日付なし）は残す（段階的移行）
 4. **即commit+push**:
    ```bash
    cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions 終了処理(<セッション名>)" && git push
