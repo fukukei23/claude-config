@@ -3,9 +3,6 @@ name: reverse-engineer-song
 description: YouTube動画（楽曲）をリバースエンジニアリングし、音楽/画像/動画の3モダリティの生成AI用プロンプト仕様書を出力する。CCはYouTubeを視聴できないため、Gemini API経由（scripts/api/gemini.py）で分析を委任し、CCは結果の構造化・保存に専任する。ユーザーが「逆コンパイルして」「この曲から仕様書作って」「リバースエンジニアリング」「YouTubeから分析して」「YouTubeから楽曲分析」「この動画からプロンプト抜いて」等と言った時、または /reverse-engineer-song を呼んだ時にトリガー。
 ---
 
-> ⚠️ このタスクは minimax 系MCPを使用します。日常セッションの場合は `cc-music` で起動し直してください（cc側からはPreToolUse hook でブロックされます・約7,060tok削減のため分離）。
-
-
 # 楽曲逆コンパイル — 生成AI用プロンプト仕様書ウィザード
 
 ## トリガーワード
