@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 レビュー対象（設計/コード/文章）を複数の**異なるLLM**に並列独立レビューさせ、ホストLLM（現在動いているLLM）が**当初目的を唯一の基準**に取捨選択して元案へ統合し、よりよい改訂案を作る。
 
-**核心価値: モデル多様性**。既存の `doubt-driven-development`（同LLM adversarial）/ `sentaku` L3（同LLM弁証）/ `superpowers:dispatching-parallel-agents`（同LLM並列）は全て **context 多様性**。本スキルは **異なるLLMの死角を補完する** ことで直交する価値を提供する。
+**核心価値: モデル多様性**。既存の `doubt-driven-development`（同LLM adversarial）/ `sentaku` L3（同LLM弁証）/ `superpowers:dispatching-parallel-agents`（同LLM並列）は全て **context 多様性**（同一LLM内での視点切り替え）。本スキルは **異なるLLMの死角を補完する** ことで直交する価値を提供する（**直交**＝観点パックは共通でも、異なるLLMが独立に発見する指摘の非重複度。3ラウンド実例で両LLMが同じ致命点を独立指摘した際に価値が実証される）。
 
 ## トリガーワード（手動発動のみ）
 
@@ -82,7 +82,7 @@ disable-model-invocation: true
 | LLM | 通信方式 | 認証 | 備考 |
 |---|---|---|---|
 | MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨 |
-| Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用 |
+| Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示） |
 | Windows版 GLM | glm-rate-proxy or MCP経由 | プロキシ設定 | WSL版ホスト=GLM自身は呼ばない |
 
 ## 実装手順（Claude Code環境・2段階ファイル経由・必須）
@@ -137,40 +137,54 @@ LLMにはJSON配列のみを返すよう指示するが、markdownブロック�
 - 文字列リテラル（`"` で囲まれた範囲）内の `}` は**無視**して split する（`{"quote":"if(x){}"}` 破綻回避）
 - 抽出した要素のうち **必須key（`issue`/`severity`/`quote`/`suggestion`）が全て揃った指摘が ≥50%** なら成功・未満ならテキスト扱いで統合（Step1の閾値）
 
-python3 抽出実装例（実行時にホストLLMが `python3 -c` で構築・使用）:
+python3 抽出実装例（スクリプトを `/tmp/extract.py` に保存し `python3 /tmp/extract.py < /tmp/res_<llm>.txt` でパイプ入力・結果をファイルへもリダイレクト可能）:
 
 ```python
 import json, sys
+
 def extract_issues(text):
-    # [{ ... }, { ... }] を取り出す最初の [ から最後の ] まで
-    s = text.find('[')
-    e = text.rfind(']')
+    """文字種ステートマシン: [ と ] の中身だけ走査し、
+    文字列リテラル内の } を無視して各 {...} オブジェクトを切り出す。"""
+    s, e = text.find('['), text.rfind(']')
     if s == -1 or e == -1 or e < s:
         return []
-    body = text[s+1:e+1]  # [ ... ] 全体
-    # 文字種ステートマシンで文字列内を無視しつつ } で要素分割
+    body = text[s+1:e]  # 外括弧 [ ] は除外（中身のみ）
     items, buf, in_str, esc = [], '', False, False
     depth = 0
     for ch in body:
-        buf += ch
-        if esc:
-            esc = False; continue
-        if ch == '\\':
-            esc = True; continue
-        if ch == '"':
-            in_str = not in_str; continue
-        if in_str:
+        if esc:                       # 直前が \（文字列内のエスケープ）
+            esc = False
+            if depth > 0: buf += ch
             continue
+        if ch == '\\':
+            esc = True
+            if depth > 0: buf += ch
+            continue
+        if ch == '"':
+            in_str = not in_str
+            if depth > 0: buf += ch
+            continue
+        if in_str:                    # 文字列内は } { を無視
+            if depth > 0: buf += ch
+            continue
+        # 以下 in_str == False
         if ch == '{':
+            if depth == 0:
+                buf = '{'             # 新オブジェクト開始（手前の [,カンマ,空白は捨てる）
+            else:
+                buf += ch
             depth += 1
         elif ch == '}':
             depth -= 1
+            buf += ch
             if depth == 0:
                 try:
                     items.append(json.loads(buf.strip()))
                 except Exception:
                     pass
                 buf = ''
+        else:
+            if depth > 0: buf += ch
     return items
 
 text = sys.stdin.read()
@@ -198,8 +212,8 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 1. **JSON抽出**（上記・文字種ステートマシン）
 2. **severity 正規化**: 上記マップで各指摘を `{critical, high, med, low}` に正規化
 3. **Fact Check**: 各指摘の `quote` が元案に**部分一致**するか（トークン Jaccard ≥ 0.7・正規化後）→ 不存在は即却下（ハルシネーション除外）
-   - **※要約渡し時（対象サイズ大）は Fact Check をスキップ**（要約ベースでは quote が元案と一致せず全却下される矛盾を回避）
-4. **ペルソナ切替（著者バイアス対策）**: 「あなたは元案の作者ではない。冷徹な品質管理責任者として外部指摘を客観的に裁定せよ」＋盲点カタログ（著者が見落としがちな観点を列挙）＋devil's advocate（自分がこの指摘を出した側ならどう反論するか）
+   - **※要約渡し時（対象サイズ大）は Fact Check をスキップ**（要約ベースでは quote が元案と一致せず全却下される矛盾を回避）。**判定基準**: ホストが Step2 のプロンプト組み立て時に「全文渡し or 要約渡し」のフラグを保持し、要約渡し時は本ステップをスキップ（コスト・レート制限の要約渡しとも整合）
+4. **ペルソナ切替（著者バイアス対策・ホストの認知ステップ）**: 「あなたは元案の作者ではない。冷徹な品質管理責任者として外部指摘を客観的に裁定せよ」＋盲点カタログ（著者が見落としがちな観点を列挙）＋devil's advocate（自分がこの指摘を出した側ならどう反論するか）。**※これは統合側のホスト認知であり、追加のLLM呼出は行わない**（独立性命題を維持。Step4でレビューアーを再呼びしない）
 5. **当初目的 3tier 分類**:
    - **直接**（目的関連）→ 採否判断（必須）
    - **メタ**（目的自体への疑義・致命的欠陥）→ Step 6 でユーザー確認
@@ -219,7 +233,7 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 
 - **デフォルト出力先**: `./multi-llm-review_<timestamp>/`
 - **改訂案**（`revised_proposal.md`）: 本文（元案構造保持）＋**却下サマリ**＋「根拠 Y」
-- **review_log.md**: 全指摘の `{LLM, issue, severity(正規化), quote, decision(採用/却下/保留), reason}`（重要度順・上位Nを本体・残りは折りたたみ/参照リンク）
+- **review_log.md**: 全指摘の `{LLM, issue, severity(正規化), quote, decision(採用/却下/保留), reason}`（重要度順・上位Nを本体・残りは折りたたみ/参照リンク）。**decision 行のフォーマット例**: `decision: 採用 / reason: [当初目的:X]の要件R3を満たすため・quote Yが該当`（判断が目的から演繹であることを追跡可能に・spec尊重却下も理由1行で明記）
 
 ## コスト・レート制限
 
