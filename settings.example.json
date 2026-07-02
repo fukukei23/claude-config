@@ -213,15 +213,6 @@
             "timeout": 5
           }
         ]
-      },
-      {
-        "matcher": "mcp__minimax-(official|video)__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "echo 'ERROR: minimax-official/video 系MCPはcc-musicプロファイルでのみ利用可能。cc-music で起動し直してください（日常cc側から約7,060tok削減のため分離）' >&2; exit 2"
-          }
-        ]
       }
     ],
     "SessionStart": [
