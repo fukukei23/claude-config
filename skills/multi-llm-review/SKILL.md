@@ -55,7 +55,7 @@ disable-model-invocation: true
 3. **discover / health check**: 各LLMの呼出可能性確認・失敗LLMはスキップ
 4. **ホスト**: レビュアーLLMを並列独立呼出（2段階ファイル経由）
 5. **各レビュー収集**（JSON抽出＝必須前提）
-6. **統合ロジック**（7ステップ・pre-flightは中断フェーズ）
+6. **統合ロジック**（8ステップ・Step6 が pre-flight 中断フェーズ）
 7. **出力**: 改訂案 + review_log.md
 
 **実行メカニズム**:
@@ -81,7 +81,7 @@ disable-model-invocation: true
 
 | LLM | 通信方式 | 認証 | 備考 |
 |---|---|---|---|
-| MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能 |
+| MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨 |
 | Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用 |
 | Windows版 GLM | glm-rate-proxy or MCP経由 | プロキシ設定 | WSL版ホスト=GLM自身は呼ばない |
 
@@ -93,7 +93,7 @@ disable-model-invocation: true
    - `/tmp/req_gemini.json`（Windows Desktop は環境に応じた一時パス）
 2. **並列送信**（同一メッセージで2ツール呼出）:
    - MiniMax: `mcp__minimax__minimax_ask`（prompt に同一プロンプトを指定）
-   - Gemini: Bash で `curl -s -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
+   - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
 3. **JSON抽出**: 結果から**文字種ステートマシン**でJSON配列を再構成（下記「JSON抽出」参照）
 
 > python3 でペイロード生成する例:
