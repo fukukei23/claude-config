@@ -74,9 +74,9 @@ Think Before Coding / Surgical Changes / Simplicity First
 - 開始時は resume-session、記録時は ssot-record、終了時は new-session がエントリを更新
 
 **タスク重複着手防止（タスク占有ボード）**:
-- `active-sessions.md` の「🟢現在進行中タスク」表が、タスクの占有状態の真実
-- resume-session でタスクを選んだら、即🟢表に追加 → 即push（宣言の手間ゼロ・CC自動）
-- **作業着手前**に🟢表を確認。着手タスクが🟢（他セッション占有中）なら、ユーザーにsoft警告:
+- `active-sessions.md` の「セッション状態」表（状態列🟢/✅・単一表）が、タスクの占有状態の真実
+- resume-session でタスクを選んだら、即セッション状態表に🟢行追加 → 即push（宣言の手間ゼロ・CC自動）
+- **作業着手前**に🟢行を確認。着手タスクが🟢（他セッション占有中）なら、ユーザーにsoft警告:
   > ⚠️「<タスク>」は <窓> が <時刻>〜進行中です。重複着手しますか？
 - ブロックせずユーザー判断。new-session で占有解放（タスクはバックログに戻る）
 - 詳細: `docs/superpowers/specs/2026-06-23-task-occupancy-board-design.md`
