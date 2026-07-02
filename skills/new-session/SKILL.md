@@ -191,6 +191,20 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 
 ---
 
+## Step 6: ssot-recordセッションカウンタのクリア 🟡[GLM]
+
+> **不変条件**: `~/.claude/state/ssot-record-session-count.txt` の行数は、同一セッション内のssot-record呼び出し回数と一致しなければならない。session開始（resume-session）およびsession終了（本ステップ）の両方で必ずクリアされる（二重防御）。
+
+```bash
+rm -f ~/.claude/state/ssot-record-session-count.txt
+```
+
+- このファイルはssot-recordフェーズ7.5（セッション横断総括）の発火判定に使う外部カウンタ。クリアせず放置すると無期限に行数が増え続け、「同一セッション内で2回以上」という判定が壊れる
+- WSL CLI版・Windows Desktop版が同一の実ファイルを共有しているため、本ステップに加えresume-session側でもクリアすることで、異常終了（new-session未実行のままセッション終了）時の残存や、両環境の並行セッションによる記録混線を実質的に防ぐ
+- `rm -f` のため、ファイルが存在しなくてもエラーにならない
+
+---
+
 ## 補足: スキルが呼ばれるタイミング
 
 - ユーザーが「コンテキスト85%超えた」「新セッションにしたい」と言った時
@@ -204,3 +218,4 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 | Step 1 (情報収集) | Bash直実行 | LLM不要 |
 | Step 2 (要約・生成) | 🟡[GLM] | テキスト生成 |
 | Step 5 (ボード終了処理) | 🟡[GLM] | 状態列🟢→✅変更(行残す)・✅行GC・即push |
+| Step 6 (カウンタクリア) | Bash直実行 | LLM不要・rm -fのみ |

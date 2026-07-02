@@ -24,6 +24,12 @@ user-invocable: true
 
 ## Step 1: 最新5件のhandoffを取得（Bash）🟡[GLM]
 
+**セッション開始時の初期化（ssot-recordカウンタクリア）**:
+```bash
+rm -f ~/.claude/state/ssot-record-session-count.txt
+```
+> **不変条件**: このファイルの行数は、同一セッション内のssot-record呼び出し回数と一致しなければならない。new-session（終了時）と本ステップ（開始時）の両方でクリアすることで、異常終了でnew-sessionが未実行だった場合の残存や、WSL CLI版・Windows Desktop版が同一実ファイルを共有していることによる記録混線を防ぐ（二重防御）。
+
 ```bash
 ls -t ~/projects/obsidian-ssot/00_SYSTEM/handoff/*.md 2>/dev/null | head -5
 ```
