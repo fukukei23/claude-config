@@ -401,5 +401,6 @@
   "autoDream": {
     "enabled": true,
     "intervalHours": 24
-  }
+  },
+  "cleanupPeriodDays": 60
 }

@@ -57,7 +57,10 @@ class ModelRouter:
 
         override_model = self._thresholds[mode]["model"]
         if override_model:
-            return override_model, "zai"
+            # thresholds で provider 指定があればそれに従う（既定は zai）
+            # economy=MiniMax-M3 のような別プロバイダ切り替えに使用
+            provider = self._thresholds[mode].get("provider", "zai")
+            return override_model, provider
 
         return original_model or self._default_model, "zai"
 

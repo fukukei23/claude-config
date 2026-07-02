@@ -17,7 +17,9 @@ DEFAULTS = {
     "status_file": "/tmp/glm-rate-proxy-status.json",
     "thresholds": {
         "normal": {"max_pct": 80, "model": None},
-        "economy": {"max_pct": 95, "model": "GLM-4.7"},
+        # economy(usage 80-95%)は MiniMax-M3 へ（コスト0・品質向上）
+        # 両プロバイダ月額サブスク既払い・MiniMax枠超過時は429→emergency(GLM-4.7-Flash)へ逆フォールバック
+        "economy": {"max_pct": 95, "model": "MiniMax-M3", "provider": "minimax"},
         "emergency": {"max_pct": 100, "model": "GLM-4.7-Flash"},
     },
     "fallback": {
