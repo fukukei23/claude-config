@@ -82,7 +82,7 @@ disable-model-invocation: true
 | LLM | 通信方式 | 認証 | 備考 |
 |---|---|---|---|
 | MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨 |
-| Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示） |
+| Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
 | Windows版 GLM | glm-rate-proxy or MCP経由 | プロキシ設定 | WSL版ホスト=GLM自身は呼ばない |
 
 ## 実装手順（Claude Code環境・2段階ファイル経由・必須）
@@ -97,7 +97,7 @@ disable-model-invocation: true
 3. **JSON抽出**: 結果から**文字種ステートマシン**でJSON配列を再構成（下記「JSON抽出」参照）
 
 > python3 でペイロード生成する例:
-> `python3 -c "import json; open('/tmp/req_gemini.json','w').write(json.dumps({'contents':[{'parts':[{'text':PROMPT}]}],'generationConfig':{'temperature':0.4,'maxOutputTokens':3000}},ensure_ascii=False))"`
+> `python3 -c "import json; open('/tmp/req_gemini.json','w').write(json.dumps({'contents':[{'parts':[{'text':PROMPT}]}],'generationConfig':{'temperature':0.4,'maxOutputTokens':8000}},ensure_ascii=False))"`
 
 ---
 

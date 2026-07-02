@@ -5,7 +5,8 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/usr/bin/python3 -m glm_rate_proxy
-WorkingDirectory=%h/.claude/scripts/glm-rate-proxy
+WorkingDirectory=%h/projects/claude-config/scripts/glm-rate-proxy
+EnvironmentFile=%h/.claude/.env
 EnvironmentFile=%h/.secrets.env
 Restart=on-failure
 RestartSec=5

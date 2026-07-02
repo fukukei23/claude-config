@@ -22,6 +22,11 @@
 ## glm-rate-proxy
 - 経路: Claude Code → localhost:8787 → ZAI / MiniMax（SessionStart hookで自動起動）
 - トラブル時: SSOT `01_DECISIONS/claude-code/` 配下を参照
+- **⚠️ プロキシ操作時の警告ゲート（厳格・2026-07-03事故対策）**:
+  - プロキシの**再起動・kill・設定変更**は **全Claude Code CLIセッション（並行含む）を最大数秒〜数分停止**させる
+  - 実行前に**必ずユーザーへ警告し承認を取得**すること:「これからプロキシを再起動します・全セッションがN秒停止します・よろしいですか？」
+  - 切替は `switch-backend.sh zai` で自救可能だが、**事故を起こさないのが先決**
+  - systemd登録済みのため kill→5秒自動再起動（層1）・設定変更時も事前警告（層2）
 
 ## セッション開始バナー（必須）
 最初の返答冒頭で必ず `bash /home/yn4416/.claude/scripts/session/startup-banner.sh` を実行し、出力を貼ること。
