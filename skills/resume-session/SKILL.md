@@ -50,6 +50,8 @@ cat ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | head -40
 ```bash
 # バックログ.md の未完了 [ ] 一覧（生きタスクの正典・優先度区分付き）
 grep -nE '^- \[ \]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
+# 📝WIP構想メモ一覧（未spec化の構想・バックログ.md該当タスク直下・C層機械スキャン）
+grep -nE '^[[:space:]]*- 📝 構想' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
 # active-sessions セッション状態表の🟢行（他セッションの占有確認・開始時刻で放置判断）
 grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md
 ```
@@ -84,8 +86,16 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 🔴 P0: <バックログ.md の P0 の [ ] 一覧>
 🔁 前回継続: <直近handoffの「前回占有タスク（継続可・参考）」欄・未完了のもののみ>
 ℹ️ 他候補: バックログ.md 参照（P1: N件 / P2: M件）
+📝 WIP構想: <直近handoffの「WIP構想一覧」欄・バックログ.md実体と突合>
 
 > ⚠️ 候補は handoff ではなく**バックログ.md が正典**。handoffの「次タスク候補」は廃止済み（完了済みが混入するため）。
+
+**【C層・構想欠損検出（機械スキャン）】** Step1の 📝WIPメモ grep 結果と直近handoffの「WIP構想一覧」を突合:
+- バックログに 📝WIPメモがあるが handoff に載っていない → 構造化確認「⚠️ このタスクの構想文脈が handoff に見つかりません。バックログ該当タスク直下の📝WIPメモを確認するか、詳細を教えてください」
+- handoff の WIP構想がバックログに見つからない → 「⚠️ handoff 記載の構想がバックログ.md に見つかりません。記録漏れまたはタスク破棄の可能性」
+- 一致 → 正常（📝WIPメモから文脈復元して継続）
+
+> 設計根拠: 能動検知・キーワード検知は廃止（誤検知/アラート疲労・resume時は履歴なく発動しない脆さ）。機械スキャンのみ（`@rules/_shared/記録.md` 準拠）。
 
 ## 未解決
 [あれば。なければ「なし」]
