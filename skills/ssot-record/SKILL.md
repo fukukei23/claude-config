@@ -773,6 +773,12 @@ mkdir -p ~/.claude/state
 echo "$(date +%Y-%m-%dT%H:%M:%S) <filename_hint>" >> ~/.claude/state/ssot-record-session-count.txt
 ```
 
+### フラグ解除（必須・記録完了直後に必ず実行）
+```bash
+rm -f /tmp/ssot-record-active
+```
+**残存禁止**: フラグが残っていると、スキル外の手動Write もPreToolUse hookを通過してしまう（二重防御が機能不全）。フェーズ6完了報告の直後・または異常終了時（エラー発生時も）に必ず削除する。
+
 `<filename_hint>` はフェーズ1のJSON出力で得た `filename_hint` の値（751行目の完了報告に使ったファイル名と同じ値）に置き換える。このファイルはフェーズ7.5（セッション横断総括の発火判定）で使用する。ユーザーへの表示・確認は不要。
 
 ---
