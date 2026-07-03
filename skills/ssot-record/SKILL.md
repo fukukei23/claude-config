@@ -402,6 +402,12 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 
 ## フェーズ3: ファイル作成・更新
 
+> **先頭作業（必須）**: 本フェーズ開始時に `/tmp/ssot-record-active` フラグを作成すること。PreToolUse hook(`enforce-ssot-record.sh`)がこのフラグで「スキル経由」を判定し `01_DECISIONS/` Write を許可する。フラグなしだと手動Write扱いでブロックされる。
+> ```bash
+> touch /tmp/ssot-record-active
+> ```
+> ※ フェーズ6完了後（または異常終了時）に必ず `rm -f /tmp/ssot-record-active` で削除（残存すると手動Writeも通ってしまう）。
+
 ### 3-1. メイン記録ファイルの作成
 
 振り分け先に応じてファイルを作成する:

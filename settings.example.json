@@ -213,6 +213,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/enforce-ssot-record.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [
