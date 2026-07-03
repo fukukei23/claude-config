@@ -2,10 +2,11 @@
 # switch-backend.sh — Claude Code CLI のLLM接続先を切替（プロキシ死亡時の自救）
 #
 # モード:
-#   normal  - プロキシ経由(127.0.0.1:8787)・通常運用
-#   zai     - ZAI直結(api.z.ai/api/anthropic)・GLM直・プロキシ不要（推奨自救）
-#   minimax - MiniMax直結(api.minimax.io/anthropic/v1)・MiniMax直（※実機検証要）
-#   status  - 現在の設定確認（変更なし）
+#   normal     - プロキシ経由(127.0.0.1:8787)・通常運用
+#   zai        - ZAI直結(api.z.ai/api/anthropic)・GLM直・プロキシ不要（推奨自救）
+#   minimax    - MiniMax直結(api.minimax.io/anthropic/v1)・MiniMax直（※実機検証要）
+#   anthropic  - Anthropic OAuth（月額サブスク・sk-ant不要・/login で認証）
+#   status     - 現在の設定確認（変更なし）
 #
 # 認証ヘッダー使い分け（重要）:
 #   - ANTHROPIC_AUTH_TOKEN → CLI が "Authorization: Bearer" を送信（ZAI用）
@@ -22,12 +23,13 @@ usage() {
     cat <<'EOF'
 Claude Code CLI 接続先切替（プロキシ死亡時の自救）
 
-使い方: switch-backend.sh {normal|zai|minimax|status}
+使い方: switch-backend.sh {normal|zai|minimax|anthropic|status}
 
-  normal   プロキシ経由(127.0.0.1:8787)・通常運用
-  zai      ZAI直結・GLM直接（推奨自救・課金増なし）
-  minimax  MiniMax直結（※認証方式の実機検証が必要）
-  status   現在の設定確認（変更なし）
+  normal     プロキシ経由(127.0.0.1:8787)・通常運用
+  zai        ZAI直結・GLM直接（推奨自救・課金増なし）
+  minimax    MiniMax直結（※認証方式の実機検証が必要）
+  anthropic  Anthropic公式・OAuth(月額サブスク・sk-ant不要・/loginで認証)
+  status     現在の設定確認（変更なし）
 EOF
 }
 
@@ -68,6 +70,10 @@ elif 'api.z.ai' in str(url):
     print('モード: zai (ZAI直結)')
 elif 'api.minimax.io' in str(url):
     print('モード: minimax (MiniMax直結)')
+elif url == '(未設定=Anthropic直結)' and not has_token and not has_apikey:
+    print('モード: anthropic (OAuth・月額サブスク)')
+else:
+    print('モード: 判定不能')
 print(f'AUTH_TOKEN(Bearer用): {"設定あり" if has_token else "未設定"}')
 print(f'API_KEY(x-api-key用): {"設定あり" if has_apikey else "未設定"}')
 PY
@@ -101,6 +107,12 @@ print(f'プロキシ: 生存 (mode={d.get(\"mode\")} provider={d.get(\"provider\
         APIKEY="${MINIMAX_API_KEY:-}"
         [ -n "$APIKEY" ] || { echo "❌ MINIMAX_API_KEY が .env に未設定"; exit 1; }
         ;;
+    anthropic)
+        # OAuth方式: 月額サブスク活用・sk-ant不要
+        # BASE_URL/AUTH_TOKEN/API_KEY 全削除 → Claude Code が /login でOAuth認証
+        BASE_URL="__DELETE__"
+        USE_MODE="oauth"
+        ;;
     *)
         usage
         exit 1
@@ -114,22 +126,36 @@ import json, sys
 path, tmp, base_url, use_mode, token, apikey = sys.argv[1:7]
 d = json.load(open(path))
 env = d.setdefault('env', {})
-env['ANTHROPIC_BASE_URL'] = base_url
-if use_mode == 'token':
-    env['ANTHROPIC_AUTH_TOKEN'] = token
-    env.pop('ANTHROPIC_API_KEY', None)   # Bearer送信に統一
+if use_mode == 'oauth':
+    # OAuth方式: BASE_URL/AUTH_TOKEN/API_KEY 全削除 → /login でOAuth認証
+    env.pop('ANTHROPIC_BASE_URL', None)
+    env.pop('ANTHROPIC_AUTH_TOKEN', None)
+    env.pop('ANTHROPIC_API_KEY', None)
+elif base_url == '__DELETE__':
+    env.pop('ANTHROPIC_BASE_URL', None)
 else:
-    env['ANTHROPIC_API_KEY'] = apikey
-    env.pop('ANTHROPIC_AUTH_TOKEN', None)  # x-api-key送信に統一
+    env['ANTHROPIC_BASE_URL'] = base_url
+    if use_mode == 'token':
+        env['ANTHROPIC_AUTH_TOKEN'] = token
+        env.pop('ANTHROPIC_API_KEY', None)
+    else:
+        env['ANTHROPIC_API_KEY'] = apikey
+        env.pop('ANTHROPIC_AUTH_TOKEN', None)
 with open(tmp, 'w') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 PY
 mv "$TMP" "$SETTINGS"
 
 echo "✅ 切替完了: $MODE モード"
-echo "   BASE_URL: $BASE_URL"
-echo "   認証: $([ "$USE_MODE" = token ] && echo 'AUTH_TOKEN(Bearer)' || echo 'API_KEY(x-api-key)')"
+if [ "$USE_MODE" = "oauth" ]; then
+    echo "   BASE_URL/AUTH_TOKEN/API_KEY: 全削除（OAuth ログインへ）"
+    echo "   認証: Claude Code 月額サブスク（OAuth・sk-ant不要）"
+else
+    echo "   BASE_URL: $BASE_URL"
+    echo "   認証: $([ "$USE_MODE" = token ] && echo 'AUTH_TOKEN(Bearer)' || echo 'API_KEY(x-api-key)')"
+fi
 echo "   バックアップ: $SETTINGS.bak.1 (最大3世代)"
 echo ""
 echo "⚠️  Claude Code CLI を再起動してください（環境変数は起動時読込）"
+[ "$MODE" = "anthropic" ] && echo "🔐 再起動後 /login でブラウザ認証（未ログイン時）→ サブスク Sonnet が動きます"
 [ "$MODE" = "minimax" ] && echo "ℹ️  minimaxモードは認証方式の実機検証が未完・動かなければ zai モードで確実"
