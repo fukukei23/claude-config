@@ -39,12 +39,15 @@
 
 ## タスク切り替え時の記録（厳格）
 新しいトピックに移る前に必ず実行。「後で書く」禁止。
+**必ず `ssot-record` スキルを Skill ツールで発動すること（手動 Write 絶対禁止・PreToolUse hook がブロックします）**。
 
 @rules/_shared/記録.md
 
-## SSOT自動記録（git commit連動）
-`[SSOT-RECORD-TRIGGER]` がBash結果に含まれたら即座に `record-decision` スキルを自動実行。
-完了後レスポンス末尾に「✅ SSOT記録完了 + ファイルパス」を表示すること。
+## SSOT記録は ssot-record スキル経由のみ（手動Write禁止・厳格）
+タスク完了・トピック区切りで記録すべき内容が生じたら、**自発的・自動的に `ssot-record` スキルを発動**（ユーザーが「記録して」と言わなくても・`[SSOT-RECORD-TRIGGER]` 等のトリガー也不要）。
+- ❌ **手動 Write/Edit での `01_DECISIONS/` 作成は PreToolUse hook(`enforce-ssot-record.sh`)がブロック**（`/tmp/ssot-record-active` フラグ時のみ許可＝スキル経由のみ通る）
+- ✅ ssot-record スキルが frontmatter・`_INDEX.md`・`自動化.md`・日記・CCガイド の連携更新を機械的に担保（手動だと抜け漏れが出る）
+- `[SSOT-RECORD-TRIGGER]` + record-decision 機構は**廃止**（ssot-record スキルに一本化・2026-07-03）
 
 ## セキュリティ（核心）
 - APIキー**値**を会話・ファイルに書き込まない（キー名はOK、値はNG）
