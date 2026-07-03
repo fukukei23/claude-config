@@ -6,12 +6,20 @@ manual モード（Daily Triage から候補混入）・auto モード（next_is
 の両方から呼ばれる。
 """
 import json
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
 CONFIG = Path("/home/yn4416/.claude/scripts/auto-dev/auto-loop-config.yaml")
+
+
+def ensure_gh_path() -> None:
+    """非ログインシェル（cron/wsl bash -c）で gh が PATH に無い場合のみ ~/.local/bin を補う。"""
+    if shutil.which("gh") is None:
+        os.environ["PATH"] = f"{Path.home() / '.local/bin'}:{os.environ.get('PATH', '')}"
 
 
 def ensure_state_fields(state: dict) -> dict:
@@ -126,6 +134,7 @@ def run() -> list[dict]:
     Returns:
         pending に積込可能な新規タスクリスト。
     """
+    ensure_gh_path()
     config = load_config(CONFIG)
     label = config.get("label", "auto-loop")
     state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
