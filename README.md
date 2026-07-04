@@ -260,7 +260,7 @@ Tier1 操作は `agents/tier1バリデーター.md` の Agent が事前検証す
 | スキル | 用途 |
 |-------|------|
 | delegate-to-minimax | 大量処理タスクをMiniMaxに自動委譲 |
-| record-decision | 技術的意思決定をSSOTに自動記録 |
+| ssot-record | SSOTへの記録・振り分けを自動化（record-decision統合済） |
 | zenn-article-pipeline | Zenn技術記事の下書き→公開パイプライン |
 
 ### Memory（永続的記憶システム）
