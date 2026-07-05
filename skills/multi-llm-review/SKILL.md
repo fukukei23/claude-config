@@ -99,6 +99,24 @@ disable-model-invocation: true
 > python3 でペイロード生成する例:
 > `python3 -c "import json; open('/tmp/req_gemini.json','w').write(json.dumps({'contents':[{'parts':[{'text':PROMPT}]}],'generationConfig':{'temperature':0.4,'maxOutputTokens':8000}},ensure_ascii=False))"`
 
+### Gemini 空応答時のリトライ（思考モデルの罠・2026-07-05 実証）
+
+Gemini 思考モデル（2.5 Pro / 3.1 Pro 等）は `maxOutputTokens=8000` 設定でも、**長大コード＋長focus** の組合せで思考トークンが枠を消費して**空応答**を返すことがある（`finishReason: MAX_TOKENS`・本文空）。
+
+**検知**: レスポンス本文が空、または `candidates[0].content.parts[0].text` が空文字列。
+
+**対策（空応答時のリトライ戦略・順に実施）**:
+
+1. **focus 短縮**: `"all"` / `"readability"` → `"bug"` 等の**1観点1単語**に短縮（思考負荷を下げる）
+2. **コード圧縮**: コメント・docstring・空行を削除し**核心ロジック・差分のみ**に圧縮（入力トークン削減で思考の余裕生成）
+3. **再送信**: 上記2点を適用した圧縮ペイロードで再実行
+
+**実証例（2026-07-05・daily_triage.py レビュー）**:
+- 1回目（focus=readability・コード全文）: **空応答**
+- 2回目（focus=bug・コード圧縮・背景1行追加）: **具体的指摘2件**（状態列動的特定・ヘルパー化）を獲得
+
+> **MCP直接呼出 `mcp__gemini__review_with_gemini` は `maxOutputTokens` 指定不可**（スキル外で直接呼ぶ場合）で特に空応答しやすい。`multi-llm-review` スキル経由の curl REST（8000指定）でも長大コードでは発生するため、本リトリア戦略を標準手順に組み込む。
+
 ---
 
 ## レビュアープロンプト雛形（全LLM共通・slot化・順序固定）
