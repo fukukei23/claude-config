@@ -1,17 +1,9 @@
 ---
 name: proxy-doctor
-description: |
-  glm-rate-proxy（localhost:8787）の診断・修復スキル。
-  Claude Code CLI のバックエンドとして GLM / MiniMax を使うためのローカルプロキシが
-  止まっている・エラーが出る・MiniMax フォールバックが失敗するなどの問題を素早く診断し、
-  対処法を案内する。
-
-  以下のキーワードで必ずトリガーすること：
-  - /proxy-doctor
-  - プロキシが壊れた / プロキシがおかしい / プロキシ直して / proxy直して
-  - GLMが使えない / MiniMaxに切り替わらない / フォールバックが失敗した
-  - 400エラーが出る / 401エラー / 429が頻発 / proxy止まってる / プロキシを診断して
-  - Claude Code CLIが動かない（LLMエラー系）
+description: >
+  glm-rate-proxy（localhost:8787・CC CLIのGLM/MiniMaxバックエンドプロキシ）の診断・修復スキル。
+  プロキシが止まる・エラーが出る・MiniMaxフォールバック失敗等を診断し対処法を案内（ソース自動書き換えなし・確認後実行）。
+  「/proxy-doctor」「プロキシ直して」「GLMが使えない」「フォールバック失敗」「LLMエラー系（CLIが動かない・4xx/429多発）」等で発火。
 ---
 
 # proxy-doctor — glm-rate-proxy 診断スキル

@@ -1,10 +1,8 @@
 ---
 name: guide-builder
 description: >
-  Markdownソース → モバイル対応GitHub Pagesガイドサイトを構築・更新するスキル。
-  新規リポジトリの立ち上げ（new モード）と、既存サイトへの章追加（add モード）の2モードを持つ。
-  「章追加して」「/guide-builder」でトリガー。（※新規ガイド作成は `make-guide` が受け持ち、読む系と判定されてから本スキルに振り分けられます）
-  GitHub Pagesでガイドを公開したい、convert.pyでMarkdownをHTMLに変換したい時に使う。
+  Markdown → モバイル対応GitHub Pagesガイドサイトを構築・更新。新規立ち上げ（new）と既存サイトへの章追加（add）の2モード。convert.py でMD→HTML変換。
+  「章追加して」「/guide-builder」で発火。※新規ガイド作成は make-guide が受け持ち（読む系と判定後に本スキルへ振り分け）。
 user-invocable: true
 ---
 
