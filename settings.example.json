@@ -6,8 +6,8 @@
     "API_TIMEOUT_MS": "1200000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787",
-    "ANTHROPIC_AUTH_TOKEN": "",
-    "BRAVE_API_KEY": "",
+    "ANTHROPIC_AUTH_TOKEN": "97c1***MASKED***",
+    "BRAVE_API_KEY": "BSAW***MASKED***",
     "MCP_TOOL_TIMEOUT": "300000",
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
     "DISABLE_AUTO_COMPACT": "1"
@@ -57,7 +57,7 @@
       "Bash(xargs cat:*)",
       "Bash(xargs ls:*)",
       "mcp__plugin_discord_discord__download_attachment",
-      "Bash(TOKEN=\"<DISCORD_BOT_TOKEN>\")",
+      "Bash(T***MASKED***",
       "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/users/@me/guilds\")",
       "Bash(GUILD=\"1479832235044769872\")",
       "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/guilds/$GUILD/channels\")",
@@ -392,7 +392,7 @@
         "/home/yn4416/.claude/scripts/mcp/start-brave-search.sh"
       ],
       "env": {
-        "BRAVE_API_KEY": ""
+        "BRAVE_API_KEY": "BSAW***MASKED***"
       }
     },
     "minimax": {
@@ -401,12 +401,12 @@
         "/home/yn4416/.claude/scripts/mcp/start-minimax-mcp.sh"
       ],
       "env": {
-        "MINIMAX_API_KEY": ""
+        "MINIMAX_API_KEY": "sk-c***MASKED***"
       }
     },
     "glm": {
       "env": {
-        "GLM_API_KEY": ""
+        "GLM_API_KEY": "97c1***MASKED***"
       }
     }
   },
