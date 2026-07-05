@@ -89,8 +89,11 @@ def collect_backlog(path: Path, today: date | None = None) -> list[str]:
 def collect_active_green(path: Path) -> list[str]:
     """active-sessions.md の 🟢進行中タスク表の行を抽出。
 
-    ヘッダー行（| タスク）・区切り行（|---）・別セクションは除外。
-    セクションは "## 🟢" で開始し次の "## " で終了。
+    単一表化（2026-07-02〜）に対応した実装。旧 "## 🟢" セクション方式と
+    単一表 "## セッション状態" 状態列方式の両方に対応（後方互換）。
+
+    単一表形式では、テーブルの末尾列「状態」が 🟢 の行のみを抽出する。
+    ヘッダー行（| セッション）・区切り行（|---）は除外。
 
     Args:
         path: active-sessions.md のパス
@@ -100,15 +103,68 @@ def collect_active_green(path: Path) -> list[str]:
     """
     if not path.exists():
         return []
-    rows: list[str] = []
+    text = path.read_text(encoding="utf-8")
+
+    # 新形式: 単一表（## セッション状態 セクション内、状態列が 🟢 の行）
+    new_format_rows = _collect_single_table_green(text)
+
+    # 旧形式: "## 🟢" セクションのテーブル行（後方互換）
+    legacy_rows: list[str] = []
     in_green = False
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         if line.startswith("## 🟢"):
             in_green = True
             continue
         if in_green and line.startswith("## "):
             break
         if in_green and line.startswith("| ") and not line.startswith("| タスク") and not line.startswith("|-"):
+            legacy_rows.append(line)
+
+    return new_format_rows if new_format_rows else legacy_rows
+
+
+def _is_table_row(line: str) -> bool:
+    """テーブル行（"| ... |" で空白以外で開始）か判定"""
+    return line.startswith("| ") and not line.startswith("|---") and not line.startswith("|- ")
+
+
+def _is_header_row(line: str) -> bool:
+    """テーブルヘッダー行か判定（カラム名を含む）"""
+    lowered = line.lower()
+    return any(h in lowered for h in (
+        "| セッション", "| タスク", "| 環境", "| 開始", "| 状態",
+        "| 触る共通ファイル", "| 方針",
+    ))
+
+
+def _collect_single_table_green(text: str) -> list[str]:
+    """単一表形式の active-sessions.md から 🟢 行を抽出。
+
+    "## セッション状態" セクション内のテーブルから、状態列が 🟢 の行を返す。
+    戻り値: 状態列を強調した行（"| ... | 🟢（進行中）|"）
+    """
+    rows: list[str] = []
+    in_section = False
+    for line in text.splitlines():
+        # セッション状態セクションの検出
+        if line.startswith("## セッション状態"):
+            in_section = True
+            continue
+        # 別セクションで終了
+        if in_section and line.startswith("## ") and not line.startswith("## セッション状態"):
+            in_section = False
+            continue
+        if not in_section:
+            continue
+        # テーブル行の判定（ヘッダー・区切り行は除外）
+        if not _is_table_row(line):
+            continue
+        if _is_header_row(line):
+            continue
+        # 状態列（末尾セル）が 🟢 か判定
+        # split("|") 結果は前後が空文字列になるため、非空末尾を採用
+        cells = [c.strip() for c in line.split("|") if c.strip()]
+        if cells and cells[-1] == "🟢":
             rows.append(line)
     return rows
 

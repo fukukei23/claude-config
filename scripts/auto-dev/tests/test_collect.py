@@ -33,18 +33,27 @@ def test_collect_backlog_p0_p1_only():
 
 
 def test_collect_active_green_rows_only():
-    """🟢セクションの行のみ抽出。ヘッダー/区切り行/別セクションは除外。"""
+    """🟢進行中（単一表・状態列）の行のみ抽出。
+
+    2026-07-02 単一表化後の形式対応。状態列末尾が 🟢 の行のみ返し、
+    ヘッダー/区切り行/別セクション/✅完了行は除外。
+    回帰: 当時「🟢進行中なし」と誤判定され候補重複が発生していたバグ (2026-07-05)。
+    """
     result = collect_active_green(FIX / "active-sessions.md")
     joined = "\n".join(result)
 
-    # 🟢セクションのタスク行は含まれる
+    # 🟢 の2行は含まれる
     assert any("analyze-song features改善" in t for t in result)
-    assert any("loop engineering 構築 Phase1" in t for t in result)
+    assert any("WSL-loop-eng Phase1" in t for t in result)
+    # ✅ 完了行は除外
+    assert not any("WSL-hoge 検証" in t for t in result)
+    assert not any("WSL-fuga 完了" in t for t in result)
     # ヘッダー行・区切り行は除外
-    assert not any(t.startswith("| タスク") for t in result)
+    assert not any(t.startswith("| セッション") for t in result)
     assert not any(t.startswith("|---") for t in result)
-    # 別セクション（アクティブセッション表）の行は含まれない
-    assert "WSL-hoge" not in joined
+    # 別セクション（共通ファイル・アーカイブ）の行は含まれない
+    assert "settings.json" not in joined
+    assert "廃止" not in joined
 
 
 def test_collect_handoff_latest_picks_newest():
