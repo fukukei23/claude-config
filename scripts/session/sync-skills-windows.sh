@@ -17,6 +17,12 @@ for item in "$WSL_SKILLS"/*/; do
         # 新規追加
         cp -r "$item" "$win_item" 2>/dev/null && \
             echo "sync-skills: 追加 $name" || true
+    elif [ -f "$skill_file" ] && [ ! -f "$win_item/SKILL.md" ]; then
+        # 修復: Windows側にディレクトリはあるがSKILL.mdが欠落している場合、
+        # 従来はどの分岐にも入らず永久に直らなかった（2026-07-05 監査修正②で追加・
+        # proxy-doctor/analyze-song/demo-site-sales の未ロード原因）
+        cp -r "$item"/. "$win_item"/ 2>/dev/null && \
+            echo "sync-skills: 修復 $name" || true
     elif [ -f "$skill_file" ] && [ -f "$win_item/SKILL.md" ]; then
         # 既存: SKILL.mdが新しければ上書き
         if [ "$skill_file" -nt "$win_item/SKILL.md" ]; then
