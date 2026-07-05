@@ -38,6 +38,24 @@ find ~/projects/claude-config/docs/ -name '*spec*.md' -newer ~/projects/claude-c
 
 # 6. .update-queue.md があれば読む
 cat ~/projects/claude-code-guide/.update-queue.md 2>/dev/null | head -20
+
+# 7. セッション識別子（## メタ情報 ブロック用・spec 2026-07-06）
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+WT_SESSION="${WT_SESSION:-unknown}"
+END_TS=$(date '+%Y-%m-%d %H:%M')
+JSONL="/home/yn4416/.claude/projects/-home-yn4416/${SESSION_ID}.jsonl"
+if [ -f "$JSONL" ]; then
+  START_TS=$(date -r "$JSONL" '+%Y-%m-%d %H:%M')
+else
+  START_TS="unknown"
+fi
+echo "SESSION_ID=$SESSION_ID"
+echo "WT_SESSION=$WT_SESSION"
+echo "START_TS=$START_TS"
+echo "END_TS=$END_TS"
+
+# 8. active-sessions.md の自分の🟢行（セッション名取得・Step5で✅化する前）
+grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null
 ```
 
 ---
@@ -90,10 +108,18 @@ handoff を生成する**直前**に、以下をユーザーへ1問だけ確認�
 - 現在の環境状態（シンボリックリンク、secrets等）を要約
 - **自動化機構（auto-sync/auto-push等）の記述は `00_SYSTEM/自動化.md` の記述を正典とし、憶測で修飾（「常駐」「常時」等）しないこと**。実態: claude-config の push は SessionStop hook 発火時のみ（常駐ではない）・obsidian-ssot は `*/30` cron。不明なら書かず「`00_SYSTEM/自動化.md` 参照」とすること
 - **「次のタスク」には候補を列挙せず、バックログ.md への参照のみを記載すること**（コピペ連鎖で完了済みタスクが残り続けるのを防ぐため・spec 2026-06-26）。現セッションの占有タスクは「前回占有タスク（継続可・参考）」欄に記載すること
+- **`## メタ情報` ブロックは必ず先頭（`# 引き継ぎ` の直後・`## 環境` の前）に配置すること**（spec 2026-07-06・resume-session が wt_session でグループ化するため必須）。Step1 の #7 で取得した SESSION_ID / WT_SESSION / START_TS / END_TS と #8 の🟢行セッション名をそのまま埋める（推測・省略しない）。環境変数が unknown でも `unknown` のまま書く（空欄禁止・resume-session のグループ化判定に使うため）
 
 フォーマット:
 ====== 新セッション用プロンプト（ここからコピー）======
 # 引き継ぎ
+
+## メタ情報
+- session_id: <SESSION_ID（CLAUDE_CODE_SESSION_ID・CLI版で取得・unknownならフォールバック）>
+- wt_session: <WT_SESSION（ターミナルタブ単位・CLI版で取得・unknownならフォールバック）>
+- セッション名: <active-sessions.md の自分の🟢行の「セッション」列と同じ値（🟢行が無ければ「unknown」）>
+- 開始: <START_TS（JSONL ctime・取得不能ならunknown）>
+- 終了: <END_TS>
 
 ## 環境
 [WSL2/Windowsデスクトップ、LLMルーティング等の固定情報]
