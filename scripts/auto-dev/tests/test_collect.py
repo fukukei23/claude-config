@@ -56,6 +56,48 @@ def test_collect_active_green_rows_only():
     assert "廃止" not in joined
 
 
+def test_collect_active_green_uses_dynamic_status_column(tmp_path):
+    """状態列を動的特定（列順変更耐性・Geminiレビュー指摘反映）。
+
+    ヘッダー行の「状態」列インデックスを動的に取得し、データ行もその
+    インデックスで判定する。列順を変えても正しく動作することを確認。
+    """
+    from daily_triage import _collect_single_table_green
+    md = tmp_path / "test.md"
+    # 「状態」列が3番目（先頭からindex=2）にある例
+    md.write_text(
+        "## セッション状態\n\n"
+        "| 環境 | タスク | 状態 |\n"
+        "|---|---|---|\n"
+        "| WSL | task-A | 🟢 |\n"
+        "| WSL | task-B | ✅ |\n",
+        encoding="utf-8",
+    )
+    result = collect_active_green(md)
+    assert len(result) == 1
+    assert "task-A" in result[0]
+    assert "task-B" not in "\n".join(result)
+
+
+def test_collect_active_green_falls_back_to_legacy(tmp_path):
+    """旧形式 "## 🟢" セクションにフォールバック（後方互換）。
+
+    新形式に該当が無い場合のみ旧形式を試す。
+    """
+    from daily_triage import _collect_legacy_green
+    md = tmp_path / "test.md"
+    md.write_text(
+        "## 🟢 進行中\n\n"
+        "| タスク | 環境 |\n"
+        "|---|---|\n"
+        "| old-task | WSL-old |\n",
+        encoding="utf-8",
+    )
+    result = collect_active_green(md)
+    assert len(result) == 1
+    assert "old-task" in result[0]
+
+
 def test_collect_handoff_latest_picks_newest():
     """ファイル名降順で最新1件の全文を返す。"""
     result = collect_handoff_latest(FIX / "handoff")

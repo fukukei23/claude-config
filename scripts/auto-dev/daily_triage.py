@@ -92,8 +92,8 @@ def collect_active_green(path: Path) -> list[str]:
     単一表化（2026-07-02〜）に対応した実装。旧 "## 🟢" セクション方式と
     単一表 "## セッション状態" 状態列方式の両方に対応（後方互換）。
 
-    単一表形式では、テーブルの末尾列「状態」が 🟢 の行のみを抽出する。
-    ヘッダー行（| セッション）・区切り行（|---）は除外。
+    単一表形式では、ヘッダー行から「状態」列のインデックスを動的に特定し
+    （列順序変更耐性）、その列の値が 🟢 の行のみを抽出する。
 
     Args:
         path: active-sessions.md のパス
@@ -107,20 +107,11 @@ def collect_active_green(path: Path) -> list[str]:
 
     # 新形式: 単一表（## セッション状態 セクション内、状態列が 🟢 の行）
     new_format_rows = _collect_single_table_green(text)
+    if new_format_rows:
+        return new_format_rows
 
-    # 旧形式: "## 🟢" セクションのテーブル行（後方互換）
-    legacy_rows: list[str] = []
-    in_green = False
-    for line in text.splitlines():
-        if line.startswith("## 🟢"):
-            in_green = True
-            continue
-        if in_green and line.startswith("## "):
-            break
-        if in_green and line.startswith("| ") and not line.startswith("| タスク") and not line.startswith("|-"):
-            legacy_rows.append(line)
-
-    return new_format_rows if new_format_rows else legacy_rows
+    # 新形式で該当なし → 旧形式にフォールバック（後方互換）
+    return _collect_legacy_green(text)
 
 
 def _is_table_row(line: str) -> bool:
@@ -137,18 +128,39 @@ def _is_header_row(line: str) -> bool:
     ))
 
 
+def _collect_legacy_green(text: str) -> list[str]:
+    """旧形式 "## 🟢" セクションのテーブル行を抽出（後方互換）。
+
+    2026-07-02 単一表化前のアクティブセッション定義。
+    新形式で該当が無い場合のみフォールバック実行。
+    """
+    rows: list[str] = []
+    in_green = False
+    for line in text.splitlines():
+        if line.startswith("## 🟢"):
+            in_green = True
+            continue
+        if in_green and line.startswith("## "):
+            break
+        if in_green and _is_table_row(line) and not _is_header_row(line):
+            rows.append(line)
+    return rows
+
+
 def _collect_single_table_green(text: str) -> list[str]:
     """単一表形式の active-sessions.md から 🟢 行を抽出。
 
-    "## セッション状態" セクション内のテーブルから、状態列が 🟢 の行を返す。
-    戻り値: 状態列を強調した行（"| ... | 🟢（進行中）|"）
+    "## セッション状態" セクション内のテーブルから、「状態」列の値が 🟢 の行を返す。
+    列インデックスはヘッダー行から動的に取得（列順変更耐性・Geminiレビュー指摘反映）。
     """
     rows: list[str] = []
     in_section = False
+    status_col_index = -1
     for line in text.splitlines():
         # セッション状態セクションの検出
         if line.startswith("## セッション状態"):
             in_section = True
+            status_col_index = -1
             continue
         # 別セクションで終了
         if in_section and line.startswith("## ") and not line.startswith("## セッション状態"):
@@ -156,15 +168,21 @@ def _collect_single_table_green(text: str) -> list[str]:
             continue
         if not in_section:
             continue
+        # ヘッダー行: 「状態」列のインデックスを動的に特定
+        if _is_header_row(line):
+            header_cells = [c.strip() for c in line.split("|") if c.strip()]
+            if "状態" in header_cells:
+                status_col_index = header_cells.index("状態")
+            continue
         # テーブル行の判定（ヘッダー・区切り行は除外）
         if not _is_table_row(line):
             continue
-        if _is_header_row(line):
+        # 状態列が特定できていない場合はスキップ
+        if status_col_index == -1:
             continue
-        # 状態列（末尾セル）が 🟢 か判定
-        # split("|") 結果は前後が空文字列になるため、非空末尾を採用
+        # 状態列の値が 🟢 か判定
         cells = [c.strip() for c in line.split("|") if c.strip()]
-        if cells and cells[-1] == "🟢":
+        if len(cells) > status_col_index and cells[status_col_index] == "🟢":
             rows.append(line)
     return rows
 
