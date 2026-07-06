@@ -865,7 +865,14 @@ git push
 
 ```bash
 mkdir -p ~/.claude/state
-echo "$(date +%Y-%m-%dT%H:%M:%S) <filename_hint>" >> ~/.claude/state/ssot-record-session-count.txt
+# カウンタファイル名決定（セッションID分離・未設定時フォールバック・2026-07-06 改修）
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$SESSION_ID" ]; then
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count-${SESSION_ID}.txt"
+else
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count.txt"
+fi
+echo "$(date +%Y-%m-%dT%H:%M:%S) <filename_hint>" >> "$COUNTER_FILE"
 ```
 
 ### フラグ解除（必須・記録完了直後に必ず実行）
@@ -907,7 +914,14 @@ rm -f /tmp/ssot-record-active
 ### 発火判定
 
 ```bash
-wc -l < ~/.claude/state/ssot-record-session-count.txt 2>/dev/null || echo 0
+# カウンタファイル名決定（セッションID分離・未設定時フォールバック・2026-07-06 改修）
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$SESSION_ID" ]; then
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count-${SESSION_ID}.txt"
+else
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count.txt"
+fi
+wc -l < "$COUNTER_FILE" 2>/dev/null || echo 0
 ```
 
 - **行数が2以上**: 以降のStep 1〜4を実行する
@@ -918,7 +932,14 @@ wc -l < ~/.claude/state/ssot-record-session-count.txt 2>/dev/null || echo 0
 ### Step 1: カウンタファイルの内容を確認
 
 ```bash
-cat ~/.claude/state/ssot-record-session-count.txt
+# カウンタファイル名決定（セッションID分離・未設定時フォールバック・2026-07-06 改修）
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$SESSION_ID" ]; then
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count-${SESSION_ID}.txt"
+else
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count.txt"
+fi
+cat "$COUNTER_FILE"
 ```
 
 各行の `filename_hint` から、今セッションで記録した各 `01_DECISIONS` ファイルを特定する（該当日の `01_DECISIONS/<project>/YYYY-MM-DD_<filename_hint相当>.md` をlsで確認、または会話文脈と突き合わせる）。
