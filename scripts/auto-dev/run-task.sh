@@ -28,6 +28,46 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] === run-task: '$TITLE' repo=$REPO issue=$IS
 
 cd "$REPO" || { echo "repo不在: $REPO" >> "$LOG"; echo "NG" > "$VERIFY"; echo "repo不存在" >> "$VERIFY"; exit 1; }
 
+# ====== auto-loop 拡張（Phase 0/1 追加） ======
+# task_id 決定: ISSUE があれば issue-<番号>、無ければ run-task-<UNIX秒>
+TASK_ID="${ISSUE:+issue-$ISSUE}"
+TASK_ID="${TASK_ID:-run-task-$(date +%s)}"
+TASK_DIR="$REPO/.auto-loop/$TASK_ID"
+mkdir -p "$TASK_DIR/logs"
+export PYTHONPATH="/home/yn4416/.claude/scripts/auto-dev:${PYTHONPATH:-}"
+
+# Phase 0: 目的抽出（PROMPT → objective.txt + KPI JSON）
+echo "[$(date '+%F %T')] Phase 0: 目的抽出 task_id=$TASK_ID" >> "$LOG"
+PROMPT_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$PROMPT")
+OBJECTIVE=$(python3 -c "
+import sys, json
+sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+from objective_extractor import extract_objective
+print(extract_objective(json.loads(sys.argv[1])))
+" "$PROMPT_PY")
+KPI_JSON=$(python3 -c "
+import sys, json
+sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+from objective_extractor import parse_kpi
+k = parse_kpi(json.loads(sys.argv[1]))
+print(json.dumps(k, ensure_ascii=False) if k else '')
+" "$PROMPT_PY")
+echo "$OBJECTIVE" > "$TASK_DIR/objective.txt"
+echo "[$(date '+%F %T')] objective=${OBJECTIVE:0:80} kpi=${KPI_JSON:-なし}" >> "$LOG"
+
+# Phase 1: 計画立案（claude --print で plan.md を生成）
+echo "[$(date '+%F %T')] Phase 1: 計画立案" >> "$LOG"
+PLAN_PROMPT="タスク: $OBJECTIVE
+KPI: ${KPI_JSON:-なし}
+
+実装計画を立てよ。'# 計画' で始めて 3-5 セクション（概要・実装手順・テスト方針・想定リスク等）で簡潔に出力せよ。"
+PLAN_PROMPT_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$PLAN_PROMPT")
+"$CLAUDE" --print "$PLAN_PROMPT" > "$TASK_DIR/plan.md" 2>"$TASK_DIR/logs/plan.stderr.log"
+echo "[$(date '+%F %T')] plan saved ($(wc -l < "$TASK_DIR/plan.md" 2>/dev/null || echo 0)行)" >> "$LOG"
+
+# Phase 2/5: スキップ（v1 は LLM 呼出なし・将来タスク）
+echo "Phase 2/5 スキップ (v1)" > "$TASK_DIR/logs/review_skipped.txt"
+
 # run-task 実行中フラグ（実装/検証 claude の Stop hook 発火を next_issue.py で無視させる）
 python3 -c "import json; s=json.load(open('$STATE')); s['running']=True; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
 
@@ -73,6 +113,50 @@ VERIFY_RC=$?
 
 HEAD=$(head -1 "$VERIFY" | tr '[:lower:]' '[:upper:]')
 echo "[$(date '+%F %T')] 検証結果 rc=$VERIFY_RC head=$HEAD" >> "$LOG"
+
+# ====== auto-loop 拡張（Phase 6/7 追加） ======
+# Phase 6: ズレ検知（verify-result.txt → drift-result.json）
+echo "[$(date '+%F %T')] Phase 6: ズレ検知" >> "$LOG"
+REVIEW_SUMMARY=$(head -c 2000 "$VERIFY" 2>/dev/null || echo "検証結果なし")
+REVIEW_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$REVIEW_SUMMARY")
+OBJECTIVE_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(open(sys.argv[1]).read().strip()))" "$TASK_DIR/objective.txt")
+KPI_ESCAPED="$KPI_JSON"
+DRIFT_RESULT=$(python3 -c "
+import sys, json
+sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+from drift_detector import detect_drift
+review = json.loads(sys.argv[1])
+objective = json.loads(sys.argv[2])
+kpi = json.loads(sys.argv[3]) if sys.argv[3] else None
+r = detect_drift(review, objective, kpi)
+print(json.dumps({'drifted': r.drifted, 'reason': r.reason, 'kpi_value': r.kpi_value}, ensure_ascii=False))
+" "$REVIEW_PY" "$OBJECTIVE_PY" "$KPI_ESCAPED")
+echo "$DRIFT_RESULT" > "$TASK_DIR/drift-result.json"
+echo "[$(date '+%F %T')] drift: $DRIFT_RESULT" >> "$LOG"
+
+# Phase 7: task-log.md 生成（task_logger.write_task_log）
+echo "[$(date '+%F %T')] Phase 7: 記録" >> "$LOG"
+PLAN_SUMMARY=$(head -c 1000 "$TASK_DIR/plan.md" 2>/dev/null || echo "plan未生成")
+PLAN_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$PLAN_SUMMARY")
+VERDICT="SUCCESS"
+[[ "$HEAD" == OK* ]] || VERDICT="FAILURE"
+python3 -c "
+import sys, json
+from pathlib import Path
+sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+from task_logger import write_task_log
+write_task_log(
+    task_id=sys.argv[1],
+    task_dir=Path(sys.argv[2]),
+    objective=open(sys.argv[3]).read().strip(),
+    kpi=json.loads(sys.argv[4]) if sys.argv[4] else None,
+    plan_summary=json.loads(sys.argv[5]),
+    review_result={'critical':[], 'high':[], 'med':[], 'low':[]},
+    drift_result=json.load(open(sys.argv[6])),
+    verdict=sys.argv[7],
+)
+" "$TASK_ID" "$TASK_DIR" "$TASK_DIR/objective.txt" "$KPI_ESCAPED" "$PLAN_PY" "$TASK_DIR/drift-result.json" "$VERDICT" >> "$LOG" 2>&1
+echo "[$(date '+%F %T')] task-log saved" >> "$LOG"
 
 if [[ "$HEAD" == OK* ]]; then
   exit 0
