@@ -26,9 +26,16 @@ user-invocable: true
 
 **セッション開始時の初期化（ssot-recordカウンタクリア）**:
 ```bash
-rm -f ~/.claude/state/ssot-record-session-count.txt
+# カウンタファイル名決定（セッションID分離・未設定時フォールバック）
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$SESSION_ID" ]; then
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count-${SESSION_ID}.txt"
+else
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count.txt"
+fi
+rm -f "$COUNTER_FILE"
 ```
-> **不変条件**: このファイルの行数は、同一セッション内のssot-record呼び出し回数と一致しなければならない。new-session（終了時）と本ステップ（開始時）の両方でクリアすることで、異常終了でnew-sessionが未実行だった場合の残存や、WSL CLI版・Windows Desktop版が同一実ファイルを共有していることによる記録混線を防ぐ（二重防御）。
+> **不変条件**: セッションのカウンタファイルの行数は、同一セッション内のssot-record呼び出し回数と一致しなければならない。new-session（終了時）と本ステップ（開始時）の両方でクリアすることで、異常終了でnew-sessionが未実行だった場合の残存を防ぐ（二重防御）。**2026-07-06 改修**: カウンタはセッションID別ファイル（`ssot-record-session-count-${CLAUDE_CODE_SESSION_ID}.txt`）に分離し、並行セッション汚染を構造的に防止。未設定時は旧単一ファイル名にフォールバック（spec: 2026-07-06-ssot-record-counter-session-scoped.md）。
 
 ```bash
 ls -t ~/projects/obsidian-ssot/00_SYSTEM/handoff/*.md 2>/dev/null | head -5

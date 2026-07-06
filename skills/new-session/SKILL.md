@@ -217,14 +217,22 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 
 ## Step 6: ssot-recordセッションカウンタのクリア 🟡[GLM]
 
-> **不変条件**: `~/.claude/state/ssot-record-session-count.txt` の行数は、同一セッション内のssot-record呼び出し回数と一致しなければならない。session開始（resume-session）およびsession終了（本ステップ）の両方で必ずクリアされる（二重防御）。
+> **不変条件**: セッションのカウンタファイルの行数は、同一セッション内のssot-record呼び出し回数と一致しなければならない。session開始（resume-session）およびsession終了（本ステップ）の両方で必ずクリアされる（二重防御）。**2026-07-06 改修**: カウンタはセッションID別ファイル（`ssot-record-session-count-${CLAUDE_CODE_SESSION_ID}.txt`）に分離し、並行セッション汚染を構造的に防止。未設定時は旧単一ファイル名にフォールバック（spec: 2026-07-06-ssot-record-counter-session-scoped.md）。
 
 ```bash
-rm -f ~/.claude/state/ssot-record-session-count.txt
+# カウンタファイル名決定（セッションID分離・未設定時フォールバック）
+SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$SESSION_ID" ]; then
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count-${SESSION_ID}.txt"
+else
+  COUNTER_FILE="$HOME/.claude/state/ssot-record-session-count.txt"
+fi
+rm -f "$COUNTER_FILE"
 ```
 
 - このファイルはssot-recordフェーズ7.5（セッション横断総括）の発火判定に使う外部カウンタ。クリアせず放置すると無期限に行数が増え続け、「同一セッション内で2回以上」という判定が壊れる
-- WSL CLI版・Windows Desktop版が同一の実ファイルを共有しているため、本ステップに加えresume-session側でもクリアすることで、異常終了（new-session未実行のままセッション終了）時の残存や、両環境の並行セッションによる記録混線を実質的に防ぐ
+- 2026-07-06 改修前は単一ファイルをWSL CLI版・Windows Desktop版で共有していたため、真の並行セッションで他セッションの記録が混入する汚染が発生。セッションID別ファイル化で物理分離し根本解決（CLAUDE_CODE_SESSION_ID は両環境で安定取得確認済・未設定時フォールバックで後方互換）
+- 本ステップに加えresume-session側（開始時）でもクリアすることで、異常終了（new-session未実行のままセッション終了）時の残存を防止（二重防御）
 - `rm -f` のため、ファイルが存在しなくてもエラーにならない
 
 ---
