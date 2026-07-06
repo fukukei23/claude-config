@@ -39,10 +39,11 @@ fi
 
 cd "$REPO" || { echo "repo不在: $REPO" >> "$LOG"; echo "NG" > "$VERIFY"; echo "repo不存在" >> "$VERIFY"; exit 1; }
 
-# current.started=True 設定（next_issue.py の事前消化ガードを解除・2026-07-07）
-# これ以降、並行 Stop hook の next_issue.py は current を消化できる（run-task.sh 起動済みのため）
-python3 -c "import json; s=json.load(open('$STATE')); c=s.get('current') or {}; c['started']=True; s['current']=c; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
-echo "[$(date '+%F %T')] current.started=True（事前消化ガード解除）" >> "$LOG"
+# current.started=True + running=True 設定（next_issue.py の事前消化・Phase0/1中の誤消化を防止・2026-07-07）
+# running=True で Phase0/1(計画立案)中の Stop hook 発火から current を完全ガード
+# （started=True 単独だと検証前の verify-result.txt 空→blocked 誤判定されるため）
+python3 -c "import json; s=json.load(open('$STATE')); c=s.get('current') or {}; c['started']=True; s['current']=c; s['running']=True; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+echo "[$(date '+%F %T')] current.started=True・running=True（事前消化ガード）" >> "$LOG"
 
 # ====== auto-loop 拡張（Phase 0/1 追加） ======
 # task_id 決定: ISSUE があれば issue-<番号>、無ければ run-task-<UNIX秒>
