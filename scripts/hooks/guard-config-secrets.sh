@@ -43,18 +43,24 @@ for e in ti.get("edits", []):
         parts.append(e["new_string"])
 content = "\n".join(parts)
 
-# シークレット系キー名に ${ENV} 参照以外の実値がないか
-# - ${...} で始まる値は許可（ENV参照）
-# - 空文字は許可（[^"]+ で1文字以上必要）
-# - それ以外の実値はブロック
+# シークレット系キーの値を検査
+# - 値が空は許可（未設定）
+# - 値が ${ENV_VAR} 完全一致のみ許可（ENV参照）
+# - ${ENV}sk-abc 等の部分混入・生値はブロック
 pat = re.compile(
-    r"\"[A-Za-z0-9_]*(?:api[_-]?key|[_-]?token|secret|password)[A-Za-z0-9_]*\"\s*:\s*\"(?!\$\{)[^\"]+\"",
+    r"\"([A-Za-z0-9_]*(?:api[_-]?key|[_-]?token|secret|password)[A-Za-z0-9_]*)\"\s*:\s*\"([^\"]*)\"",
     re.IGNORECASE,
 )
-if pat.search(content):
+blocked = None
+for m in pat.finditer(content):
+    val = m.group(2)
+    if val and not re.fullmatch(r"\$\{[^}]+\}", val):
+        blocked = m
+        break
+if blocked:
     print(json.dumps({
         "decision": "block",
-        "reason": "設定ファイルコピーへの生値シークレット混入を検出（監査⑩根本対策・guard-config-secrets.sh）。シークレット系キーに ${ENV} 参照以外の実値が含まれます。値を ${ENV_VAR} 形式にsanitizeしてください。"
+        "reason": f"設定ファイルコピーへの生値シークレット混入を検出（監査⑩根本対策・guard-config-secrets.sh）。キー「{blocked.group(1)}」の値が ${{ENV}} 参照ではありません。値を ${{ENV_VAR}} 形式にsanitizeしてください。"
     }, ensure_ascii=False), file=sys.stderr)
     sys.exit(2)
 
