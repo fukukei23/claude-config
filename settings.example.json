@@ -214,6 +214,10 @@
           {
             "type": "command",
             "command": "~/.claude/scripts/hooks/enforce-ssot-record.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/guard-config-secrets.sh"
           }
         ]
       }
