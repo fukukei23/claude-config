@@ -229,6 +229,14 @@ def main() -> None:
         _launch_current(state["current"])
         return
 
+    # current が run-task.sh によって開始済みか（事前消化防止・2026-07-07）
+    # run-task.sh 起動前の並行 Stop hook で古い verify-result.txt が読まれ
+    # current が事前消化されるのを防ぐ。run-task.sh が起動時に started=True を設定。
+    cur = state.get("current")
+    if cur is not None and not cur.get("started"):
+        log(f"[{project}] current 未開始(started=False)・消化スキップ")
+        return
+
     # 検証結果で遷移
     verify_ok = read_verify_result(VERIFY_RESULT)
     # session_task_count インクリメント（auto モードの完了カウント）

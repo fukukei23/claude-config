@@ -143,3 +143,77 @@ def test_max未到達():
         "active": True,
     }
     assert next_issue.reached_max(state) is False
+
+
+def test_main_does_not_digest_unstarted_current(tmp_path, monkeypatch):
+    """current.started=False（run-task.sh 未起動）なら current を消化しない。
+
+    並行セッションの Stop hook が next_issue.py を発火した際、run-task.sh 起動前の
+    current が古い verify-result.txt で事前消化されるのを防ぐ（2026-07-07 バグ対策）。
+    run-task.sh が起動して started=True を設定して初めて消化される。
+    """
+    import json
+    import next_issue
+
+    state_file = tmp_path / "state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "active": True,
+                "running": False,
+                "current": {"title": "x", "prompt": "p", "repo": "/r", "started": False},
+                "pending": [],
+                "completed": [],
+                "blocked": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    # verify-result.txt に古い OK が残存していても消化させない
+    verify_file = tmp_path / "verify-result.txt"
+    verify_file.write_text("OK\n", encoding="utf-8")
+    monkeypatch.setattr(next_issue, "STATE", state_file)
+    monkeypatch.setattr(next_issue, "VERIFY_RESULT", verify_file)
+
+    next_issue.main()
+
+    after = json.loads(state_file.read_text(encoding="utf-8"))
+    assert after["current"] is not None, "未開始 current が事前消化された"
+    assert after["current"]["title"] == "x"
+    assert after["completed"] == [], "未開始 current が completed に誤移動した"
+
+
+def test_main_digests_started_current(tmp_path, monkeypatch):
+    """current.started=True（run-task.sh 起動済み）なら通常通り消化する（後方互換・正常系）。"""
+    import json
+    import next_issue
+
+    state_file = tmp_path / "state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "active": True,
+                "running": False,
+                "current": {
+                    "title": "x",
+                    "prompt": "p",
+                    "repo": "/r",
+                    "started": True,
+                },
+                "pending": [],
+                "completed": [],
+                "blocked": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    verify_file = tmp_path / "verify-result.txt"
+    verify_file.write_text("OK\n", encoding="utf-8")
+    monkeypatch.setattr(next_issue, "STATE", state_file)
+    monkeypatch.setattr(next_issue, "VERIFY_RESULT", verify_file)
+
+    next_issue.main()
+
+    after = json.loads(state_file.read_text(encoding="utf-8"))
+    assert after["current"] is None, "開始済み current が消化されなかった"
+    assert after["completed"] == [{"title": "x", "repo": "/r"}]

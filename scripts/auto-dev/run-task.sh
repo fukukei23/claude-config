@@ -26,7 +26,23 @@ ISSUE=$(echo "$CURRENT_JSON" | sed -n '3p')
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === run-task: '$TITLE' repo=$REPO issue=$ISSUE ===" >> "$LOG"
 
+# current なし（next_issue.py 事前消化等）なら即中止（HOME repo 誤動作防止・2026-07-07）
+# current がないと REPO が /home/yn4416 フォールバックになり、実装claude が別 repo で
+# コミットしても HEAD 不変で「実装空振り」誤判定する連鎖バグを根源で防止
+CURRENT_EXISTS=$(python3 -c "import json; s=json.load(open('$STATE')); print('yes' if s.get('current') else 'no')")
+if [ "$CURRENT_EXISTS" = "no" ]; then
+  echo "[$(date '+%F %T')] [ERROR] current なし・run-task.sh 中止（next_issue.py 事前消化の疑い）" >> "$LOG"
+  echo "NG" > "$VERIFY"
+  echo "current 不在・起動中止（REPO フォールバックによる誤動作防止）" >> "$VERIFY"
+  exit 1
+fi
+
 cd "$REPO" || { echo "repo不在: $REPO" >> "$LOG"; echo "NG" > "$VERIFY"; echo "repo不存在" >> "$VERIFY"; exit 1; }
+
+# current.started=True 設定（next_issue.py の事前消化ガードを解除・2026-07-07）
+# これ以降、並行 Stop hook の next_issue.py は current を消化できる（run-task.sh 起動済みのため）
+python3 -c "import json; s=json.load(open('$STATE')); c=s.get('current') or {}; c['started']=True; s['current']=c; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+echo "[$(date '+%F %T')] current.started=True（事前消化ガード解除）" >> "$LOG"
 
 # ====== auto-loop 拡張（Phase 0/1 追加） ======
 # task_id 決定: ISSUE があれば issue-<番号>、無ければ run-task-<UNIX秒>
