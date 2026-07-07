@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from daily_triage import (
     collect_backlog,
+    collect_wants,
     collect_active_green,
     collect_handoff_latest,
     build_context,
@@ -28,6 +29,8 @@ def test_collect_backlog_p0_p1_only():
     assert "P2タスク" not in joined
     # 完了済みセクションは除外
     assert "完了タスク" not in joined
+    # 要望(Why)層は P0 の前にあるが collect_backlog には影響しない（W1行が混入しない）
+    assert "テスト要望" not in joined
     # "[ ]" マーカーは取り除かれる（タスク本文のみ）
     assert all(not t.startswith("[ ]") for t in result)
 
@@ -149,6 +152,32 @@ def test_build_context_empty_inputs():
     """空入力は（なし）で埋める（クラッシュしない）。"""
     ctx = build_context(backlog=[], green=[], handoff=None)
     assert "（なし）" in ctx
+
+
+def test_collect_wants_extracts_w_section():
+    """🎯要望(Why)セクションから W1〜W4 を抽出。P0前にあっても独立動作。"""
+    result = collect_wants(FIX / "backlog.md")
+    # W1, W2 が本文付きで抽出される
+    assert any("W1" in w and "テスト要望1" in w for w in result)
+    assert any("W2" in w and "テスト要望2" in w for w in result)
+    # タスク行（- [ ]）は含まれない
+    assert not any("オールブルー" in w for w in result)
+
+
+def test_build_context_includes_wants():
+    """wants指定時は context 先頭に🎯要望セクション追加。None では出ない（後方互換）。"""
+    ctx = build_context(
+        backlog=["タスクA"],
+        green=[],
+        handoff=None,
+        wants=["- W1: テスト要望1"],
+    )
+    # 要望セクションがバックログより前にある
+    assert ctx.index("## 🎯要望") < ctx.index("## バックログ")
+    assert "テスト要望1" in ctx
+    # wants=None（デフォルト）では要望セクションが出ない
+    ctx_no_wants = build_context(backlog=["タスクA"], green=[], handoff=None)
+    assert "## 🎯要望" not in ctx_no_wants
 
 
 def test_validate_repo_returns_abs_path_when_dir_exists(tmp_path):
