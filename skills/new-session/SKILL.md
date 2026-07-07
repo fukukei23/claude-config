@@ -154,7 +154,9 @@ handoff を生成する**直前**に、以下をユーザーへ1問だけ確認�
 import os, datetime
 save_dir = '/home/yn4416/projects/obsidian-ssot/00_SYSTEM/handoff'
 os.makedirs(save_dir, exist_ok=True)
-filename = datetime.datetime.now().strftime('%Y-%m-%d_%H%M') + '.md'
+wt = os.environ.get('WT_SESSION', 'unknown')
+wt4 = wt[:4] if wt and wt != 'unknown' else 'unknown'
+filename = datetime.datetime.now().strftime('%Y-%m-%d_%H%M') + f'_{wt4}.md'
 save_path = os.path.join(save_dir, filename)
 with open(save_path, 'w') as f:
     f.write(generated_prompt)  # 生成したプロンプト内容
@@ -164,7 +166,7 @@ print(f'保存完了: {save_path}')
 出力後に一言添える:
 ```
 このプロンプトをコピーして新セッションの最初のメッセージに貼り付けてください。
-SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_HHMM.md
+SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_HHMM_<wt4>.md
 （ls ~/projects/obsidian-ssot/00_SYSTEM/handoff/ で履歴を確認可能）
 ```
 
