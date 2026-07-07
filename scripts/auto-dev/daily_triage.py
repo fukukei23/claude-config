@@ -86,6 +86,27 @@ def collect_backlog(path: Path, today: date | None = None) -> list[str]:
     return tasks
 
 
+def collect_wants(path: Path) -> list[str]:
+    """バックログ.mdの🎯要望(Why)セクションから W1〜W4 を抽出。
+
+    セクション検出は collect_backlog と同じ行頭パターン方式。要望行(^- W[0-9]:)を
+    本文付きで返す。LLM contextでタスク選択の軸として使用（行末の←Wx逆参照と照合）。
+    """
+    if not path.exists():
+        return []
+    wants: list[str] = []
+    in_section = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## 🎯 要望"):
+            in_section = True
+            continue
+        if in_section and line.startswith("## "):
+            break
+        if in_section and re.match(r"^- W[0-9]:", line):
+            wants.append(line)
+    return wants
+
+
 def collect_active_green(path: Path) -> list[str]:
     """active-sessions.md の 🟢進行中タスク表の行を抽出。
 
@@ -246,18 +267,24 @@ def collect_issues() -> list[str]:
     return [f"{t['title']}（repo: {Path(t['repo']).name}・Issue #{t['issue']}）" for t in tasks]
 
 
-def build_context(backlog: list[str], green: list[str], handoff: str | None) -> str:
+def build_context(backlog: list[str], green: list[str], handoff: str | None, wants: list[str] | None = None) -> str:
     """収集データを Claude判定用プロンプトに組み立てる。
 
     Args:
         backlog: collect_backlog() の結果
         green: collect_active_green() の結果
         handoff: collect_handoff_latest() の結果（None 可）
+        wants: collect_wants() の結果（None 可・🎯要望層・タスク選択の軸）
 
     Returns:
-        3セクション（バックログ/🟢進行中/handoff）のテキスト
+        セクション（要望/バックログ/🟢進行中/handoff）のテキスト
     """
-    lines: list[str] = ["## バックログ（P0/P1未完了）"]
+    lines: list[str] = []
+    if wants:
+        lines.append("## 🎯要望（Why）— タスク選択の軸")
+        lines.extend(wants)
+        lines.append("")
+    lines.append("## バックログ（P0/P1未完了）")
     if backlog:
         lines.extend(f"- {t}" for t in backlog)
     else:
@@ -319,6 +346,7 @@ JUDGE_PROMPT = """あなたは Daily Triage エージェント。以下の収集
 - 緊急度・依存関係・コスト・リスクを総合的に判定
 - 🟢進行中タスクは他セッションが対応中なら候補から除外
 - バックログP0を最優先。handoffの「次のタスク」を次点
+- タスク行末の ←W1 等の逆参照と上記🎯要望(W1〜W4)を照合し、動機に合致するタスク・複数の要望に効くタスクを優先
 - 公務員で日中作業不可→夜1セッションで完結する粒度を優先
 - 各タスクの対象リポジトリを repo_list から選び (repo: <name>) で付与
 - コード作業でない（応募・学習・手動運用・リポジトリ外）は (手動) を付与
@@ -411,8 +439,9 @@ def main() -> int:
     backlog = collect_backlog(SSOT / "00_SYSTEM" / "バックログ.md")
     green = collect_active_green(SSOT / "00_SYSTEM" / "active-sessions.md")
     handoff = collect_handoff_latest(SSOT / "00_SYSTEM" / "handoff")
+    wants = collect_wants(SSOT / "00_SYSTEM" / "バックログ.md")
     repo_list = collect_repo_names(SSOT / "00_SYSTEM" / "repo-index.yaml")
-    context = build_context(backlog, green, handoff)
+    context = build_context(backlog, green, handoff, wants)
     issues = collect_issues()
     if issues:
         context = context + "\n\n## OSS Issue 候補（auto-loop ラベル）\n" + "\n".join(f"- {i}" for i in issues)
