@@ -268,6 +268,10 @@
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/git/check-claude-config-sync.sh"
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-proxy-compat.sh"
           }
         ]
       },
