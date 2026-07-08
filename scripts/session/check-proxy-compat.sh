@@ -7,7 +7,7 @@ set -uo pipefail
 
 STATE_FILE="/home/yn4416/.claude/state/proxy-compat.json"
 SETTINGS="/home/yn4416/.claude/settings.json"
-BASE_URL="http://127.0.0.1:8787"
+BASE_URL="${BASE_URL:-http://127.0.0.1:8787}"
 MODEL="glm-4.5-air"
 TIMEOUT_CONNECT=2
 TIMEOUT_MAX=5
