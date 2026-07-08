@@ -5,6 +5,7 @@
 # Phase1: settings.json未登録・手動 `bash check-proxy-compat.sh` で検証
 set -uo pipefail
 
+# 絶対パス固定（CLAUDE.md指示: $HOMEがWindows側に解決されるCron対策・本環境1ユーザー固定）
 STATE_FILE="/home/yn4416/.claude/state/proxy-compat.json"
 SETTINGS="/home/yn4416/.claude/settings.json"
 BASE_URL="${BASE_URL:-http://127.0.0.1:8787}"
@@ -33,13 +34,15 @@ except Exception:
 write_state() {
   WS_CC="$1" WS_STATUS="$2" WS_DETAIL="$3" WS_LAST_OK="$4" \
   STATE_FILE="$STATE_FILE" python3 -c "
-import json,datetime,os
+import json,datetime,os,tempfile
 d={'cc_version':os.environ['WS_CC'],'status':os.environ['WS_STATUS'],
    'checked_at':datetime.datetime.now().isoformat(timespec='seconds'),
    'detail':os.environ['WS_DETAIL'],'last_ok_version':os.environ['WS_LAST_OK']}
-tmp=os.environ['STATE_FILE']+'.tmp.'+str(os.getpid())
-json.dump(d,open(tmp,'w'),ensure_ascii=False,indent=2)
-os.replace(tmp,os.environ['STATE_FILE'])
+sf=os.environ['STATE_FILE']
+os.makedirs(os.path.dirname(sf),exist_ok=True)
+tf=tempfile.NamedTemporaryFile('w',dir=os.path.dirname(sf),delete=False,encoding='utf-8')
+json.dump(d,tf,ensure_ascii=False,indent=2);tf.close()
+os.replace(tf.name,sf)
 " 2>/dev/null
 }
 
@@ -51,7 +54,13 @@ banner() {
 # --- メイン ---
 
 # 1. 現在版取得（SemVer抽出・失敗時は静かにexit）
-CURRENT=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+# 0. 依存コマンド事前チェック（不在→静かにskip・推奨A反映）
+for cmd in claude python3 curl systemctl; do
+  command -v "$cmd" >/dev/null 2>&1 || exit 0
+done
+
+# 1. 現在版取得（SemVer抽出・pipefail対策で || true・推奨D反映）
+CURRENT=$(claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
 if [ -z "$CURRENT" ]; then exit 0; fi
 
 # 2-3. state読込・検証要否判定（同版かつ前回ok→省略・#1反映: 非okなら再検証）
@@ -78,16 +87,17 @@ if [ -z "$TOKEN" ]; then
   exit 0
 fi
 
-# 6. 検証実行（curl tool use付き・timeout必須・#2反映）
-RESP=$(curl -s -w '\n%{http_code}' --connect-timeout "$TIMEOUT_CONNECT" --max-time "$TIMEOUT_MAX" \
-  -X POST "$BASE_URL/v1/messages" \
-  -H "x-api-key: $TOKEN" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "content-type: application/json" \
-  -d "{\"model\":\"$MODEL\",\"max_tokens\":64,\"tools\":[{\"name\":\"probe\",\"description\":\"compat check\",\"input_schema\":{\"type\":\"object\",\"properties\":{}}}],\"messages\":[{\"role\":\"user\",\"content\":\"Call the probe tool\"}]}" 2>/dev/null) || RESP=$'\n000'
-
-CODE=$(echo "$RESP" | tail -1)
-BODY=$(echo "$RESP" | sed '$d')
+# 6. 検証実行（curl二段化・tokenはstdin経由で漏洩防止・#必須1/#必須4反映）
+BODY_FILE=$(mktemp) || { exit 0; }
+PAYLOAD=$(printf '{"model":"%s","max_tokens":64,"tools":[{"name":"probe","description":"compat check","input_schema":{"type":"object","properties":{}}}],"messages":[{"role":"user","content":"Call the probe tool"}]}' "$MODEL")
+CODE=$(printf 'x-api-key: %s\nanthropic-version: 2023-06-01\ncontent-type: application/json\n' "$TOKEN" \
+  | curl -s --connect-timeout "$TIMEOUT_CONNECT" --max-time "$TIMEOUT_MAX" \
+    -X POST "$BASE_URL/v1/messages" \
+    --header @- \
+    -d "$PAYLOAD" \
+    -o "$BODY_FILE" -w '%{http_code}' 2>/dev/null) || CODE="000"
+BODY=$(cat "$BODY_FILE" 2>/dev/null)
+rm -f "$BODY_FILE"
 DOWNGRADE="npm install -g @anthropic-ai/claude-code@${STATE_LAST_OK:-<1つ前の版>}"
 
 # 7-8. 判定・state更新・警告
