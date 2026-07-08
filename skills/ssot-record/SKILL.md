@@ -458,11 +458,13 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 
 ## フェーズ3: ファイル作成・更新
 
-> **先頭作業（必須）**: 本フェーズ開始時に `/tmp/ssot-record-active` フラグを作成すること。PreToolUse hook(`enforce-ssot-record.sh`)がこのフラグで「スキル経由」を判定し `01_DECISIONS/` Write を許可する。フラグなしだと手動Write扱いでブロックされる。
+> **先頭作業（必須）**: 本フェーズ開始時にフラグを作成すること。PreToolUse hook(`enforce-ssot-record.sh`)がこのフラグで「スキル経由」を判定し `01_DECISIONS/` Write を許可する。フラグなしだと手動Write扱いでブロックされる。
 > ```bash
-> touch /tmp/ssot-record-active
+> mkdir -p ~/.claude/state
+> touch ~/.claude/state/ssot-record-active-${CLAUDE_CODE_SESSION_ID}
 > ```
-> ※ フェーズ6完了後（または異常終了時）に必ず `rm -f /tmp/ssot-record-active` で削除（残存すると手動Writeも通ってしまう）。
+> ※ 2026-07-08 改修: フラグは `~/.claude/state/`（永続領域・**セッションID別**）に作成。旧 `/tmp/ssot-record-active` は sandbox で Bash 呼出間に消滅し機能不全だった。セッションID分離で並行セッションの誤許可（他セッションのフラグで通る）も防止。SESSION_ID 未取得時は hook 側が glob フォールバックで許可。
+> ※ フェーズ6完了後（または異常終了時）に必ず削除（残存すると手動Writeも通ってしまう）。
 
 ### 3-1. メイン記録ファイルの作成
 

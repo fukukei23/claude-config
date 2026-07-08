@@ -3,13 +3,20 @@
 #
 # 仕組み:
 # - PreToolUse hook で Write/Edit/MultiEdit ツールの file_path を検査
-# - file_path が 01_DECISIONS/ を含み・/tmp/ssot-record-active フラグがない → exit 2（ブロック）
-# - /tmp/ssot-record-active は ssot-record スキルが開始時に作成・終了時に削除
-# - これにより「スキル経由のみ通る＝手動Writeでの連携更新抜け漏れを構造的根絶」
+# - file_path が 01_DECISIONS/ を含み・フラグがない → exit 2（ブロック）
+# - フラグ = ~/.claude/state/ssot-record-active-${CLAUDE_CODE_SESSION_ID}
+#   （ssot-record スキルが開始時に作成・終了時に削除）
+# - セッションID分離で並行セッションの誤許可を防止（他セッションのフラグで通らない）
 #
 # 2026-07-03 問題対策: 手動Writeで01_DECISIONS作成→_INDEX/frontmatter/自動化.mdの連携更新漏れ
+# 2026-07-08 改修: /tmp(一時領域・sandbox で Bash 呼出間に消滅し機能不全) →
+#                  ~/.claude/state/(永続領域) + セッションID分離。
+#                  SESSION_ID 未取得時は glob フォールバック（いずれかのフラグ存在で許可・案1相当）。
 
 set -euo pipefail
+
+STATE_DIR="$HOME/.claude/state"
+SID="${CLAUDE_CODE_SESSION_ID:-}"
 
 # stdin から tool_input を読込
 INPUT=$(cat)
@@ -25,11 +32,22 @@ except Exception:
     print('')
 " 2>/dev/null || echo "")
 
+# フラグ判定（スキル経由か）
+is_skill_active() {
+    if [ -n "$SID" ]; then
+        # セッションID別フラグ（自分のセッションのみ参照・並行セッション隔離）
+        test -f "$STATE_DIR/ssot-record-active-$SID"
+    else
+        # SESSION_ID未取得時フォールバック: いずれかのフラグ存在で許可（案1相当）
+        compgen -G "$STATE_DIR/ssot-record-active-*" >/dev/null 2>&1
+    fi
+}
+
 # 01_DECISIONS 配下でなければ許可
 case "$FILE_PATH" in
     *01_DECISIONS/*)
         # 01_DECISIONS 配下・フラグ確認
-        if [ -f /tmp/ssot-record-active ]; then
+        if is_skill_active; then
             # スキル経由（フラグあり）→ 許可
             exit 0
         else
@@ -37,7 +55,7 @@ case "$FILE_PATH" in
             cat <<'EOF' >&2
 {
   "decision": "block",
-  "reason": "01_DECISIONS/ への直接 Write/Edit は禁止です。ssot-record スキル経由のみ許可（_INDEX.md/frontmatter/自動化.md の連携更新を担保するため）。\n\n対応: 'ssot-record' スキルを Skill ツールで発動してください（ユーザーが「記録して」と言わなくても自発的に）。スキルが /tmp/ssot-record-active フラグを作成し、このブロックを通過できます。"
+  "reason": "01_DECISIONS/ への直接 Write/Edit は禁止です。ssot-record スキル経由のみ許可（_INDEX.md/frontmatter/自動化.md の連携更新を担保するため）。\n\n対応: 'ssot-record' スキルを Skill ツールで発動してください（ユーザーが「記録して」と言わなくても自発的に）。スキルが ~/.claude/state/ssot-record-active フラグを作成し、このブロックを通過できます。"
 }
 EOF
             exit 2
