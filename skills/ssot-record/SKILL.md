@@ -926,7 +926,7 @@ echo "$(date +%Y-%m-%dT%H:%M:%S) <filename_hint>" >> "$COUNTER_FILE"
 
 ### フラグ解除（必須・記録完了直後に必ず実行）
 ```bash
-rm -f /tmp/ssot-record-active
+rm -f ~/.claude/state/ssot-record-active-${CLAUDE_CODE_SESSION_ID}
 ```
 **残存禁止**: フラグが残っていると、スキル外の手動Write もPreToolUse hookを通過してしまう（二重防御が機能不全）。フェーズ6完了報告の直後・または異常終了時（エラー発生時も）に必ず削除する。
 
