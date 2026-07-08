@@ -73,7 +73,7 @@ if [ "$CURRENT" = "$STATE_CC" ] && [ "$STATE_STATUS" = "ok" ]; then
 fi
 
 # 4. プロキシ稼働確認（active以外→proxy_down分離・#1 doubt）
-PROXY_STATE=$(systemctl --user is-active "$PROXY_UNIT" 2>/dev/null || echo "unknown")
+PROXY_STATE=$(systemctl --user is-active "$PROXY_UNIT" 2>/dev/null || echo "inactive")
 if [ "$PROXY_STATE" != "active" ]; then
   write_state "$CURRENT" "proxy_down" "プロキシ $PROXY_STATE" "${STATE_LAST_OK:-}" || true
   banner "プロキシ停止中($PROXY_STATE)・互換性検証スキップ. 起動: systemctl --user start $PROXY_UNIT"
@@ -87,17 +87,18 @@ if [ -z "$TOKEN" ]; then
   exit 0
 fi
 
-# 6. 検証実行（curl二段化・tokenはstdin経由で漏洩防止・#必須1/#必須4反映）
+# 6. 検証実行（curl二段化・tokenはstdin経由で漏洩防止・trapで確実クリーンアップ）
 BODY_FILE=$(mktemp) || { exit 0; }
+trap 'rm -f "$BODY_FILE"' EXIT
+: > "$BODY_FILE"
 PAYLOAD=$(printf '{"model":"%s","max_tokens":64,"tools":[{"name":"probe","description":"compat check","input_schema":{"type":"object","properties":{}}}],"messages":[{"role":"user","content":"Call the probe tool"}]}' "$MODEL")
-CODE=$(printf 'x-api-key: %s\nanthropic-version: 2023-06-01\ncontent-type: application/json\n' "$TOKEN" \
-  | curl -s --connect-timeout "$TIMEOUT_CONNECT" --max-time "$TIMEOUT_MAX" \
+HEADERS=$(printf 'x-api-key: %s\nanthropic-version: 2023-06-01\ncontent-type: application/json\n' "$TOKEN")
+CODE=$(curl -s --connect-timeout "$TIMEOUT_CONNECT" --max-time "$TIMEOUT_MAX" \
     -X POST "$BASE_URL/v1/messages" \
     --header @- \
     -d "$PAYLOAD" \
-    -o "$BODY_FILE" -w '%{http_code}' 2>/dev/null) || CODE="000"
+    -o "$BODY_FILE" -w '%{http_code}' <<< "$HEADERS" 2>/dev/null) || CODE="000"
 BODY=$(cat "$BODY_FILE" 2>/dev/null)
-rm -f "$BODY_FILE"
 DOWNGRADE="npm install -g @anthropic-ai/claude-code@${STATE_LAST_OK:-<1つ前の版>}"
 
 # 7-8. 判定・state更新・警告
