@@ -14,6 +14,8 @@ import time
 from pathlib import Path
 from typing import Callable
 
+import psutil
+
 
 def _lock_path(state_path: Path) -> Path:
     """state.json に対応する専用ロックファイルのパス。"""
@@ -120,3 +122,59 @@ def read(state_path: Path, extractor: Callable[[dict], object]) -> object:
         return extractor(state)
     finally:
         os.close(lock_fd)
+
+
+def is_stale(
+    running_pid: int | None,
+    running_create_time: int | None,
+    running_since: float | None = None,
+    max_age_sec: int = 86400,
+) -> bool:
+    """running プロセスが stale（死んだ/再利用された/期限超）か判定。
+
+    Args:
+        running_pid: 記録されたPID。
+        running_create_time: 記録されたPIDの開始時刻(int化・psutil create_time)。
+        running_since: 実行開始時刻(UNIX秒)。24h超で stale。
+        max_age_sec: running_since の上限(デフォルト86400=24h)。
+
+    Returns:
+        stale なら True。
+    """
+    # 安全弁: 24h超で問答無用 stale
+    if running_since is not None and (time.time() - running_since) > max_age_sec:
+        return True
+    if running_pid is None or running_create_time is None:
+        return True
+    try:
+        current_ctime = int(psutil.Process(running_pid).create_time())
+        return current_ctime != running_create_time  # 不一致=別プロセス再利用
+    except psutil.NoSuchProcess:
+        return True  # PID不存在=stale確定
+    except psutil.AccessDenied:
+        return False  # 権限エラー=判定不能・待機(単一ユーザー環境で稀)
+
+
+def clear_running_if_stale(state_path: Path, stale_pid: int, stale_ctime: int) -> bool:
+    """CAS: 現在の running_pid+create_time が一致する時だけクリア。
+
+    Args:
+        state_path: state.json のパス。
+        stale_pid: stale と判定したPID。
+        stale_ctime: stale と判定したcreate_time。
+
+    Returns:
+        クリアしたら True（既に新タスク起動済で何もしなければ False）。
+    """
+    cleared = {"done": False}
+
+    def _clear(s: dict) -> None:
+        if (s.get("running") and s.get("running_pid") == stale_pid
+                and s.get("running_create_time") == stale_ctime):
+            s["running"] = False
+            s["running_pid"] = None
+            s["running_create_time"] = None
+            cleared["done"] = True
+
+    update(state_path, _clear)
+    return cleared["done"]
