@@ -11,6 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 
+import state_store
 from daily_triage import validate_repo
 
 STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
@@ -177,18 +178,28 @@ def main() -> int:
     for t in excluded:
         print(f"⚠️ 自動実行対象外・人間対応: {t['title']}")
 
-    state = load_or_init_state()
-    state["pending"] = [build_task_entry(t, t["repo_path"]) for t in queueable]
-    state["active"] = True
-    state["mode"] = "manual"  # approve.py は manual entry point・auto残留防止(I1)
-    state["running"] = False
-    first_task = state["pending"].pop(0) if state["pending"] else None
-    state["current"] = first_task
-    state["completed"] = []
-    state["blocked"] = []
-    state["project"] = "multi"
-    state.pop("repo_path", None)  # top-level repo_path 廃止（多repoでは無意味）
-    STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    first_task_box = {"task": None}
+
+    def _init_state(s: dict) -> None:
+        """state を approve 用に再構築（atomic+flock 内）。"""
+        s["pending"] = [build_task_entry(t, t["repo_path"]) for t in queueable]
+        s["active"] = True
+        s["mode"] = "manual"  # approve.py は manual entry point・auto残留防止(I1)
+        s["running"] = False
+        if s["pending"]:
+            first = s["pending"].pop(0)
+            first["started"] = False  # run-task 起動前
+            s["current"] = first
+            first_task_box["task"] = first
+        else:
+            s["current"] = None
+        s["completed"] = []
+        s["blocked"] = []
+        s["project"] = "multi"
+        s.pop("repo_path", None)  # top-level repo_path 廃止（多repoでは無意味）
+
+    state_store.update(STATE, _init_state)
+    first_task = first_task_box["task"]
     print(f"✅ キュー登録: {[t['title'] for t in queueable]}")
 
     if not queueable:
