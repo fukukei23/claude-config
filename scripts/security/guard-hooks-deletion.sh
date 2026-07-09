@@ -5,7 +5,7 @@
 # 正典: obsidian-ssot/00_SYSTEM/HOOKS_SSOT.md（保護対象リストは本スクリプトと同期）
 set -uo pipefail
 
-# 保護対象: SessionStart[0] (matcher=[]) に登録された10スクリプト
+# 保護対象: SessionStart[0] (matcher=[]) に登録された11スクリプト
 # 変更時は HOOKS_SSOT.md も同時更新（二重管理・運用ルール）
 PROTECTED=(
   "load-handoff.sh"
@@ -18,6 +18,7 @@ PROTECTED=(
   "check-secrets-leak.sh"
   "check-submodule-sync.sh"
   "check-claude-config-sync.sh"
+  "check-proxy-compat.sh"
 )
 
 SETTINGS_PATH=".claude/settings.json"
