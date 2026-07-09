@@ -257,8 +257,10 @@ def _make_appender(new_tasks: list) -> callable:
 
 
 def _promote_next(s: dict) -> None:
-    """pending 先頭を current に昇格。"""
-    s["current"] = s["pending"].pop(0)
+    """pending 先頭を current に昇格（started=False・run-task起動前）。"""
+    cur = s["pending"].pop(0)
+    cur["started"] = False
+    s["current"] = cur
 
 
 def _make_advancer(verify_ok: bool) -> callable:

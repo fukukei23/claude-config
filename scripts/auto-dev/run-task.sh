@@ -3,21 +3,25 @@
 # next_issue.py から呼ばれる。state.json の current を実装→検証の2プロセスで処理。
 # 終了コード: 0=検証OK / 1=検証NG(または実装失敗)
 # ch8: 実装①と検証②は別 claude --print プロセス（別コンテキスト）。
+# state.json アクセスは全て state_store.py（atomic+flock）経由。
 set -uo pipefail
 
 TITLE="${1:-}"
 STATE="/home/yn4416/.claude/scripts/auto-dev/state.json"
 LOG="/home/yn4416/.claude/scripts/auto-dev/loop.log"
-VERIFY="/home/yn4416/.claude/scripts/auto-dev/verify-result.txt"
+VERIFY_FBACK="/home/yn4416/.claude/scripts/auto-dev/verify-result.txt"  # フォールバック(current.task_id無し時)
 CLAUDE="/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/claude"
+SS="/home/yn4416/.claude/scripts/auto-dev/state_store.py"
+SS_PYSPATH="/home/yn4416/.claude/scripts/auto-dev"
 
-# state.json の current から PROMPT/REPO/ISSUE 抽出（python3 -c の複数行printをsedで分割）
+# state.json の current から PROMPT/REPO/ISSUE 抽出（state_store.read 経由・共有ロック）
 CURRENT_JSON=$(python3 -c "
-import json
-s=json.load(open('$STATE'))
-c=s.get('current') or {}
-print(c.get('prompt','$TITLE を実装せよ'))
-print(c.get('repo','/home/yn4416'))
+import sys; sys.path.insert(0, '$SS_PYSPATH')
+import state_store
+from pathlib import Path
+c = state_store.read(Path('$STATE'), lambda s: (s.get('current') or {})) or {}
+print(c.get('prompt', '$TITLE を実装せよ'))
+print(c.get('repo', '/home/yn4416'))
 print(c.get('issue') or '')
 ")
 PROMPT=$(echo "$CURRENT_JSON" | sed -n '1p')
@@ -27,44 +31,51 @@ ISSUE=$(echo "$CURRENT_JSON" | sed -n '3p')
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === run-task: '$TITLE' repo=$REPO issue=$ISSUE ===" >> "$LOG"
 
 # current なし（next_issue.py 事前消化等）なら即中止（HOME repo 誤動作防止・2026-07-07）
-# current がないと REPO が /home/yn4416 フォールバックになり、実装claude が別 repo で
-# コミットしても HEAD 不変で「実装空振り」誤判定する連鎖バグを根源で防止
-CURRENT_EXISTS=$(python3 -c "import json; s=json.load(open('$STATE')); print('yes' if s.get('current') else 'no')")
+CURRENT_EXISTS=$(python3 -c "
+import sys; sys.path.insert(0, '$SS_PYSPATH')
+import state_store
+from pathlib import Path
+print('yes' if state_store.read(Path('$STATE'), lambda s: s.get('current')) else 'no')
+")
 if [ "$CURRENT_EXISTS" = "no" ]; then
   echo "[$(date '+%F %T')] [ERROR] current なし・run-task.sh 中止（next_issue.py 事前消化の疑い）" >> "$LOG"
-  echo "NG" > "$VERIFY"
-  echo "current 不在・起動中止（REPO フォールバックによる誤動作防止）" >> "$VERIFY"
+  echo "NG" > "$VERIFY_FBACK"
+  echo "current 不在・起動中止（REPO フォールバックによる誤動作防止）" >> "$VERIFY_FBACK"
   exit 1
 fi
 
-cd "$REPO" || { echo "repo不在: $REPO" >> "$LOG"; echo "NG" > "$VERIFY"; echo "repo不存在" >> "$VERIFY"; exit 1; }
+cd "$REPO" || { echo "repo不在: $REPO" >> "$LOG"; echo "NG" > "$VERIFY_FBACK"; echo "repo不存在" >> "$VERIFY_FBACK"; exit 1; }
 
-# current.started=True + running=True 設定（next_issue.py の事前消化・Phase0/1中の誤消化を防止・2026-07-07）
-# running=True で Phase0/1(計画立案)中の Stop hook 発火から current を完全ガード
-# （started=True 単独だと検証前の verify-result.txt 空→blocked 誤判定されるため）
-python3 -c "import json; s=json.load(open('$STATE')); c=s.get('current') or {}; c['started']=True; s['current']=c; s['running']=True; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+# current.started=True + running=True（state_store CLI・事前消化ガード・2026-07-07）
+# set-running が current.started=True と running+PID+create_time を一括設定
+python3 "$SS" set-running "$$"
 echo "[$(date '+%F %T')] current.started=True・running=True（事前消化ガード）" >> "$LOG"
 
 # ====== auto-loop 拡張（Phase 0/1 追加） ======
-# task_id 決定: ISSUE があれば issue-<番号>、無ければ run-task-<UNIX秒>
+# task_id 決定: ISSUE があれば issue-<番号>、無ければ run-task-<UNIX秒>-<PID>（衝突回避）
 TASK_ID="${ISSUE:+issue-$ISSUE}"
-TASK_ID="${TASK_ID:-run-task-$(date +%s)}"
+TASK_ID="${TASK_ID:-run-task-$(date +%s)-$$}"
 TASK_DIR="$REPO/.auto-loop/$TASK_ID"
 mkdir -p "$TASK_DIR/logs"
-export PYTHONPATH="/home/yn4416/.claude/scripts/auto-dev:${PYTHONPATH:-}"
+# 世代ガード: current.task_id を記録（verify-result を TASK_DIR に隔離）
+python3 "$SS" set-task-id "$TASK_ID"
+export PYTHONPATH="$SS_PYSPATH:${PYTHONPATH:-}"
+
+# verify-result.txt は TASK_DIR 配下（世代ガード・グローバル混入防止）
+VERIFY="$TASK_DIR/verify-result.txt"
 
 # Phase 0: 目的抽出（PROMPT → objective.txt + KPI JSON）
 echo "[$(date '+%F %T')] Phase 0: 目的抽出 task_id=$TASK_ID" >> "$LOG"
 PROMPT_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$PROMPT")
 OBJECTIVE=$(python3 -c "
 import sys, json
-sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+sys.path.insert(0, '$SS_PYSPATH')
 from objective_extractor import extract_objective
 print(extract_objective(json.loads(sys.argv[1])))
 " "$PROMPT_PY")
 KPI_JSON=$(python3 -c "
 import sys, json
-sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+sys.path.insert(0, '$SS_PYSPATH')
 from objective_extractor import parse_kpi
 k = parse_kpi(json.loads(sys.argv[1]))
 print(json.dumps(k, ensure_ascii=False) if k else '')
@@ -78,21 +89,19 @@ PLAN_PROMPT="タスク: $OBJECTIVE
 KPI: ${KPI_JSON:-なし}
 
 実装計画を立てよ。'# 計画' で始めて 3-5 セクション（概要・実装手順・テスト方針・想定リスク等）で簡潔に出力せよ。"
-PLAN_PROMPT_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$PLAN_PROMPT")
 "$CLAUDE" --print "$PLAN_PROMPT" > "$TASK_DIR/plan.md" 2>"$TASK_DIR/logs/plan.stderr.log"
 echo "[$(date '+%F %T')] plan saved ($(wc -l < "$TASK_DIR/plan.md" 2>/dev/null || echo 0)行)" >> "$LOG"
 
 # Phase 2/5: スキップ（v1 は LLM 呼出なし・将来タスク）
 echo "Phase 2/5 スキップ (v1)" > "$TASK_DIR/logs/review_skipped.txt"
 
-# run-task 実行中フラグ（実装/検証 claude の Stop hook 発火を next_issue.py で無視させる）
-python3 -c "import json; s=json.load(open('$STATE')); s['running']=True; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+# run-task 実行中フラグ再設定（実装/検証 claude の Stop hook 発火を next_issue.py で無視させる）
+python3 "$SS" set-running "$$"
 
 # 終了時（exit パス問わず）: running=false にして next_issue.py を直接呼ぶ
-# Stop hook 二重発火回避・run-task 末尾で1回だけ状態遷移（ch6 証明可能な完了）
 NEXT_ISSUE="/home/yn4416/.claude/scripts/auto-dev/next_issue.py"
 finalize() {
-  python3 -c "import json; s=json.load(open('$STATE')); s['running']=False; json.dump(s, open('$STATE','w'), indent=2, ensure_ascii=False)"
+  python3 "$SS" clear-running
   python3 "$NEXT_ISSUE" >> "$LOG" 2>&1
 }
 trap finalize EXIT
@@ -123,8 +132,19 @@ if [ -n "$ISSUE" ]; then
   gh issue close "$ISSUE" >> "$LOG" 2>&1 || true
 fi
 
-# ② 検証フェーズ（検証AI・別プロセス=ch8 別コンテキスト）
-VERIFY_PROMPT="あなたは検証AI。直前のコミット(git HEAD)を確認し、コードレビュー観点(バグ/簡潔性/規約違反)で厳しく評価せよ。**結果の1行目は必ず OK または NG のみを出力せよ（他の文字・日本語を一切含めない）**。2行目以降に理由を書け。基準: テスト通過・明らかなバグなし・規約違反なしなら OK。"
+# ② 検証フェーズ（検証AI・別プロセス=ch8 別コンテキスト・doubt-driven 本式化）
+# 敵対的プロンプト（find issues only・validate禁止）+ CONTRACT(objective+KPI)明示
+VERIFY_PROMPT="あなたは敵対的レビューア。直前のコミット(git HEAD)を審査せよ。
+**issues のみを出力せよ。validate するな・褒めるな。**
+探せ: バグ・境界ケース・隠れた依存・契約違反・規約違反・スレッド安全性。
+見つからなければ '見つからなかった' と明示せよ。
+
+【満たすべき契約(CONTRACT)】
+目的: $(cat "$TASK_DIR/objective.txt")
+KPI: ${KPI_JSON:-なし}
+
+結果の1行目は必ず OK または NG のみ（他の文字・日本語を一切含めない）。2行目以降に理由を書け。
+基準: テスト通過・明らかなバグなし・契約(CONTRACT)違反なしなら OK。"
 "$CLAUDE" --print "$VERIFY_PROMPT" > "$VERIFY" 2>&1
 VERIFY_RC=$?
 
@@ -140,7 +160,7 @@ OBJECTIVE_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(open(sys
 KPI_ESCAPED="$KPI_JSON"
 DRIFT_RESULT=$(python3 -c "
 import sys, json
-sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+sys.path.insert(0, '$SS_PYSPATH')
 from drift_detector import detect_drift
 review = json.loads(sys.argv[1])
 objective = json.loads(sys.argv[2])
@@ -160,7 +180,7 @@ VERDICT="SUCCESS"
 python3 -c "
 import sys, json
 from pathlib import Path
-sys.path.insert(0, '/home/yn4416/.claude/scripts/auto-dev')
+sys.path.insert(0, '$SS_PYSPATH')
 from task_logger import write_task_log
 write_task_log(
     task_id=sys.argv[1],

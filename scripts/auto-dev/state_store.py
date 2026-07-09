@@ -185,12 +185,16 @@ STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
 
 
 def _set_running(state_path: Path, pid: int) -> None:
-    """running=True + PID + create_time を記録。"""
+    """running=True + PID + create_time を記録。current.started=True も（run-task起動）。"""
     def _mut(s: dict) -> None:
         s["running"] = True
         s["running_pid"] = pid
         s["running_create_time"] = int(psutil.Process(pid).create_time())
         s["running_since"] = time.time()
+        cur = s.get("current")
+        if isinstance(cur, dict):
+            cur["started"] = True
+            s["current"] = cur
 
     update(state_path, _mut)
 
