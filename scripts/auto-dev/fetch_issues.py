@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import state_store
+
 STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
 CONFIG = Path("/home/yn4416/.claude/scripts/auto-dev/auto-loop-config.yaml")
 
@@ -137,7 +139,7 @@ def run() -> list[dict]:
     ensure_gh_path()
     config = load_config(CONFIG)
     label = config.get("label", "auto-loop")
-    state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
+    state = state_store.read(STATE, lambda s: s if isinstance(s, dict) else {}) or {}
     state = ensure_state_fields(state)
     new_tasks: list[dict] = []
     for repo in config.get("repos", []):
@@ -150,11 +152,13 @@ def run() -> list[dict]:
 def main() -> int:
     """取得した Issue を state.json の pending に追記し、件数をログ出力。"""
     new_tasks = run()
-    state = json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
-    state = ensure_state_fields(state)
-    state.setdefault("pending", [])
-    state["pending"].extend(new_tasks)
-    STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    def _append(s: dict) -> None:
+        ensure_state_fields(s)
+        s.setdefault("pending", [])
+        s["pending"].extend(new_tasks)
+
+    state_store.update(STATE, _append)
     print(f"✅ fetch_issues: {len(new_tasks)}件 追加（重複除外済）")
     return 0
 
