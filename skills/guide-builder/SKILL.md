@@ -149,6 +149,9 @@ echo "1.0" > VERSION
 
 **命名規則:** `NN_タイトル.md`（NN は 00 から始まる2桁の連番）
 
+**執筆ルール（共通）:**
+- **読み仮名は英字綴りの語のみ**: `CI`（シーアイ）・`YAML`（ヤムル）・`Docker`（ドッカー）等の**英字略語・英字綴り**にだけ読み仮名（カタカナ）を付ける。**カタカナ語**（クライアント・コミット等）・**漢字語**（技術的負債・環境変数等）は自力で読めるので読み仮名不要。英字綴りの併記（`client`・`commit` 等）は検索性のため残す（参考: memory `kana-only-for-alphabet`・dev-textbook第14章用語集で確定）
+
 ### STEP N7: テストスイート作成
 
 `test_convert.py` のコピー元: `~/projects/ssot-guide/test_convert.py`
