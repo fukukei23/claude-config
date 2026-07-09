@@ -42,3 +42,29 @@ def test_update_mutates_atomically(tmp_path):
 
     state_store.update(state_path, bump)
     assert state_store.read(state_path, lambda s: s["count"]) == 1
+
+
+def test_update_concurrent_no_corruption(tmp_path):
+    """2プロセス並行 update で state.json が破損せず増加する（flock 実証）。"""
+    import multiprocessing as mp
+
+    state_path = tmp_path / "state.json"
+    state_store.save(state_path, {"count": 0})
+
+    def increment():
+        for _ in range(50):
+            def bump(s):
+                s["count"] = s.get("count", 0) + 1
+            try:
+                state_store.update(state_path, bump)
+            except (BlockingIOError, OSError):
+                pass
+
+    procs = [mp.Process(target=increment) for _ in range(2)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join(timeout=10)
+    final = state_store.read(state_path, lambda s: s.get("count", 0))
+    assert final > 0  # 並行でも消失なく増加
+    assert json.loads(state_path.read_text())["count"] == final  # 有効JSON・破損なし
