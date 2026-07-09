@@ -217,3 +217,36 @@ def test_main_digests_started_current(tmp_path, monkeypatch):
     after = json.loads(state_file.read_text(encoding="utf-8"))
     assert after["current"] is None, "開始済み current が消化されなかった"
     assert after["completed"] == [{"title": "x", "repo": "/r"}]
+
+
+def test_main_clears_stale_running_pid(tmp_path, monkeypatch):
+    """running=True だが実プロセス死んでる（存在しないPID）なら stale クリア。
+
+    クラッシュ残留 running フラグの救済（spec セクション2）。
+    """
+    import json
+    import time as _time
+    state_file = tmp_path / "state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "active": True,
+                "running": True,
+                "running_pid": 999999,  # 存在しないPID
+                "running_create_time": 1000,
+                "running_since": _time.time(),
+                "current": None,
+                "pending": [],
+                "completed": [],
+                "blocked": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(next_issue, "STATE", state_file)
+
+    next_issue.main()
+
+    after = json.loads(state_file.read_text(encoding="utf-8"))
+    assert after["running"] is False, "stale running がクリアされなかった"
+    assert after["running_pid"] is None
