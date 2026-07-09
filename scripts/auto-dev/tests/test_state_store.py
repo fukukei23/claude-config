@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -68,3 +69,65 @@ def test_update_concurrent_no_corruption(tmp_path):
     final = state_store.read(state_path, lambda s: s.get("count", 0))
     assert final > 0  # 並行でも消失なく増加
     assert json.loads(state_path.read_text())["count"] == final  # 有効JSON・破損なし
+
+
+# ===== stale検出（Task2）=====
+
+def test_is_stale_detects_dead_pid():
+    """存在しないPIDは stale。"""
+    assert state_store.is_stale(running_pid=999999, running_create_time=0) is True
+
+
+def test_is_stale_detects_none_pid():
+    """PID None は stale。"""
+    assert state_store.is_stale(running_pid=None, running_create_time=None) is True
+
+
+def test_is_stale_detects_reused_pid():
+    """PID生存でも create_time 不一致なら stale（PID再利用）。"""
+    import psutil
+    my_pid = os.getpid()
+    real_ctime = int(psutil.Process(my_pid).create_time())
+    wrong_ctime = real_ctime - 10000  # 別プロセスを装う
+    assert state_store.is_stale(my_pid, wrong_ctime) is True
+
+
+def test_is_stale_alive_same_ctime():
+    """PID生存・create_time 一致は stale でない。"""
+    import psutil
+    my_pid = os.getpid()
+    ctime = int(psutil.Process(my_pid).create_time())
+    assert state_store.is_stale(my_pid, ctime) is False
+
+
+def test_is_stale_max_age_safety():
+    """running_since が24h超なら stale（最終安全弁）。"""
+    old = time.time() - 100000  # 27時間前
+    assert state_store.is_stale(running_pid=os.getpid(),
+                                running_create_time=None, running_since=old) is True
+
+
+def test_clear_running_cas_clears_when_matching(tmp_path):
+    """PID+ctime 一致ならクリアされる。"""
+    state_path = tmp_path / "state.json"
+    state_store.save(state_path, {"running": True, "running_pid": 111,
+                                  "running_create_time": 1000, "current": {"started": True}})
+    cleared = state_store.clear_running_if_stale(state_path, 111, 1000)
+    assert cleared is True
+    assert state_store.read(state_path, lambda s: s["running"]) is False
+
+
+def test_clear_running_cas_does_not_clobber_new_task(tmp_path):
+    """stale判定→クリア間に新タスク起動した場合、新タスクを上書きしない。"""
+    state_path = tmp_path / "state.json"
+    state_store.save(state_path, {"running": True, "running_pid": 111,
+                                  "running_create_time": 1000, "current": {"started": True}})
+
+    def _new_task(s):
+        s["running_pid"] = 222
+        s["running_create_time"] = 2000
+
+    state_store.update(state_path, _new_task)
+    cleared = state_store.clear_running_if_stale(state_path, 111, 1000)
+    assert cleared is False
+    assert state_store.read(state_path, lambda s: s["running_pid"]) == 222
