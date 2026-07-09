@@ -26,11 +26,13 @@ cat ~/projects/obsidian-ssot/10_DAILY/${TODAY}.md 2>/dev/null | tail -60
 ls -t ~/projects/obsidian-ssot/01_DECISIONS/claude-code/*.md 2>/dev/null | \
   grep -v '_INDEX\|README\|参考資料' | head -3 | xargs head -30
 
-# 4. 主要リポジトリのgit状態
+# 4. 主要リポジトリのgit状態（自セッション成果にフィルタ・spec 2026-07-09 並行汚染対策）
+SINCE=$(date -d '6 hours ago' '+%Y-%m-%d %H:%M')  # セッション開始推定時刻
 for repo in claude-config claude-code-guide guides obsidian-ssot; do
   echo "=== $repo ==="
   cd ~/projects/$repo && git status --short | head -5
-  git log --oneline -2
+  # --author --since で自セッション成果に絞る（並行セッション成果を除外・フィルタで切る設計）
+  git log --author="$(git config user.name)" --since="$SINCE" --oneline -10 2>/dev/null || git log --oneline -2
 done
 
 # 5. 未完了specファイル
@@ -50,8 +52,13 @@ echo "SESSION_ID=$SESSION_ID"
 echo "WT_SESSION=$WT_SESSION"
 echo "END_TS=$END_TS"
 
-# 8. active-sessions.md の自分の🟢行（セッション名取得・Step5で✅化する前）
-grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null
+# WT4取得（自セッション識別子・spec 2026-07-09 セッション識別子改善）
+WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}; echo "WT4=$WT4"
+# 8. active-sessions.md の自分の🟢行（wt4でピンポイント・Step5で✅化する前）
+# /clear跨ぎ残存行も同一wt4で拾う・他セッション🟢行はsoft警告参照用に別途grep
+grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null
+echo "--- 他セッションの🟢行（soft警告用）---"
+grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | grep -v "| $WT4 |"
 ```
 
 ---
@@ -161,6 +168,14 @@ save_path = os.path.join(save_dir, filename)
 with open(save_path, 'w') as f:
     f.write(generated_prompt)  # 生成したプロンプト内容
 print(f'保存完了: {save_path}')
+```
+
+**即commit+push（auto-sync任せず・spec 2026-07-09 Step3明示commit）**:
+```bash
+HANDOFF_FILE=$(basename "$(ls -t ~/projects/obsidian-ssot/00_SYSTEM/handoff/*.md | head -1)")
+cd ~/projects/obsidian-ssot && git add "00_SYSTEM/handoff/$HANDOFF_FILE" \
+  && git commit -m "chore: handoff 追加(<セッション名>)" && git push
+# push失敗時: Step4サマリーに⚠警告追記（次セッションはローカルhandoffのみで起動せざるを得ない旨明記）
 ```
 
 出力後に一言添える:
