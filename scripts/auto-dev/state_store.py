@@ -10,6 +10,7 @@ auto-loop の進行状況(state.json)の並行読み書きを安全化する。
 import fcntl
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Callable
@@ -178,3 +179,65 @@ def clear_running_if_stale(state_path: Path, stale_pid: int, stale_ctime: int) -
 
     update(state_path, _clear)
     return cleared["done"]
+
+
+STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
+
+
+def _set_running(state_path: Path, pid: int) -> None:
+    """running=True + PID + create_time を記録。"""
+    def _mut(s: dict) -> None:
+        s["running"] = True
+        s["running_pid"] = pid
+        s["running_create_time"] = int(psutil.Process(pid).create_time())
+        s["running_since"] = time.time()
+
+    update(state_path, _mut)
+
+
+def _clear_running(state_path: Path) -> None:
+    """running=False クリア（trap用・正規終了）。"""
+    def _mut(s: dict) -> None:
+        s["running"] = False
+        s["running_pid"] = None
+        s["running_create_time"] = None
+
+    update(state_path, _mut)
+
+
+def _set_task_id(state_path: Path, task_id: str) -> None:
+    """current.task_id を設定（世代ガード）。"""
+    def _mut(s: dict) -> None:
+        cur = s.get("current") or {}
+        cur["task_id"] = task_id
+        s["current"] = cur
+
+    update(state_path, _mut)
+
+
+def _cli(argv: list[str]) -> int:
+    """bash 用 CLI。全て update() 経由。
+
+    Args:
+        argv: sys.argv[1:] 相当。
+
+    Returns:
+        終了コード（0=成功 / 1=引数エラー）。
+    """
+    cmd = argv[0] if argv else ""
+    if cmd == "set-running" and len(argv) >= 2:
+        _set_running(STATE, int(argv[1]))
+    elif cmd == "clear-running":
+        _clear_running(STATE)
+    elif cmd == "set-task-id" and len(argv) >= 2:
+        _set_task_id(STATE, argv[1])
+    else:
+        sys.stderr.write(
+            "usage: state_store.py [set-running <pid>|clear-running|set-task-id <id>]\n"
+        )
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_cli(sys.argv[1:]))

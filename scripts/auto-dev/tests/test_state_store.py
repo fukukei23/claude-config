@@ -131,3 +131,44 @@ def test_clear_running_cas_does_not_clobber_new_task(tmp_path):
     cleared = state_store.clear_running_if_stale(state_path, 111, 1000)
     assert cleared is False
     assert state_store.read(state_path, lambda s: s["running_pid"]) == 222
+
+
+# ===== CLI（Task3）=====
+
+def test_cli_set_running_records_pid_and_ctime(tmp_path, monkeypatch):
+    """set-running が PID と create_time を記録。"""
+    sp = tmp_path / "state.json"
+    state_store.save(sp, {"current": {}})
+    monkeypatch.setattr(state_store, "STATE", sp)
+    rc = state_store._cli(["set-running", str(os.getpid())])
+    assert rc == 0
+    s = state_store._load_locked(sp)
+    assert s["running"] is True
+    assert s["running_pid"] == os.getpid()
+    assert s["running_create_time"] > 0
+    assert s["running_since"] > 0
+
+
+def test_cli_clear_running(tmp_path, monkeypatch):
+    """clear-running で running=False に。"""
+    sp = tmp_path / "state.json"
+    monkeypatch.setattr(state_store, "STATE", sp)
+    state_store._cli(["set-running", str(os.getpid())])
+    rc = state_store._cli(["clear-running"])
+    assert rc == 0
+    assert state_store._load_locked(sp)["running"] is False
+
+
+def test_cli_set_task_id(tmp_path, monkeypatch):
+    """set-task-id で current.task_id 設定。"""
+    sp = tmp_path / "state.json"
+    state_store.save(sp, {"current": {}})
+    monkeypatch.setattr(state_store, "STATE", sp)
+    rc = state_store._cli(["set-task-id", "run-task-123-456"])
+    assert rc == 0
+    assert state_store._load_locked(sp)["current"]["task_id"] == "run-task-123-456"
+
+
+def test_cli_unknown_command_returns_1():
+    """未知のコマンドは終了コード1。"""
+    assert state_store._cli(["unknown-cmd"]) == 1
