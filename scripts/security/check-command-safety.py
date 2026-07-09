@@ -110,7 +110,9 @@ def check_read(file_path: str) -> None:
     if sensitive.search(file_path):
         block(
             f"Read ツールによる機密ファイル読み取り禁止: {file_path.split('/')[-1]} — "
-            "特定フィールドのみ jq '.field' で取得してください"
+            "確認は jq '.field'（単一フィールドのみ・ホワイトリスト）。"
+            "編集は python 構造操作で: json.load→該当箇所変更→json.dump(indent=2) "
+            "（値非接触・フォーマット保持・バックアップ推奨）"
         )
 
 
