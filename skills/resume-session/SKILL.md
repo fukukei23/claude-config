@@ -59,8 +59,12 @@ cat ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | head -40
 grep -nE '^- \[ \]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
 # 📝WIP構想メモ一覧（未spec化の構想・バックログ.md該当タスク直下・C層機械スキャン）
 grep -nE '^[[:space:]]*- 📝 構想' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
-# active-sessions セッション状態表の🟢行（他セッションの占有確認・開始時刻で放置判断）
-grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md
+# WT4取得（自セッション識別子・spec 2026-07-09 セッション識別子改善）
+WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}
+# 自分の🟢行（wt4でピンポイント特定・/clear跨ぎ残存行も拾う）
+grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null
+# 他セッションの🟢行（soft警告用・自分行除外）
+grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | grep -v "| $WT4 |"
 # 🎯要望(Why)層の一覧（W1,W2...=動機の束・タスク選択の軸・各タスク行末の←Wx逆参照と突合）
 grep -nE '^- W[0-9]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
 ```
@@ -150,17 +154,23 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 - 続ける → そのタスクを占有
 - 別タスク → 占有せず（前回タスクはバックログに残置）
 
-### 4b. セッション状態表に🟢行を追加（単一表・タスク占有）
+### 4b. セッション状態表に🟢行を追加（単一表・タスク占有・ID=wt4）
 
 `obsidian-ssot/00_SYSTEM/active-sessions.md` の「## セッション状態」テーブルの**先頭行**（ヘッダ直後）に挿入:
-- セッション: 環境(WSL-CLI/Win)+トピック短縮名（**＝タスク名で統一・照合キー**）
+- **ID: `WT4`（WT_SESSION先頭4桁・spec 2026-07-09 セッション識別子改善）** — /clear跨ぎでも同一・handoffファイル名と統一・自分行特定の照合キー
+- セッション: 環境(WSL-CLI/Win)+トピック短縮名（**＝タスク名で統一**）
 - 触る共通ファイル: 当該トピックで触りそうな共通ファイル（無ければ「—」）
 - 方針: 1行で（「調査」「修正方向」「削除検討」等）
 - 開始: `MM-DD HH:MM`（日付必須・GC判定と24hチェックの基準）
 - 状態: 🟢
 
+```bash
+# WT4取得（Step1と同一・🟢行のID列に記載）
+WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}; echo "WT4=$WT4"
+```
+
 ```markdown
-| <環境-トピック(=タスク名)> | <触る共通ファイル> | <1行の方針> | <MM-DD HH:MM> | 🟢 |
+| <WT4> | <環境-トピック(=タスク名)> | <触る共通ファイル> | <1行の方針> | <MM-DD HH:MM> | 🟢 |
 ```
 
 **重複確認（soft警告）**: 追加前に同表に状態🟢の同名セッションがあれば:
