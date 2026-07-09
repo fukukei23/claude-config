@@ -70,6 +70,22 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
   - 三国志HIPHOP → `references/[THEME]三国志_HIPHOP.md` 読込
   - サイバー和モダン → `references/[THEME]サイバー和モダン.md` 読込
 - **リファレンス仕様書の持ち込み**があれば読込（`reverse-engineer-song` 経由）
+- **起点曲の定量解析**（`0d`・任意・analyze-song連携）: 「この曲っぽく作りたい」と起点曲（曲名/YouTube URL/MP3パス・DB登録済み曲・DB外どちらも可）が挙がった場合に実行
+  - コマンド（`cd /home/yn4416/projects/claude-config/skills/analyze-song` で実行）。`<timestamp>` は実行前に `date +%Y%m%d_%H%M%S` 等で1つ確定し、以下2コマンドで同じ値を使うこと:
+    ```bash
+    /home/yn4416/projects/claude-config/.venv/bin/python scripts/analyze_song.py \
+      <起点曲(URL/MP3パス)> -o /tmp/make-song-query/<timestamp> -t <仮タイトル>
+    /home/yn4416/projects/claude-config/.venv/bin/python -m scripts.match_song \
+      /tmp/make-song-query/<timestamp>/features.json \
+      /home/yn4416/projects/obsidian-ssot/reference/名曲DB \
+      -o /tmp/make-song-query/<timestamp>/match_report.md
+    ```
+  - Demucs音源分離を含むため**数分かかる**。実行前にユーザーへ「数分かかります」と伝える
+  - 失敗時（YouTube DL失敗・Demucs失敗・対応外フォーマット等）は本ルートを諦め、下記「エラー処理・フォールバック」表の該当行に従う
+  - 成功時: `/tmp/make-song-query/<timestamp>/make_song_input.json` を Phase 0.5/1 で参照する（詳細は Phase 0.5/1 セクション参照）
+  - **オプトイン確認 🔴（人間）**: 解析完了後、必ず一度「このDBに恒久登録しますか？」とユーザーに尋ねる
+    - Yes → 曲ID/タイトル/アーティスト/ジャンル/commercial-rank/era/selection-reason を聞き、`analyze-song` SKILL.md の「使い方（Phase 2・名曲DB登録）」コマンド（`register_song`）を実行
+    - No（デフォルト） → 何もしない。`/tmp/make-song-query/<timestamp>/` は本セッション終了後に削除して構わない（永続化不要）
 - 楽曲の目的: フックonly / 60秒 / フル3-4分
 
 > **発動の使い分け**: 「曲作って」「作曲して」「武将で曲作って」「サイバー和で曲作って」等=本スキル（Phase 0 の [THEME] 選択で三国志HIPHOP/サイバー和モダンを吸収）。**曲+詞だけ**なら Phase 0 テーマ選択で完結。**映像まで**欲しい場合は Phase 6 の橋渡し（ルートA）で `video-prompt-spec` へ誘導。
@@ -82,16 +98,26 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
 - **0a ルート選択 🔴（人間）** — 以下3ルートから選ぶ:
   - **A. ジャンル起点ドリルダウン**（デフォルト・推奨）: 第1層ジャンル → 第2層系統（アーティストイメージ命名）→（Full時）第3層エッセンス追加
   - **B. 個別選択**（上級）: 和声/メロディ/リズム/ダイナミクス/転調を要素ごとに指定
-  - **C. リファレンス曲逆引き**（優先）: Phase 0 持ち込み曲があれば、その曲のジャンル・系統に当てはめ
+  - **C. リファレンス曲逆引き**（優先）: Phase 0 持ち込み曲（仕様書 or 0d定量解析）があれば、その曲のジャンル・系統に当てはめ。0d実行済みの場合のジャンル採用方法は下記「0d実行済みの場合の優先ルール」参照
 - **0b 具体語翻訳**: 選んだ系統の「ジャンル具体語」+ エッセンスの具体語 を結合。**コード進行の文字列・アーティスト名は絶対にプロンプトに書かない**
 - **Quick/Full 深さ差**:
   - **Quick Mode**: Aルート第1-2層（ジャンル→系統）まで・エッセンスなし
   - **Full Mode**: Aルート第1-3層（ジャンル→系統→エッセンス）+ 個別選択(B)可
 - 出力: 翻訳した具体語を Phase 1（GMIVのGenre/Mood）と Phase 2（構造・感情曲線）に流し込む
+- **0d実行済みの場合の優先ルール**: リファレンス仕様書（定性・reverse-engineer-song経由）と `make_song_input.json`（定量・0d経由）が両方ある場合、**BPM・キー・ジャンルの3項目のみ定量側（実測値）を優先**。構造・感情曲線等の定性的要素は引き続き仕様書側を使う。各項目の取得元フィールド:
+  - ジャンル = `genre_distribution`（`{ジャンル名: 出現回数}`の辞書）の出現回数が最大のキー。同数タイの場合は `reference_songs` のrank最上位（rank=1）のジャンルを優先
+  - キー = `query.key`（起点曲自身の実測キー。`recommended.key_pc`は参照曲群の最頻ピッチクラス整数のため使わない）
+  - BPM = `recommended.bpm`（参照曲群の平均BPM。Phase 1 GMIVのBPMにそのまま使う）
 
 ### Phase 1: 設計パラメータ固め（Reference 3曲 → GMIV）
 
 > **Phase 0.5 の出力（ジャンル具体語）を Genre/Mood に反映してから GMIV を組む**。キャラクター辞書の「ジャンル具体語」列が GMIV の G/M の骨。
+
+> **0d実行済みの場合**: `make_song_input.json` の値を以下に反映する（ジャンル・BPMの取得元はPhase 0.5「0d実行済みの場合の優先ルール」参照）
+> - Reference 3曲 = `reference_songs[:3]`（下記1.の代わりに使用可）
+> - GMIVのG = `genre_distribution` 最大カウントのジャンル（Phase 0.5の3項目優先ルールに対応）
+> - GMIVのBPM（下記3.） = `recommended.bpm`（Phase 0.5の3項目優先ルールに対応）
+> - GMIVのV性別 = `query.gender_estimate`（Phase 0.5の3項目優先ルールの対象外・GMIVのV専用の追加反映項目）
 
 1. **Reference 3曲**（業界標準）: 雰囲気を具体曲で伝える（`[L1.5]潮流` 参照可）
 2. **GMIV順序**（`[L1]プロンプト技法`・`[L1]楽曲制作基礎` 参照）:
@@ -170,11 +196,14 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
 | 🔴 造語/漢字誤読 | Phase 4 品質チェック（janome＋固有名詞・人間最終確認） | L1/L2 |
 | 🔴 構造タグ読み上げ（`[Drop: ...]`等を歌う） | コロン/詳細付きタグを避ける（`[Break]`等の単純タグへ） | L2 |
 | 🔴 MiniMax Token Plan制限 | 従量課金($0.15~/曲)案内してスキップ可。淘汰サイクルは更に増加 | L2 |
+| 🔴 起点曲解析失敗（0d）（YouTube DL失敗・Demucs失敗・対応外フォーマット・照合スコア全軸低スコア） | フォールバック候補を人間に提示し最終選択を委ねる: ①仕様書ありならルートC ②ジャンル推測可能ならルートA ③いずれも不可ならルートB（個別選択）。①②の判定自体も人間確認を経ること | L2 |
 | 🔴 知見の陳腐化 | 90日経過項目は信頼度を下げる（メタルール） | META |
 
 ## 関連
 - テーマ固有（統合済・Phase 0 の [THEME] 層で対応）: `cyber-wa-song` / `sangoku-song`（※旧スキル・参照は `[THEME]サイバー和モダン.md` / `[THEME]三国志_HIPHOP.md` へ片方向統合済）
-- `reverse-engineer-song`（参考曲仕様書→Phase 0 持ち込み）
+- `reverse-engineer-song`（参考曲仕様書→Phase 0 持ち込み・定性分析）
+- `analyze-song`（起点曲の定量解析→Phase 0d・`make_song_input.json`連携）
 - `video-prompt-spec`（Phase 6 橋渡し・ルートA: 楽曲→映像プロンプト仕様書へ一気通貫）
 - 設計書: `obsidian-ssot/01_DECISIONS/ai-music/2026-06-16_AI作曲スキル_design.md`
 - 実装計画: `obsidian-ssot/01_DECISIONS/ai-music/2026-06-16_AI作曲スキル_plan.md`
+- 連携設計書: `obsidian-ssot/docs/superpowers/specs/2026-06-29-make-song-analyze-song-bridge-design.md`
