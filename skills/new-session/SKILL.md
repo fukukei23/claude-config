@@ -218,8 +218,10 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 セッションを新セッションに移行する＝現セッション終了。ボードの自分エントリを処理する。
 
 手順:
-1. `obsidian-ssot/00_SYSTEM/active-sessions.md` を読み、「## セッション状態」表の自分の行（環境+トピック一致）を特定
-2. 該当行の**状態列を `🟢` → `✅` に1文字変更（行は残す・行移動しない）**
+1. WT4取得: `WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}`
+2. active-sessions.md で **wt4 を含む🟢行を特定し状態列を `🟢` → `✅` に変更**（自分行・/clear跨ぎ残存行も同一wt4で拾う・spec 2026-07-09・行は残す・行移動しない）
+   `grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md | grep '| 🟢 |'`
+   ※ 複数ヒット時（同タブ残存行）は全て✅化で占有解放
    - Edit ツールで該当行の状態列セルのみ置換（行全体を再描画しない）
    - ※ 🟢表は廃止済（2026-07-02 単一表化）。旧「2b 🟢表から削除」は不要・状態列変更だけで占有解放
    - ※継続する意思がある場合は🟢のまま残す（前回占有タスクとしてhandoffに記載される）
