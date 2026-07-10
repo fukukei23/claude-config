@@ -13,6 +13,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -21,12 +22,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
 from lib.api_base import (  # noqa: E402
+    _load_candidates,
     make_error_result,
     make_success_result,
-    run_api,
+    run_api_with_fallback,
 )
 
-DEFAULT_MODEL = "gemini-3.5-flash"
+# モデルは config/gemini-models.json の audio 候補から自動選択（陳腐化耐性）。
+# DEFAULT_MODEL 固定は廃止（"gemini-3.5-flash" は実在しないモデル名だった）。
 
 DEFAULT_PROMPT = """以下の音声ファイルを順に聴き、**厳しく**評価してください。
 良さを探すより問題を積極的に指摘すること。見た目の雰囲気だけで点数をつけないこと。
@@ -101,31 +104,48 @@ def _cache_key_for(audio_paths: list[str], model: str) -> str:
     return "gemini_audio_" + hashlib.md5(raw.encode("utf-8")).hexdigest()[:12]
 
 
-def _analyze(audio_paths: list[Path], prompt_text: str, model: str) -> str:
-    """Gemini APIで音声ファイルを真正解析し、レスポンステキストを返す.
+def _load_key() -> str:
+    """Gemini APIキーを2段階で取得（os.environ → ~/.secrets.env パース）."""
+    key = os.environ.get("GEMINI_API_KEY", "")
+    if key:
+        return key
+    secrets = Path.home() / ".secrets.env"
+    if secrets.exists():
+        for line in secrets.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("export ") and "=" in line:
+                name, _, val = line[len("export "):].partition("=")
+                if name.strip() == "GEMINI_API_KEY":
+                    val = val.strip().strip('"').strip("'")
+                    if val:
+                        return val
+    raise RuntimeError("GEMINI_API_KEY not found (env or ~/.secrets.env)")
 
-    各ファイルを Part.from_bytes で inline_data として渡す（文字列埋め込みではない）。
-    """
-    from google import genai
-    from google.genai import types
 
-    api_key = __import__("os").environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY not set in environment")
+def _call_factory(audio_paths: list[Path], prompt_text: str, api_key: str):
+    """モデル名を受け取り generate_content を実行する callable を返す（run_api_with_fallback 用）."""
 
-    client = genai.Client(api_key=api_key)
-    contents = []
-    for i, p in enumerate(audio_paths, 1):
-        data = p.read_bytes()
-        contents.append(types.Part.from_bytes(data=data, mime_type=_mime_for(p)))
-        contents.append(f"（ファイル{i}: {p.name}）")
-    contents.append(prompt_text)
+    def factory(model: str):
+        def call() -> str:
+            from google import genai
+            from google.genai import types
 
-    response = client.models.generate_content(model=model, contents=contents)
-    text = response.text or ""
-    if not text.strip():
-        raise RuntimeError("empty response from Gemini (possible safety block)")
-    return text
+            client = genai.Client(api_key=api_key)
+            contents = []
+            for i, p in enumerate(audio_paths, 1):
+                data = p.read_bytes()
+                contents.append(types.Part.from_bytes(data=data, mime_type=_mime_for(p)))
+                contents.append(f"（ファイル{i}: {p.name}）")
+            contents.append(prompt_text)
+            response = client.models.generate_content(model=model, contents=contents)
+            text = response.text or ""
+            if not text.strip():
+                raise RuntimeError("empty response from Gemini (possible safety block)")
+            return text
+
+        return call
+
+    return factory
 
 
 def _summarize(full_response: str, cache_key: str) -> dict:
