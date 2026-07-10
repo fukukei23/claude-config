@@ -135,7 +135,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); p=$(echo \"$input\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); [[ \"$p\" == *バックログ* ]] && python3 /home/yn4416/bin/archive-backlog-done.py",
+            "command": "input=$(cat); p=$(echo \"$input\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); [[ \"$p\" == *バックログ* ]] && { if [ \"$(uname -s)\" = \"Linux\" ]; then python3 /home/yn4416/bin/archive-backlog-done.py; else wsl bash -c \"python3 /home/yn4416/bin/archive-backlog-done.py\"; fi; }",
             "timeout": 5000
           }
         ]
