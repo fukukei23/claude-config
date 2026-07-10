@@ -8,6 +8,21 @@ import os
 import urllib.request
 import urllib.error
 import time
+from pathlib import Path as _Path
+
+# api_base（モデル陳腐化耐性）を参照可能に。失敗時は従来通り 2.5-pro 固定にフォールバック。
+_REPO_ROOT = _Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+try:
+    from lib.api_base import _load_candidates  # noqa: E402
+
+    def _text_candidates(paid: bool = True) -> list[str]:
+        """config/gemini-models.json の text 候補を取得（層①設定外部化）."""
+        return _load_candidates("text", paid_ok_limit=paid)
+except Exception:  # config不在等でもサーバー起動は維持
+    def _text_candidates(paid: bool = True) -> list[str]:
+        return ["gemini-2.5-pro"]
 
 
 def _load_key():
@@ -27,7 +42,9 @@ def _load_key():
 
 GEMINI_KEY = _load_key()
 GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models'
-DEFAULT_MODEL = 'gemini-2.5-pro'
+# 層①設定外部化: config/gemini-models.json の text 候補先頭（reviewは品質重視で有料込）。
+# 層②完全フォールバック統合(run_api_with_fallback)は別タスク（既存の堅牢429/safety実装を維持）。
+DEFAULT_MODEL = (_text_candidates(True) or ['gemini-2.5-pro'])[0]
 _STATUS_FILE = '/tmp/llm-last-used.txt'
 
 
