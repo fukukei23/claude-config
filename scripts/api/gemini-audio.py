@@ -75,7 +75,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="解析対象の音声ファイルパス（複数可・比較評価）",
     )
     parser.add_argument("--prompt", default=DEFAULT_PROMPT, help="評価プロンプト")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Geminiモデル名")
     return parser.parse_args(argv)
 
 
@@ -148,12 +147,12 @@ def _call_factory(audio_paths: list[Path], prompt_text: str, api_key: str):
     return factory
 
 
-def _summarize(full_response: str, cache_key: str) -> dict:
-    """Gemini生レスポンスを要約しキャッシュに保存する."""
+def _summarize(full_response: str, cache_key: str, model: str) -> dict:
+    """Gemini生レスポンスを要約しキャッシュに保存する（使用モデルも記録）."""
     summary = full_response[:3000]
     return make_success_result(
         summary=summary,
-        full_data={"gemini_response": full_response},
+        full_data={"gemini_response": full_response, "model": model},
         cache_key=cache_key,
     )
 
@@ -168,13 +167,25 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, ensure_ascii=False))
         return 1
 
-    cache_key = _cache_key_for(args.audio, args.model)
+    # モデルは config/gemini-models.json の audio 候補から自動選択（陳腐化耐性）
+    candidates = _load_candidates("audio")
+    if not candidates:
+        result = make_error_result("no audio candidates in config/gemini-models.json")
+        print(json.dumps(result, ensure_ascii=False))
+        return 1
+    cache_key = _cache_key_for(args.audio, "+".join(candidates))
 
-    def call_fn() -> str:
-        return _analyze(audio_paths, args.prompt, args.model)
+    try:
+        api_key = _load_key()
+        model, text = run_api_with_fallback(
+            _call_factory(audio_paths, args.prompt, api_key), candidates, api_key
+        )
+    except Exception as exc:  # 陳腐化警告・APIエラー・キーなし等
+        result = make_error_result(f"{type(exc).__name__}: {exc}")
+        print(json.dumps(result, ensure_ascii=False))
+        return 1
 
-    result = run_api(call_fn, _summarize, cache_key=cache_key)
-
+    result = _summarize(text, cache_key, model)
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result["status"] == "ok" else 1
 
