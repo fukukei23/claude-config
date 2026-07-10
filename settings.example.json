@@ -88,7 +88,11 @@
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(sudo *)",
-      "Bash(rm -rf *)"
+      "Bash(rm -rf *)",
+      "Bash(rm -R*)",
+      "Bash(terraform destroy*)",
+      "Bash(kubectl delete namespace*)",
+      "Bash(helm uninstall*)"
     ],
     "defaultMode": "bypassPermissions"
   },
