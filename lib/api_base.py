@@ -3,9 +3,13 @@
 全APIスクリプト（gemini.py, lastfm.py等）がこの基盤を経由して
 統一されたJSON形式で結果を返す。
 """
+import hashlib
 import json
+import os
+import time
+import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 def make_error_result(error: str) -> dict:
