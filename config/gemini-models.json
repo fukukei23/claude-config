@@ -1,0 +1,15 @@
+{
+  "_正典": "30_RESEARCH/llm-models/models/gemini.md（無料枠/制限/陳腐化履歴はここを更新）",
+  "_運用": "半年後にモデル変更があれば candidates の id/paid_ok/capabilities を更新。全候補消滅でスクリプトが警告+代替提案を出す",
+  "_優先順位": "candidates の並び順が優先度（先頭が最優先）。 Gemini 2.5 Flash が画像/音声/動画/テキスト全部入りなので先頭",
+  "cache_ttl_hours": 24,
+  "candidates": [
+    {"id": "gemini-2.5-flash", "paid_ok": false, "capabilities": ["vision", "audio", "video", "text"], "_note": "無料枠10RPM/500RPD・画像入力対応"},
+    {"id": "gemini-2.0-flash", "paid_ok": false, "capabilities": ["vision", "audio", "text"], "_note": "2.5-flash廃止時の第1フォールバック"},
+    {"id": "gemini-1.5-flash", "paid_ok": false, "capabilities": ["vision", "audio", "text"], "_note": "無料枠15RPM/1500RPD・制限一番緩いが古い"},
+    {"id": "gemini-2.5-pro", "paid_ok": true, "capabilities": ["vision", "audio", "text"], "_note": "無料枠削除済(2025末)・paid_ok:trueのため明示(--allow-paid)時のみ試行"}
+  ],
+  "_pro_note": "paid_ok:true の候補は --allow-paid 明示時のみ試行（課金事故防止）。 2.5 Flash が有料化した場合は本ファイルの paid_ok を true に更新し、明示的に課金許可した時のみ使う",
+  "_statistics_log": "~/tmp/api_cache/gemini_stats.jsonl（観測ログ・gemini-models-health.py --report で集計）",
+  "_failed_cache": "~/tmp/api_cache/failed_models.json（403/404失敗モデル30分キャッシュ）"
+}

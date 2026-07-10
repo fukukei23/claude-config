@@ -1,0 +1,11 @@
+{
+  "_正典": "30_RESEARCH/llm-models/models/gemini.md",
+  "_運用": "このファイルを gemini-models.json にコピーし、候補を環境に合わせて編集。シークレット非含有・git管理可",
+  "cache_ttl_hours": 24,
+  "candidates": [
+    {"id": "gemini-2.5-flash", "paid_ok": false, "capabilities": ["vision", "audio", "video", "text"]},
+    {"id": "gemini-2.0-flash", "paid_ok": false, "capabilities": ["vision", "audio", "text"]},
+    {"id": "gemini-1.5-flash", "paid_ok": false, "capabilities": ["vision", "audio", "text"]},
+    {"id": "gemini-2.5-pro", "paid_ok": true, "capabilities": ["vision", "audio", "text"]}
+  ]
+}
