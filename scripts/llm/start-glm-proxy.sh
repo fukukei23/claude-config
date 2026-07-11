@@ -2,7 +2,7 @@
 # glm-rate-proxy: フェイルセーフ付き起動スクリプト
 
 SETTINGS="/home/yn4416/.claude/settings.json"
-PROXY_DIR="/home/yn4416/.claude/scripts/glm-rate-proxy"
+PROXY_DIR="/home/yn4416/projects/claude-config/scripts/glm-rate-proxy"
 PROXY_URL="http://127.0.0.1:8787"
 ZAI_URL="https://api.z.ai/api/anthropic"
 LOG="/tmp/glm-proxy.log"
