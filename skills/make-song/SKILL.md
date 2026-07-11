@@ -12,6 +12,28 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
 
 ## 前提知識（進行開始前に必ず読み込む）
 
+### MiniMax API使用ルール
+
+**⚠️ 重要: 動画生成用と音楽生成用で異なるAPI**
+
+| 用途 | API | キー名 | キー末尾 | MCPサーバー |
+|------|-----|--------|---------|-----------|
+| **音楽生成** | `music-generation` | `MINIMAX_API_KEY` | NTH39 | `minimax` |
+| **動画生成** | `video-generation` | `MINIMAX_API_KEY_VIDEO` | NIYAX4 | `minimax` |
+
+**make-songスキルの使用対象:**
+- ✅ 音楽生成のみ（`music-generation` API）
+- ❌ 動画生成（`video-generation` API）
+- ✅ MCPサーバー名: `minimax`
+- ✅ 環境変数: `MINIMAX_API_KEY`（NTH39）
+
+**注意:**
+- 動画生成用キーは間違えないこと
+- music_generation APIは通常300秒でタイムアウトする可能性がある
+- 長時間生成が必要な場合は分割生成またはバックグラウンド実行を検討
+
+---
+
 知見は AI 依存度で4層に分離（AI 変更時に Layer 2 だけ差し替え・Layer 1 は残す）:
 
 - `references/[L1]プロンプト技法.md`（**確定・汎用**: GMIV順序・具体語推・楽器制限・構造タグ・1変数テスト）
