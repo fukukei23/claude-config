@@ -1,14 +1,14 @@
 ---
-name: ssot-sync
+name: ssot-check
 description: >
   SSOT（Single Source of Truth）と実際のファイル/設定の整合性をチェックし、乖離があれば修正するスキル。
-  「SSOT整合性チェックして」「SSOT整理して」「SSOT同期して」「SSOTのズレを直して」
+  「SSOTチェックして」「SSOT整合性チェックして」「SSOT整理して」「SSOTのズレを直して」
   「00_SYSTEM更新して」「乖離を修正して」と言った時にトリガーする。
-  /ssot-sync でも呼び出せる。
+  /ssot-check でも呼び出せる。
 user-invocable: true
 ---
 
-# ssot-sync スキル
+# ssot-check スキル
 
 ## 概要
 
@@ -18,7 +18,7 @@ SSOT（`~/projects/obsidian-ssot/`）内のファイルと実態（設定ファ�
 
 ## 無人モード（auto）
 
-`/ssot-sync auto` または引数に `auto` が含まれる場合、**ユーザー承認をスキップ**して無人実行する。Cron定期実行専用。呼び出し時にモードを判定し、以降の各フェーズで auto の挙動を適用すること。
+`/ssot-check auto` または引数に `auto` が含まれる場合、**ユーザー承認をスキップ**して無人実行する。Cron定期実行専用。呼び出し時にモードを判定し、以降の各フェーズで auto の挙動を適用すること。
 
 ### auto 時の挙動
 - **フェーズ2**: 承認確認なし。乖離一覧は内部保持のみでユーザーに問わない。
@@ -28,12 +28,12 @@ SSOT（`~/projects/obsidian-ssot/`）内のファイルと実態（設定ファ�
 
 ### auto 時のstate更新（2段階・重複発火抑制）
 state は2ファイルに分離（2026-06-26 の 04:39/41/42/43 の4連鎖発火事故対策）:
-- `ssot-sync-triggered`: **SessionStart hook（check-ssot-sync-staleness.sh）が発火指示時に先行マーク**する。本スキルでは触らない。後続セッションの同時発火を弾く。
-- `ssot-sync-last-run`: **本スキルが auto 実行完了時に更新**する（実行成功日・翌日以降の参照用）。
+- `ssot-check-triggered`: **SessionStart hook（check-ssot-sync-staleness.sh）が発火指示時に先行マーク**する。本スキルでは触らない。後続セッションの同時発火を弾く。
+- `ssot-check-last-run`: **本スキルが auto 実行完了時に更新**する（実行成功日・翌日以降の参照用）。
 
 ```bash
 # auto 実行の完了時（高0件で commit なしの場合でも必ず実行）:
-date +%Y-%m-%d > ~/.claude/state/ssot-sync-last-run
+date +%Y-%m-%d > ~/.claude/state/ssot-check-last-run
 ```
 **高0件で commit をスキップした場合でも last-run は更新すること**（更新忘れが state 古残り→翌セッション再発火の無限ループの原因。04:39実行の再発原因）。
 
