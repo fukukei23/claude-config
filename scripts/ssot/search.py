@@ -224,6 +224,7 @@ def display(query: str, results: list[dict], coverage: dict | None = None,
 
 
 def main():
+    global SSOT_DIR
     parser = argparse.ArgumentParser(description="SSOT ハイブリッド検索")
     parser.add_argument("query", nargs="+", help="検索クエリ")
     parser.add_argument("--top", type=int, default=5, help="表示件数（デフォルト: 5）")
@@ -236,6 +237,7 @@ def main():
 
     query = " ".join(args.query)
     ssot_dir = Path(args.ssot_dir)
+    SSOT_DIR = ssot_dir
 
     if not ssot_dir.exists():
         print(f"❌ SSOTディレクトリが見つかりません: {ssot_dir}", file=sys.stderr)
