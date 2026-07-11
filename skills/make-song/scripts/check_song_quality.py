@@ -13,6 +13,12 @@
   [Verse 1] 5.4音節/秒 ✅ 安全域
   [Verse 2] 5.8音節/秒 ✅ 安全域
   ...
+
+対応形式:
+  - 歌詞ブロックが ``` コードフェンス内の歌詞
+  - Markdown見出し `### [Intro] 8小節` 形式
+  - 構造タグのみ `[Intro]` 形式
+  - `---` 以降はメタデータ扱いで打ち切り
 """
 
 import argparse
@@ -27,30 +33,31 @@ def line_syllables(line: str) -> int:
     if not line:
         return 0
     # 句読点・記号・空白除外
-    line = re.sub(r"[、。、 「」『』()（）\[\]/…\s]", "", line)
+    line = re.sub(r"[、。、「」『』()（）\[\]/…\s]", "", line)
     return len(line)
 
 
 def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -> dict:
-    """軸A: 音節密度計算"""
+    """軸A: 音節密度計算
+
+    行ベースでセクションを抽出:
+    - Markdown見出し行（# で始まる）も対象に含める（`### [Intro] 8小節` 形式）
+    - コードフェンス ``` を尊重（歌詞が ``` ブロック内の場合は内容を抽出）
+    - `---` 以降はメタデータ扱いで打ち切り
+    """
     content = lyrics_path.read_text(encoding="utf-8")
+    lines = content.splitlines()
 
-    # 歌詞セクション抽出: 最初のセクション [Intro] 以降 〜 最初の --- まで
-    section_pattern = re.compile(r"\[(\w+(?:\s+\d+)?|\w+:\w+)\]")
-    first_section_match = section_pattern.search(content)
-    if not first_section_match:
-        return {}
+    # ヘッダー検出: `[Name] N小節` または `[Name]`（Markdown見出しの `#` 接頭辞許容）
+    section_header_re = re.compile(
+        r"^\s*(?:#{1,6}\s+)?\[(?P<name>\w+(?:\s+\d+)?|\w+:\w+)\]"
+        r"(?:\s+(?P<bars>\d+)小節)?"
+    )
+    md_heading_re = re.compile(r"^\s*#{1,6}\s")
+    code_fence_re = re.compile(r"^\s*```")
+    table_or_list_re = re.compile(r"^\s*[|\-*]")
 
-    lyrics_only = content[first_section_match.start():]
-    # --- が出てきたらそこで打ち切り（歌詞以外のメタデータ除外）
-    end_match = re.search(r"^---$", lyrics_only, re.MULTILINE)
-    if end_match:
-        lyrics_only = lyrics_only[: end_match.start()]
-
-    sections = section_pattern.split(lyrics_only)
-
-    # セクション名の小節数推定（デフォルトは default_bars、引数で上書き可能）
-    section_bars_map = {
+    section_default_bars = {
         "Intro": 8,
         "Verse": 16,
         "Verse 1": 16,
@@ -64,36 +71,90 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
         "Outro": 8,
     }
 
-    results = {}
-    for i in range(1, len(sections), 2):
-        section_name = sections[i].strip()
-        section_text = sections[i + 1]
+    results: dict = {}
+    current_section = None
+    current_bars = default_bars
+    current_lines: list = []
+    in_code_fence = False
+    in_metadata = False
 
-        lines = [line for line in section_text.splitlines() if line.strip()]
-        if not lines:
+    def _flush() -> None:
+        nonlocal current_section, current_bars, current_lines
+        if current_section and current_lines:
+            total_syl = sum(line_syllables(line) for line in current_lines)
+            section_seconds = current_bars * 60.0 / bpm * 4.0
+            density = total_syl / section_seconds
+
+            if density <= 8:
+                verdict = "✅ 安全域"
+            elif density <= 10:
+                verdict = "⚠️ 警告域"
+            else:
+                verdict = "❌ 禁止域"
+
+            results[current_section] = {
+                "syllables": total_syl,
+                "lines": len(current_lines),
+                "bars": current_bars,
+                "seconds": round(section_seconds, 2),
+                "density": round(density, 2),
+                "verdict": verdict,
+            }
+        current_section = None
+        current_bars = default_bars
+        current_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        # --- はメタデータ境界
+        if stripped == "---":
+            in_metadata = True
+            _flush()
             continue
 
-        total_syl = sum(line_syllables(line) for line in lines)
-        bars = section_bars_map.get(section_name, default_bars)
-        section_seconds = bars * 60.0 / bpm * 4.0
-        density = total_syl / section_seconds
+        if in_metadata:
+            continue
 
-        if density <= 8:
-            verdict = "✅ 安全域"
-        elif density <= 10:
-            verdict = "⚠️ 警告域"
-        else:
-            verdict = "❌ 禁止域"
+        # セクションヘッダー検出（コードフェンス外・`#` 接頭辞許容）
+        m = section_header_re.match(line)
+        if m and not in_code_fence:
+            _flush()
+            current_section = m.group("name")
+            bars_str = m.group("bars")
+            if bars_str:
+                current_bars = int(bars_str)
+            else:
+                current_bars = section_default_bars.get(current_section, default_bars)
+            continue
 
-        results[section_name] = {
-            "syllables": total_syl,
-            "lines": len(lines),
-            "bars": bars,
-            "seconds": round(section_seconds, 2),
-            "density": round(density, 2),
-            "verdict": verdict,
-        }
+        # Markdown見出し行（セクションヘッダーでない）はスキップ
+        if md_heading_re.match(line):
+            continue
 
+        # コードフェンス開始
+        if code_fence_re.match(line) and not in_code_fence:
+            in_code_fence = True
+            continue
+
+        # コードフェンス終了
+        if code_fence_re.match(line) and in_code_fence:
+            in_code_fence = False
+            _flush()
+            continue
+
+        # コードフェンス内の歌詞行を収集
+        if in_code_fence and current_section and stripped:
+            current_lines.append(stripped)
+            continue
+
+        # 歌詞行の収集（コードフェンスなし）
+        if current_section and stripped and not in_code_fence:
+            if table_or_list_re.match(line):
+                continue
+            current_lines.append(stripped)
+
+    _flush()
     return results
 
 
