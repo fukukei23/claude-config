@@ -114,11 +114,18 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
             continue
 
         if in_metadata:
-            continue
+            # 最初の見出し行が出たらメタデータ境界を抜ける（歌詞セクション開始）
+            # 例: 歌詞ファイルでは `---GMIV設定---` 後の `## 歌詞` で復帰
+            if md_heading_re.match(line):
+                in_metadata = False
+                # この見出し行は次のブロックで処理されるためここではcontinueしない
+            else:
+                continue
 
         # セクションヘッダー検出（コードフェンス外・`#` 接頭辞許容）
+        # Markdown見出し行（### [Intro] 8小節形式）はセクションヘッダーとして処理
         m = section_header_re.match(line)
-        if m and not in_code_fence:
+        if m:
             _flush()
             current_section = m.group("name")
             bars_str = m.group("bars")
@@ -129,7 +136,8 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
             continue
 
         # Markdown見出し行（セクションヘッダーでない）はスキップ
-        if md_heading_re.match(line):
+        # コードフェンス内の場合はスキップ不要（コードフェンス検出で扱う）
+        if md_heading_re.match(line) and not code_fence_re.match(line):
             continue
 
         # コードフェンス開始
