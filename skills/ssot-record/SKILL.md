@@ -1,7 +1,7 @@
 ---
 name: ssot-record
 description: >
-  SSOT（01_DECISIONS/10_DAILY等）への記録・振り分けを自動化。内容をLLMが分析し最適な振り分け先を判定・フォーマット生成・リンク付与・ガイド転記まで一括実行。record-decision の上位互換。
+  SSOTへの記録・振り分けを自動化。内容をLLMが分析して**最適な保管場所を判定（01_DECISIONSはその一候補）**・フォーマット生成・リンク付与・ガイド転記まで一括実行。record-decision の上位互換。
   「記録して」「保存して」「メモして」「SSOTに入れて」「ガイドに追加して」等で発火。「これ残して」「決定事項にして」「構想メモ」は構想モード。/ssot-record でも起動。
 user-invocable: true
 ---
