@@ -22,6 +22,9 @@ def _load_key():
 MINIMAX_KEY = _load_key()
 MINIMAX_URL = 'https://api.minimax.io/anthropic/v1/messages'
 MODEL = 'MiniMax-M3'
+# Context window: MiniMax-M3 supports 1M tokens (2026-07-12 confirmed)
+# https://platform.MiniMax.io/docs/models/MiniMax-M3
+CONTEXT_WINDOW = 1_000_000
 
 
 def call_minimax(prompt, max_tokens=2000):
