@@ -165,7 +165,8 @@ L1出力の直後に、LLMが**自問1回**「既存案とは違う軸・視点�
 ### 動作
 ```
 1. ssot-search スキル（または search.py）で 01_DECISIONS/ から類似判断を検索
-   python3 ~/.claude/scripts/ssot/search.py "<トピック>" --ssot-dir ~/projects/obsidian-ssot/01_DECISIONS --top 5
+   python3 /home/yn4416/projects/claude-config/scripts/ssot/search.py "<トピック>" --ssot-dir /home/yn4416/projects/obsidian-ssot/01_DECISIONS --top 5
+   （実体パス直接指定。`~/.claude/scripts/...`はWSL側シンボリックリンクでWindows DesktopのUNCアクセスでは解決できないため・2026-07-11修正。WSL-CLIでは同一実体のため挙動不変）
 2. 過去の決定・理由・結果を抽出
 3. 現在の比較に「過去判断との整合性」軸を追加
 4. 矛盾があれば明示:

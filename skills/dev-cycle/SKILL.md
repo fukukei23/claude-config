@@ -99,13 +99,16 @@ for issue in issues_to_create:
 
 ### 今すぐ実行（Stop Hook 連鎖方式）
 
-```bash
-# Issue番号を指定
-bash ~/.claude/scripts/auto-dev/start.sh 76 77
+> ⚠️ 旧`start.sh`方式は廃止済み（2026-06-29・詳細: `00_SYSTEM/共通ルール/自律開発ループ.md`補足）。
+> 現行はDaily Triage → 人間承認（approve.py）→ 最初のタスクが `run-task.sh` で起動 → 以降 Stop hook 連鎖（`next_issue.py`）。
 
-# GitHubから自動取得（--auto）
-bash ~/.claude/scripts/auto-dev/start.sh --auto <repo>
-# 例: bash ~/.claude/scripts/auto-dev/start.sh --auto atelier-kyo-manager
+```bash
+# 手動承認フロー（today-tasks.md の候補を選んで起動・大量一括承認は禁止）
+python3 /home/yn4416/projects/claude-config/scripts/auto-dev/approve.py
+
+# OSS Issue自律ループ（auto-loopラベル付きIssueをキューに積込→auto切替）
+python3 /home/yn4416/projects/claude-config/scripts/auto-dev/fetch_issues.py <repo>
+bash /home/yn4416/projects/claude-config/scripts/auto-dev/set-mode.sh auto
 ```
 
 ### 夜間・放置実行（CronCreate 方式）
@@ -137,7 +140,7 @@ CronCreate:
 
 ```bash
 python3 -c "
-import json; p='/home/yn4416/.claude/scripts/auto-dev/state.json'
+import json; p='/home/yn4416/projects/claude-config/scripts/auto-dev/state.json'
 s=json.load(open(p)); s['active']=False; json.dump(s,open(p,'w'),indent=2)
 print('停止:', s)
 "
@@ -146,15 +149,22 @@ print('停止:', s)
 ### 状態確認
 
 ```bash
-cat ~/.claude/scripts/auto-dev/state.json
-tail -f ~/.claude/scripts/auto-dev/loop.log
+cat /home/yn4416/projects/claude-config/scripts/auto-dev/state.json
+tail -f /home/yn4416/projects/claude-config/scripts/auto-dev/loop.log
 ```
+
+> ⚠️ **既知の制約（Windows Desktop・未解消）**: `approve.py`/`run-task.sh`/`next_issue.py`/`set-mode.sh`/`fetch_issues.py`/`state_store.py` の6スクリプトは
+> いずれも内部で `state.json`/`loop.log` 等の実データファイルパスを `/home/yn4416/.claude/scripts/auto-dev/...`（シンボリックリンク経由）に
+> ハードコードしており、Windows Desktop環境のUNCアクセスではこの内部参照が解決できない（`Not a directory`）。
+> 上記のSKILL.md側コマンドを実体パスに直しても、スクリプト自身の内部パスが直っていないため**現状フェーズ4はWindows Desktop環境では動作しない**。
+> 根本修正には上記6スクリプトのハードコードパスを実体パス化する必要があるが、WSL側cron（Daily Triage等）が使う本番稼働中のstate.jsonを扱うため、
+> 影響範囲の大きい別タスクとして切り出すことを推奨（2026-07-11調査で判明）。WSL-CLI環境では問題なく動作する（実体は同一ファイルのため挙動不変）。
 
 ---
 
 ## フェーズ5: 完了通知（自動）
 
-`~/.claude/scripts/auto-dev/next-issue.py` が `pending=[]` を検知して自動実行。
+`next_issue.py`（Stop Hook 本体）が `pending=[]` を検知して自動実行。
 Discord Webhook に完了メッセージを送信する。
 
 ---
@@ -163,10 +173,12 @@ Discord Webhook に完了メッセージを送信する。
 
 | ファイル | 役割 |
 |---|---|
-| `~/.claude/scripts/auto-dev/start.sh` | ループ手動起動 |
-| `~/.claude/scripts/auto-dev/next-issue.py` | Stop Hook 本体 |
-| `~/.claude/scripts/auto-dev/state.json` | キュー状態 |
-| `~/.claude/scripts/auto-dev/run-issue.sh` | Issue実行wrapper |
+| `/home/yn4416/projects/claude-config/scripts/auto-dev/approve.py` | 人間承認ゲート・最初のタスク起動 |
+| `/home/yn4416/projects/claude-config/scripts/auto-dev/next_issue.py` | Stop Hook 本体 |
+| `/home/yn4416/projects/claude-config/scripts/auto-dev/state.json` | キュー状態 |
+| `/home/yn4416/projects/claude-config/scripts/auto-dev/run-task.sh` | 実装+検証（別プロセス） |
+| `/home/yn4416/projects/claude-config/scripts/auto-dev/fetch_issues.py` | OSS Issue自動積込 |
+| `/home/yn4416/projects/claude-config/scripts/auto-dev/set-mode.sh` | manual/auto切替 |
 | `00_SYSTEM/共通ルール/コード品質スイープ.md` | フェーズ1詳細 |
 | `00_SYSTEM/プロンプト集/コードレビュー/code-review-v3.md` | フェーズ2詳細 |
 | `00_SYSTEM/共通ルール/自律開発ループ.md` | フェーズ4詳細 |
