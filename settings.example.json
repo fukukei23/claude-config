@@ -438,7 +438,8 @@
       ],
       "env": {
         "MINIMAX_API_KEY": "sk-c***MASKED***"
-      }
+      },
+      "timeout": 600
     },
     "glm": {
       "env": {
