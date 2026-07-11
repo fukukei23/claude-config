@@ -31,7 +31,7 @@ def call_minimax(prompt, max_tokens=2000):
     # ステータスファイルに記録（ステータスライン表示用）
     try:
         with open('/tmp/llm-last-used.txt', 'w') as f:
-            f.write('🟠 MiniMax')
+            f.write(f'🟠 MiniMax-M3|ctx:{CONTEXT_WINDOW}')
     except Exception:
         pass
     if not MINIMAX_KEY:
