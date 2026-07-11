@@ -15,6 +15,13 @@ glm-rate-proxy は Claude Code CLI が GLM (ZAI) / MiniMax へ接続するため
 **スコープ**: 診断 + 案内のみ。ソースコードの自動書き換えはしない。
 修正が必要な場合はコマンドを提示し、ユーザー確認後に実行する。
 
+**環境差分（Windows Desktop・重要）**: 本スキル中のスクリプトパスは実体パス
+`/home/yn4416/projects/claude-config/scripts/...` を使用する（`~/.claude/scripts/...` はWSL側シンボリックリンクで
+Windows Desktop環境のUNCアクセスでは解決できない = `Not a directory` エラーになるため）。
+Linux絶対パス表記のまま渡せばWindows Desktop側のPreToolUseフックが自動でUNC変換する。
+自分でUNCプレフィックス（`//wsl.localhost/...`）を手書きすると二重変換で失敗するので避けること。
+WSL-CLI環境では`/home/yn4416/...`と`~/.claude/scripts/...`は同一実体なので挙動は変わらない（2026-07-11修正）。
+
 ---
 
 ## 重要: プロキシが止まっても Claude Code は動く
@@ -40,16 +47,16 @@ pkill -f glm_rate_proxy
 
 ```bash
 # 現在の設定確認（変更なし・dry-run）
-bash ~/.claude/scripts/switch-backend.sh status
+bash /home/yn4416/projects/claude-config/scripts/switch-backend.sh status
 
 # 通常運用（プロキシ経由）に戻す
-bash ~/.claude/scripts/switch-backend.sh normal
+bash /home/yn4416/projects/claude-config/scripts/switch-backend.sh normal
 
 # ZAI直結（推奨自救・GLM直接・課金増なし）
-bash ~/.claude/scripts/switch-backend.sh zai
+bash /home/yn4416/projects/claude-config/scripts/switch-backend.sh zai
 
 # MiniMax直結（※認証方式の実機検証が未完・動かなければ zai で確実）
-bash ~/.claude/scripts/switch-backend.sh minimax
+bash /home/yn4416/projects/claude-config/scripts/switch-backend.sh minimax
 ```
 
 **仕組み**:
@@ -84,7 +91,7 @@ tail -60 /tmp/glm-proxy.log 2>/dev/null || echo "[ログなし: プロキシ未�
 ```bash
 # 全プロセスを一度停止してから再起動する
 pkill -f "[g]lm_rate_proxy" && sleep 2
-bash ~/.claude/scripts/llm/start-glm-proxy.sh
+bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 ```
 
 **注意 — last_request_mb が 28 以上の場合:**
@@ -110,13 +117,13 @@ bash ~/.claude/scripts/llm/start-glm-proxy.sh
 プロキシを再起動したい場合のみ以下を実行:
 
 ```bash
-bash ~/.claude/scripts/llm/start-glm-proxy.sh
+bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 ```
 
 start-glm-proxy.sh が存在しない・失敗する場合の手動起動:
 ```bash
 source ~/.secrets.env
-cd ~/.claude/scripts/glm-rate-proxy
+cd /home/yn4416/projects/claude-config/scripts/glm-rate-proxy
 PYTHONPATH=src nohup python3 -m glm_rate_proxy > /tmp/glm-proxy.log 2>&1 &
 sleep 2 && curl -s http://127.0.0.1:8787/proxy/status | python3 -m json.tool
 ```
@@ -132,7 +139,7 @@ orphan な tool_result だけが MiniMax に送られている。
 
 確認 (修正済みかチェック):
 ```bash
-grep -n "removing.*orphan" ~/.claude/scripts/glm-rate-proxy/src/glm_rate_proxy/tool_sanitizer.py
+grep -n "removing.*orphan" /home/yn4416/projects/claude-config/scripts/glm-rate-proxy/src/glm_rate_proxy/tool_sanitizer.py
 ```
 
 - "removing" が見つかる → 修正済みだが別原因。ログ前後をさらに精査
@@ -141,7 +148,7 @@ grep -n "removing.*orphan" ~/.claude/scripts/glm-rate-proxy/src/glm_rate_proxy/t
 proxy 再起動:
 ```bash
 pkill -f "[g]lm_rate_proxy" && sleep 1
-bash ~/.claude/scripts/llm/start-glm-proxy.sh
+bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 ```
 
 ---
@@ -177,7 +184,7 @@ MiniMax 強制: config.json の peak_hours を start_hour=0 / end_hour=24 に設
 ```bash
 pkill -f "[g]lm_rate_proxy" && sleep 1
 source ~/.secrets.env
-cd ~/.claude/scripts/glm-rate-proxy
+cd /home/yn4416/projects/claude-config/scripts/glm-rate-proxy
 GLM_PEAK_BLOCK=false PYTHONPATH=src nohup python3 -m glm_rate_proxy > /tmp/glm-proxy.log 2>&1 &
 ```
 
@@ -191,13 +198,13 @@ GLM_PEAK_BLOCK=false PYTHONPATH=src nohup python3 -m glm_rate_proxy > /tmp/glm-p
 
 確認:
 ```bash
-CFG=~/.claude/scripts/glm-rate-proxy/config/config.json
+CFG=/home/yn4416/projects/claude-config/scripts/glm-rate-proxy/config/config.json
 python3 -c "import json; c=json.load(open('$CFG')); t=c.get('thinking',{}); print(t.get('mode'), t.get('budget_tokens'))"
 ```
 
 対処: config.json の thinking.mode を "always_off" に変更 → proxy 再起動
 ```bash
-pkill -f "[g]lm_rate_proxy" && sleep 1 && bash ~/.claude/scripts/llm/start-glm-proxy.sh
+pkill -f "[g]lm_rate_proxy" && sleep 1 && bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 ```
 
 ---
@@ -210,7 +217,7 @@ pkill -f "[g]lm_rate_proxy" && sleep 1 && bash ~/.claude/scripts/llm/start-glm-p
 
 対処: proxy 再起動（成功レスポンスのヘッダーで使用率が自動更新される）
 ```bash
-pkill -f "[g]lm_rate_proxy" && sleep 1 && bash ~/.claude/scripts/llm/start-glm-proxy.sh
+pkill -f "[g]lm_rate_proxy" && sleep 1 && bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 ```
 
 ---
@@ -274,7 +281,7 @@ grep -E "^ANTHROPIC_AUTH_TOKEN=" ~/.secrets.env | sed 's/=.*/=<REDACTED>/'
 3. proxy 再起動で新しいキーを読み込む:
 ```bash
 pkill -f "[g]lm_rate_proxy" && sleep 1
-bash ~/.claude/scripts/llm/start-glm-proxy.sh
+bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 ```
 
 ---
@@ -324,7 +331,7 @@ curl -s http://127.0.0.1:8787/proxy/status | python3 -c \
 tail -f /tmp/glm-proxy.log
 
 # 再起動（推奨）
-pkill -f glm_rate_proxy && sleep 1 && bash ~/.claude/scripts/llm/start-glm-proxy.sh
+pkill -f glm_rate_proxy && sleep 1 && bash /home/yn4416/projects/claude-config/scripts/llm/start-glm-proxy.sh
 
 # ZAI直結に戻す（プロキシを止めるだけ・新しいターミナルで自動切替）
 pkill -f glm_rate_proxy
