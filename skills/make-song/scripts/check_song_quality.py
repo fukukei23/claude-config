@@ -94,6 +94,36 @@ def classify_section(section_name: str) -> str:
     return "low"
 
 
+def _kanji_to_hiragana_simple(text: str) -> str:
+    """漢字をひらがなに変換する簡易版（janome依存なし）。
+
+    Phase 1では主要語彙のみ対応。複雑な読み方は正規表現でカバーできない。
+    未対応の漢字はそのまま残る（強母音カウント対象から外れる）。
+    """
+    hira_map = {
+        "胸を張れ": "むねをはれ",
+        "胸": "むね", "張れ": "はれ",
+        "朝日": "あさひ", "出": "で",
+        "足踏み鳴らせ": "あしふみならせ",
+        "足踏み": "あしふみ", "鳴らせ": "ならせ",
+        "声を揃え": "こえをそろえ",
+        "声を": "こえを", "揃え": "そろえ",
+        "信じて": "しんじて",
+        "漏れそうな": "もれそうな", "漏れそう": "もれそう",
+        "火種を抱いて行け": "ひだねをだいていけ",
+        "火種": "ひだね", "抱いて行け": "だいていけ",
+        "祭礼前夜": "さいれいぜんや",
+        "自分の輪郭": "じぶんのりんかく",
+        "確かめに来い": "たしかめにこい",
+        "誰もが見てる": "だれもみてる",
+        "自分の太鼓": "じぶんのおおづつ",
+    }
+    # 長い順に置換（複合語優先）
+    for kanji, hira in sorted(hira_map.items(), key=lambda x: -len(x[0])):
+        text = text.replace(kanji, hira)
+    return text
+
+
 def _line_syllables_simple(line: str) -> int:
     """文字数ベースの簡易音節数カウント（行ベース）"""
     line = re.sub(r"[、。、「」『』()（）\[\]/…\s]", "", line)
@@ -122,23 +152,25 @@ def calc_mid_high_score(section_name: str, lines: list[str]) -> float:
         stripped = line.strip()
         if not stripped:
             continue
-        total_chars += len(stripped)
+        # 漢字→ひらがな変換（語彙マッチング用）
+        hira = _kanji_to_hiragana_simple(stripped)
+        total_chars += len(hira)
 
         # 破裂音加点（行ごと）
-        if PLOSIVE_RE.search(stripped):
+        if PLOSIVE_RE.search(hira):
             raw_score += 5.0
 
-        # 中高音語彙加点
+        # 中高音語彙加点（漢字混じりでもマッチするよう両方で確認）
         for word in MID_HIGH_WORDS:
-            if word in stripped:
+            if word in stripped or word in hira:
                 raw_score += 8.0
 
         # ウィスパー語彙減点
         for word in WHISPER_WORDS:
-            if word in stripped:
+            if word in stripped or word in hira:
                 raw_score -= 10.0
 
-        strong_vowel_count += len(STRONG_VOWEL_RE.findall(stripped))
+        strong_vowel_count += len(STRONG_VOWEL_RE.findall(hira))
 
     # 強母音使用率ボーナス（10%以上で満点加点）
     if total_chars > 0:
@@ -169,6 +201,8 @@ def calc_pitch_range_score(section_name: str, lines: list[str]) -> float:
     if not valid_lines:
         return 0.0
 
+    # 漢字→ひらがな変換（強母音カウント用）
+    hira_lines = [_kanji_to_hiragana_simple(l) for l in valid_lines]
     syllables_per_line = [_line_syllables_simple(l) for l in valid_lines]
     n_lines = len(valid_lines)
 
@@ -181,15 +215,14 @@ def calc_pitch_range_score(section_name: str, lines: list[str]) -> float:
 
     # 強母音の種類数（多いほど加点・最大5種で満点20点）
     distinct_vowels = set()
-    for line in valid_lines:
+    for line in hira_lines:
         distinct_vowels.update(STRONG_VOWEL_RE.findall(line))
     raw_score += min(len(distinct_vowels) * 4.0, 20.0)
 
     # 強母音の行ごとの遷移（隣接行で強母音セットが変化すれば加点・最大20点）
-    # 例: 行1=「あ行中心」、行2=「か行中心」→ 母音セットが変化 → +5点
     prev_vowels = None
     transitions = 0
-    for line in valid_lines:
+    for line in hira_lines:
         curr_vowels = set(STRONG_VOWEL_RE.findall(line))
         if prev_vowels is not None and curr_vowels != prev_vowels:
             transitions += 1
@@ -278,6 +311,38 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
             else:
                 verdict = "❌ 禁止域"
 
+            # 軸B/軸C スコア計算（Phase 1 追加）
+            mid_high_score = calc_mid_high_score(current_section, current_lines)
+            pitch_range_score = calc_pitch_range_score(current_section, current_lines)
+
+            # 総合判定（3軸のうち最低値で判定）
+            axes = [
+                ("A密度", density, density <= 8, density <= 10),
+                ("B中高音", mid_high_score, mid_high_score >= MID_HIGH_THRESHOLD, mid_high_score >= 30),
+                ("C抑揚", pitch_range_score, pitch_range_score >= PITCH_RANGE_THRESHOLD, pitch_range_score >= 20),
+            ]
+            axis_results = {}
+            for name, val, ok_pass, ok_warn in axes:
+                if name == "A密度":
+                    axis_results[name] = {
+                        "score": round(val, 2),
+                        "verdict": "✅" if ok_pass else ("⚠️" if ok_warn else "❌"),
+                    }
+                else:
+                    axis_results[name] = {
+                        "score": round(val, 2),
+                        "verdict": "✅" if ok_pass else ("⚠️" if ok_warn else "❌"),
+                    }
+
+            # 総合: ❌1つでもあれば❌、⚠️1つ以上なら⚠️、全部✅なら✅
+            verdicts = [ar["verdict"] for ar in axis_results.values()]
+            if "❌" in verdicts:
+                overall = "❌ 禁止"
+            elif "⚠️" in verdicts:
+                overall = "⚠️ 警告"
+            else:
+                overall = "✅ 安全"
+
             results[current_section] = {
                 "syllables": total_syl,
                 "lines": len(current_lines),
@@ -285,6 +350,10 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
                 "seconds": round(section_seconds, 2),
                 "density": round(density, 2),
                 "verdict": verdict,
+                "mid_high_score": round(mid_high_score, 2),
+                "pitch_range_score": round(pitch_range_score, 2),
+                "axes": axis_results,
+                "overall": overall,
             }
         current_section = None
         current_bars = default_bars
