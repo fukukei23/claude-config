@@ -422,45 +422,63 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
 
 
 def print_results(results: dict, bpm: int) -> None:
-    """結果を表示"""
-    print(f"\n📊 音節密度チェック結果（BPM={bpm}）\n")
-    print(f"{'セクション':<15} {'行数':>4} {'小節':>4} {'秒数':>6} {'音節':>5} {'密度':>5}  判定")
-    print("-" * 70)
+    """3軸統合結果を表示（軸A音節密度 + 軸B中高音 + 軸C抑揚幅）"""
+    print(f"\n📊 メロディ品質3軸チェック結果（BPM={bpm}）\n")
+    header = (
+        f"{'セクション':<15} {'行数':>4} {'小節':>4} {'秒数':>6} {'音節':>5} "
+        f"{'密度':>5}  {'A':>4}  {'B中高':>5} {'B':>4}  {'C抑揚':>5} {'C':>4}  総合"
+    )
+    print(header)
+    print("-" * 90)
 
     has_warning = False
     has_forbidden = False
 
     for section_name, data in results.items():
+        axes = data.get("axes", {})
+        a = axes.get("A密度", {"score": data["density"], "verdict": data["verdict"]})
+        b = axes.get("B中高音", {"score": data.get("mid_high_score", 0), "verdict": "?"})
+        c = axes.get("C抑揚", {"score": data.get("pitch_range_score", 0), "verdict": "?"})
+        overall = data.get("overall", data["verdict"])
+        # 総合判定の絵文字だけ抽出
+        overall_emoji = "❌" if "❌" in overall else ("⚠️" if "⚠️" in overall else "✅")
+
         print(
             f"{section_name:<15} {data['lines']:>4} {data['bars']:>4} "
             f"{data['seconds']:>6.1f} {data['syllables']:>5} "
-            f"{data['density']:>5.1f}  {data['verdict']}"
+            f"{data['density']:>5.1f}  {a['verdict']:>4}  "
+            f"{b['score']:>5.1f} {b['verdict']:>4}  "
+            f"{c['score']:>5.1f} {c['verdict']:>4}  {overall_emoji}"
         )
-        if "⚠️" in data["verdict"]:
-            has_warning = True
-        elif "❌" in data["verdict"]:
-            has_forbidden = True
 
-    print("\n" + "=" * 70)
+        if "❌" in overall:
+            has_forbidden = True
+        elif "⚠️" in overall:
+            has_warning = True
+
+    print("\n" + "=" * 90)
     if has_forbidden:
-        print("❌ 禁止域セクションあり → 歌詞短縮・改行必要")
+        print("❌ 3軸のうち1軸以上が禁止域 → 歌詞短縮/語彙変更/プロンプト見直し必要")
         sys.exit(1)
     elif has_warning:
-        print("⚠️ 警告域セクションあり → ユーザー判断（メロディックラップ許容か）")
+        print("⚠️ 3軸のうち1軸以上が警告域 → ユーザー判断（メロディックラップ許容か）")
         sys.exit(0)
     else:
-        print("✅ 全セクション安全域 → 歌詞OK")
+        print("✅ 全軸が安全域 → 歌詞OK・MiniMax生成に進んでください")
         sys.exit(0)
 
 
 def print_phase1_note() -> None:
     """Phase 1の注意書き"""
     print("\n" + "=" * 70)
-    print("📌 Phase 1 軸B・C（中高音使用率・抑揚幅）は自動評価未実装")
-    print("   → プロンプト指示で予防制御してください:")
-    print("   軸B: 「中高音域(A4以上)を主軸に歌う・低音ウィスパーに偏らない」")
-    print("   軸C: 「メロディーの起伏を5音以上確保・サビで音程の跳躍」")
-    print("   → 生成後、イヤホンで聴いて「ウィスパー低音偏り」「平板」と感じたら再生成")
+    print("📌 Phase 1 軸B・C（中高音使用率・抑揚幅）は歌詞文字列ベースの簡易自動評価")
+    print("   → 漢字→ひらがな変換で対応（janome依存なし・主要語彙のみ）")
+    print("   → 未対応漢字は強母音カウント対象外")
+    print()
+    print("📌 Phase 2（1-2ヶ月後）に実測オーディオ解析版へ拡張予定")
+    print("   軸B: librosa等を用いたスペクトル重心 > A4周波数での時間比率")
+    print("   軸C: 音高推定(pYIN/piptrack)による音程差分散")
+    print("   → 詳細: バックログ「音節密度ルール拡張設計(案A'合成案)」タスク")
     print("\n📌 Phase 2（1-2ヶ月後）に多次元スコアリング・自動評価を実装予定")
     print("   詳細: バックログ「音節密度ルール拡張設計(案A'合成案)」タスク")
 

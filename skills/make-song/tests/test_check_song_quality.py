@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from check_song_quality import (  # noqa: E402
     calc_mid_high_score,  # 軸B
     calc_pitch_range_score,  # 軸C
+    check_syllable_density,  # 軸A
     SECTION_WEIGHTS,
     classify_section,
     MID_HIGH_THRESHOLD,
@@ -164,3 +165,142 @@ def test_閾値定数の妥当性():
     """MID_HIGH_THRESHOLDとPITCH_RANGE_THRESHOLDが妥当な範囲"""
     assert 0 < MID_HIGH_THRESHOLD <= 100
     assert 0 < PITCH_RANGE_THRESHOLD <= 100
+
+
+# ========================================
+# 統合: 3軸チェッカー動作確認
+# ========================================
+
+SAMPLE_LYRICS = """# サンプル歌詞
+
+### [Intro] 8小節
+
+```
+灯がともる　提灯
+まだ誰も来てない　風に鳴る
+```
+
+### [Verse 1] 16小節
+
+```
+町会の倉庫　骨を組む音
+汗のにじんだ手拭い　順に回す
+去年の自分より　少しは力が要る
+揃わない足音に　夜が応える
+```
+
+### [Chorus]
+
+```
+祭礼前夜　胸を張れ
+朝日が出るまで　足踏み鳴らせ
+名もない連帯を信じて
+漏れそうな火種を抱いて行け
+```
+"""
+
+
+def test_3軸統合_セクション毎に軸B_C_スコアが入っている(tmp_path=None):
+    """3軸チェッカーを実行すると各セクションにmid_high_scoreとpitch_range_scoreが入る"""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(SAMPLE_LYRICS)
+        path = Path(f.name)
+
+    results = check_syllable_density(path, bpm=98)
+    path.unlink()
+
+    assert "Chorus" in results, "Chorus セクションが抽出されるべき"
+    chorus = results["Chorus"]
+    assert "mid_high_score" in chorus, "Chorusに軸Bスコアが必要"
+    assert "pitch_range_score" in chorus, "Chorusに軸Cスコアが必要"
+    assert "axes" in chorus, "Chorusに3軸判定が必要"
+    assert "overall" in chorus, "Chorusに総合判定が必要"
+
+
+def test_3軸統合_祭礼前夜Chorusが安全判定():
+    """祭礼前夜のChorus（中高音言葉豊富）は総合✅になる"""
+    import tempfile
+
+    chorus_only = """# テスト
+
+### [Chorus]
+
+```
+祭礼前夜　胸を張れ
+朝日が出るまで　足踏み鳴らせ
+名もない連帯を信じて
+漏れそうな火種を抱いて行け
+```
+"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(chorus_only)
+        path = Path(f.name)
+
+    results = check_syllable_density(path, bpm=98)
+    path.unlink()
+
+    assert "Chorus" in results
+    chorus = results["Chorus"]
+    assert chorus["mid_high_score"] >= MID_HIGH_THRESHOLD, (
+        f"祭礼前夜Chorusの軸BスコアはMID_HIGH_THRESHOLD以上であるべき: {chorus['mid_high_score']}"
+    )
+    assert chorus["overall"] == "✅ 安全", (
+        f"祭礼前夜Chorusは総合✅であるべき、実際: {chorus['overall']}"
+    )
+
+
+def test_3軸統合_低音ウィスパーVerseが警告域():
+    """低音ウィスパー語彙が支配的なVerseは軸B❌で総合警告"""
+    import tempfile
+
+    whisper_verse = """# テスト
+
+### [Verse 1] 16小節
+
+```
+囁くようにそっと窓を伏せて
+眠る街角 影が揺れる
+そっと息を殺して夜が更ける
+静かな夜に ただ眠る
+```
+"""
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as f:
+        f.write(whisper_verse)
+        path = Path(f.name)
+
+    results = check_syllable_density(path, bpm=98)
+    path.unlink()
+
+    assert "Verse 1" in results
+    verse = results["Verse 1"]
+    assert verse["mid_high_score"] < MID_HIGH_THRESHOLD, (
+        f"ウィスパーVerseの軸BはMID_HIGH_THRESHOLD未満であるべき: {verse['mid_high_score']}"
+    )
+    assert "❌" in verse["overall"] or "⚠️" in verse["overall"], (
+        f"ウィスパーVerseは総合❌または⚠️であるべき、実際: {verse['overall']}"
+    )
+
+
+def test_3軸統合_祭礼前夜実歌詞ファイル():
+    """実際の祭礼前夜歌詞.mdで3軸チェックが動作する"""
+    lyrics_path = Path("/home/yn4416/projects/cyber-wa-modern/songs/原点廻帰/祭礼前夜/歌詞.md")
+    if not lyrics_path.exists():
+        import pytest
+        pytest.skip("祭礼前夜歌詞.mdが存在しない")
+    results = check_syllable_density(lyrics_path, bpm=98)
+    assert len(results) > 0, "歌詞からセクションが抽出されるべき"
+    # 全セクションに軸B/Cスコアが入っている
+    for section_name, data in results.items():
+        assert "mid_high_score" in data, f"{section_name}に軸Bスコアが必要"
+        assert "pitch_range_score" in data, f"{section_name}に軸Cスコアが必要"
+        assert "axes" in data, f"{section_name}に3軸判定が必要"
