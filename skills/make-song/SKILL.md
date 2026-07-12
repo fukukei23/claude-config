@@ -102,6 +102,7 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
       /home/yn4416/projects/obsidian-ssot/reference/名曲DB \
       -o /tmp/make-song-query/<timestamp>/match_report.md
     ```
+    - **Windows Desktop環境**: 上記は`.venv/bin/python`直接実行のためWSL-CLI環境専用。Windows Desktopでは`win-wsl-exec.sh`経由で実行（詳細は `analyze-song` SKILL.md の「Windows Desktop環境での実行」参照）
   - Demucs音源分離を含むため**数分かかる**。実行前にユーザーへ「数分かかります」と伝える
   - 失敗時（YouTube DL失敗・Demucs失敗・対応外フォーマット等）は本ルートを諦め、下記「エラー処理・フォールバック」表の該当行に従う
   - 成功時: `/tmp/make-song-query/<timestamp>/make_song_input.json` を Phase 0.5/1 で参照する（詳細は Phase 0.5/1 セクション参照）

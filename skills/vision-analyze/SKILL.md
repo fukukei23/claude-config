@@ -33,6 +33,7 @@ set -a; source ~/.secrets.env; set +a
 .venv/bin/python scripts/api/gemini_vision.py --image "<path>" [--image "<path2>"] [--allow-paid]
 ```
 
+- **Windows Desktop環境**: 上記は`.venv/bin/python`直接実行のためWSL-CLI環境専用。Windows Desktopでは`win-wsl-exec.sh`経由で実行（詳細は `analyze-song` SKILL.md の「Windows Desktop環境での実行」参照）
 - 結果は JSON `{"status","summary","full_data","error"}`
 - `status=ok` → `summary` を分析結果として読み込む
 - `status=error` → Phase2（4_5v MCP フォールバック）へ

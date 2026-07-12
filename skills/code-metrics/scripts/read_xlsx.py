@@ -1,5 +1,10 @@
+import os
 import openpyxl
-wb = openpyxl.load_workbook('/mnt/c/Users/yn441/Downloads/技術経歴書.xlsx', data_only=True)
+
+_candidates = ['/mnt/c/Users/yn441/Downloads/技術経歴書.xlsx', os.path.expanduser('~/Downloads/技術経歴書.xlsx')]
+path = next((p for p in _candidates if os.path.exists(p)), _candidates[0])
+
+wb = openpyxl.load_workbook(path, data_only=True)
 for sh in wb.sheetnames:
     ws = wb[sh]
     print(f"=== {sh} ===")

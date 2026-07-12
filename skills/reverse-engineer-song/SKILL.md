@@ -60,10 +60,11 @@ description: YouTube動画（楽曲）をリバースエンジニアリングし
    set -a; source ~/.secrets.env; set +a
    .venv/bin/python scripts/api/gemini.py --youtube "<Phase0で取得したURL>" --prompt-file "/tmp/lastfm_prompt_<曲名>.md"
    ```
-3. スクリプトは標準出力にJSON `{"status","summary","full_data","error"}` を返す
+3. **Windows Desktop環境**: 上記2コマンド（lastfm.py/gemini.py）は`.venv/bin/python`直接実行のためWSL-CLI環境専用。Windows Desktopでは`win-wsl-exec.sh`経由で実行（詳細は `analyze-song` SKILL.md の「Windows Desktop環境での実行」参照）
+4. スクリプトは標準出力にJSON `{"status","summary","full_data","error"}` を返す
    - **status=error** の場合 → ユーザーにエラー内容を提示し、手動Gemini投下（従来フロー）にフォールバックして停止 🔴
    - **status=ok** の場合 → summary を解析結果として次Phaseへ進む
-4. CCは summary のみを文脈に読み込む（full_dataキャッシュは必要時のみ参照）
+5. CCは summary のみを文脈に読み込む（full_dataキャッシュは必要時のみ参照）
 
 ### Phase 2: Gemini結果受領・構造化 🔴
 

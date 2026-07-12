@@ -59,7 +59,8 @@ EXCLUDE_DIRS = {
 
 ## Phase 2: コード行数の計測
 
-スキル同梱の `~/.claude/skills/code-metrics/scripts/measure_code.py` を実行する（内容は以下の通り。無い場合はこの内容で同パスに保存する）。
+スキル同梱の `~/projects/claude-config/skills/code-metrics/scripts/measure_code.py` を実行する（内容は以下の通り。無い場合はこの内容で同パスに保存する）。
+（`~/.claude/skills/...`はWSL側シンボリックリンクでWindows DesktopのUNCアクセスでは解決できないため実体パスを使用・2026-07-12修正。WSL-CLI環境では同一実体のため挙動不変）
 
 ```python
 #!/usr/bin/env python3
@@ -228,7 +229,7 @@ print()
 
 実行コマンド：
 ```bash
-python3 ~/.claude/skills/code-metrics/scripts/measure_code.py NexusCore atelier-kyo-manager reserve-optimizer ...
+python3 ~/projects/claude-config/skills/code-metrics/scripts/measure_code.py NexusCore atelier-kyo-manager reserve-optimizer ...
 ```
 
 ---
@@ -308,7 +309,7 @@ tags: [実績検証, コード計測]
 ## 計測条件
 - 除外ディレクトリ: mutants/ evaluation/ archive/ .venv/ 等
 - 計測日: YYYY-MM-DD
-- 計測スクリプト: ~/.claude/skills/code-metrics/scripts/measure_code.py
+- 計測スクリプト: ~/projects/claude-config/skills/code-metrics/scripts/measure_code.py
 
 ## 結果
 
@@ -366,4 +367,4 @@ Layer3: git log 確認済み（最終コミット: YYYY-MM-DD）✅
 - **推測で答えない** — 実行前に数字を言わない。必ずスクリプト実行後に答える
 - **mutants/ の罠** — NexusCoreにはmutants/が5.5万行含まれていた。必ず除外確認する
 - **テストフレームワークを確認してから計測** — pytest/jest/カスタムで方法が違う
-- **計測スクリプトは毎回保存する** — `~/.claude/skills/code-metrics/scripts/measure_code.py` に上書き保存して再利用可能にする（2026-07-03 監査Phase2でホーム直下からスキル同梱へ移設。count_code.py / count_tests.sh / audit_nexuscore.py / read_xlsx.py / update_xlsx.py も同フォルダ）
+- **計測スクリプトは毎回保存する** — `~/projects/claude-config/skills/code-metrics/scripts/measure_code.py` に上書き保存して再利用可能にする（2026-07-03 監査Phase2でホーム直下からスキル同梱へ移設。count_code.py / count_tests.sh / audit_nexuscore.py / read_xlsx.py / update_xlsx.py も同フォルダ）

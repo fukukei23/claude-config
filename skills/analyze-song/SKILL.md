@@ -61,6 +61,12 @@ cd /home/yn4416/projects/claude-config/skills/analyze-song && \
 - 併せて `make_song_input.json`（機械向け構造化JSON・make-song の Phase 0.5/1 参照用）も同階層に出力
 - スコアリング4軸: BPM・key・chord・range（重みは `scripts/weights.yaml`）。phrase_repetition はDB観察で100%Falseのため除外軸
 
+## Windows Desktop環境での実行（重要）
+上記コマンドは`.venv/bin/python`（Linux ELFバイナリ）を直接実行するためWSL-CLI環境専用。Windows Desktop環境では直接実行できないため、`win-wsl-exec.sh`（`claude-config/scripts/win-wsl-exec.sh`）経由で実行すること:
+1. Writeツールで実行したい上記コマンドを `/tmp/<任意名>.sh` に書き出す（`#!/bin/bash`シェバン付き）
+2. `bash /home/yn4416/projects/claude-config/scripts/win-wsl-exec.sh /tmp/<任意名>.sh` を実行
+（コマンド文字列をBashツールの引数に直接書くとPreToolUse path-rewriteフックで壊れるため、必ずファイル経由にすること）
+
 ## 出力（<出力ディレクトリ>/ 配下）
 - `features.json` — 全特徴量（機械用）
 - `score/full-1.png` `score/full.pdf` — 五線譜（人間用・MuseScore環境依存で省略の場合あり）
