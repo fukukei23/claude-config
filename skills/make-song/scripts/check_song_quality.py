@@ -3,11 +3,21 @@
 メロディ品質3軸チェッカー（Phase 1実装）
 
 軸A: 音節密度（自動）
-軸B: 中高音使用率（プロンプト評価のみ・Phase 2で自動）
-軸C: 抑揚幅スコア（プロンプト評価のみ・Phase 2で自動）
+軸B: 中高音使用率スコア（自動・簡易版）
+軸C: 抑揚幅スコア（自動・簡易版）
 
 使い方:
   python3 scripts/check_song_quality.py --bpm 98 --bars 8 歌詞.md
+
+判定ロジック（Phase 1・歌詞文字列ベース）:
+  軸B: サビセクションで力強い母音・破裂音行・上行語彙の存在を加点
+  軸C: セクション内の音節数ばらつき・強母音の交替頻度を加点
+
+Phase 2（1-2ヶ月後）に実測オーディオ解析版へ拡張予定:
+  軸B: librosa等を用いたスペクトル重心 > A4周波数での時間比率
+  軸C: 音高推定(pYIN/piptrack)による音程差分散
+
+詳細: バックログ「音節密度ルール拡張設計(案A'合成案)」タスク
 
 出力例:
   [Verse 1] 5.4音節/秒 ✅ 安全域
@@ -23,8 +33,184 @@
 
 import argparse
 import re
+import statistics
 import sys
 from pathlib import Path
+
+
+# ========================================
+# 軸B/軸C 用 定数
+# ========================================
+
+# 破裂音（パ・バ・タ・ダ行）：中高音的な発声を促す音
+PLOSIVE_RE = re.compile(r"[パバタダパパラバ][ァィゥェォー]?|[pbtd]")
+# 強母音（あ・い・う・え・お）：中高音域を出しやすい母音
+STRONG_VOWELS = "あいうえお"
+STRONG_VOWEL_RE = re.compile(f"[{STRONG_VOWELS}]")
+# 低音ウィスパー語彙（ネガティブ指標）
+WHISPER_WORDS = ("囁く", "伏せる", "眠る", "そっと", "静かに", "息を殺す", "影が揺れる")
+# 中高音語彙（ポジティブ指標・命令形・力強い動詞）
+MID_HIGH_WORDS = (
+    "張れ", "跳べ", "鳴らせ", "叩け", "叫べ", "歌え", "立て", "見せろ",
+    "信じろ", "抱いて行け", "来い", "出ろ", "声を揃え", "足踏み",
+    "火種", "太鼓", "胸", "声", "朝日", "心",
+)
+
+# 推奨3軸総合判定の閾値
+MID_HIGH_THRESHOLD = 50  # 軸B: 50以上で「中高音OK」
+PITCH_RANGE_THRESHOLD = 40  # 軸C: 40以上で「抑揚OK」
+
+# セクション分類と重み付け
+SECTION_WEIGHTS = {
+    # サビ系: 軸B/C が高得点であるべき
+    "Chorus": 1.0,
+    "Chorus:Final": 1.0,
+    "Big Chorus": 1.2,
+    # Verse系: 中庸
+    "Verse": 0.7,
+    "Verse 1": 0.7,
+    "Verse 2": 0.7,
+    "Verse 3": 0.7,
+    "Verse 4": 0.7,
+    # 低重要セクション: Intro/Break/Outro/Bridge
+    "Intro": 0.5,
+    "Break": 0.5,
+    "Bridge": 0.6,
+    "Outro": 0.5,
+}
+
+
+def classify_section(section_name: str) -> str:
+    """セクション名を sabi / verse / low の3カテゴリに分類。
+
+    サビ系: Chorus, Big Chorus, Chorus:Final
+    Verse系: Verse 1-4, A, B, C（汎用）
+    低重要: Intro, Break, Bridge, Outro
+    """
+    if any(k in section_name for k in ("Chorus", "サビ", "sabi")):
+        return "sabi"
+    if any(k in section_name for k in ("Verse", "A:", "B:", "C:", "メロ")):
+        return "verse"
+    return "low"
+
+
+def _line_syllables_simple(line: str) -> int:
+    """文字数ベースの簡易音節数カウント（行ベース）"""
+    line = re.sub(r"[、。、「」『』()（）\[\]/…\s]", "", line)
+    return len(line)
+
+
+def calc_mid_high_score(section_name: str, lines: list[str]) -> float:
+    """軸B: 中高音使用率スコア（0.0-100.0）を計算。
+
+    判定要素:
+      + 破裂音（パ・バ・タ・ダ行）の有無（1点/行）
+      + 強母音（あ・い・う・え・お）の使用率（10%目標）
+      + 中高音語彙（「張れ」「鳴らせ」型）の有無（5点/語）
+      - 低音ウィスパー語彙（「囁く」「眠る」「そっと」型）の存在（-10点/語）
+
+    重み付け: セクションタイプ別（サビ1.0, Verse0.7, Intro/Break0.5）
+    """
+    if not lines or not any(line.strip() for line in lines):
+        return 0.0
+
+    raw_score = 0.0
+    total_chars = 0
+    strong_vowel_count = 0
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        total_chars += len(stripped)
+
+        # 破裂音加点（行ごと）
+        if PLOSIVE_RE.search(stripped):
+            raw_score += 5.0
+
+        # 中高音語彙加点
+        for word in MID_HIGH_WORDS:
+            if word in stripped:
+                raw_score += 8.0
+
+        # ウィスパー語彙減点
+        for word in WHISPER_WORDS:
+            if word in stripped:
+                raw_score -= 10.0
+
+        strong_vowel_count += len(STRONG_VOWEL_RE.findall(stripped))
+
+    # 強母音使用率ボーナス（10%以上で満点加点）
+    if total_chars > 0:
+        vowel_ratio = strong_vowel_count / total_chars
+        raw_score += min(vowel_ratio * 200, 20.0)  # 最大20点
+
+    # セクション重み
+    weight = SECTION_WEIGHTS.get(section_name, 0.5)
+    weighted = raw_score * weight
+
+    # 0-100に収める
+    return max(0.0, min(100.0, weighted))
+
+
+def calc_pitch_range_score(section_name: str, lines: list[str]) -> float:
+    """軸C: 抑揚幅スコア（0.0-100.0）を計算。
+
+    判定要素:
+      + 行の音節数ばらつき（標準偏差が大きいほど高音程跳躍を期待）
+      + 強母音（あ・い・う・え・お）の**行ごとの遷移回数**（隣接行で変われば加点）
+      + 強母音の種類数（多いほど加点・最大5種で満点20点）
+
+    平板メロ判定: 全行の音節数が同じ±2以内 → 低評価
+
+    重み付け: セクションタイプ別（サビ高、Intro低）
+    """
+    valid_lines = [l.strip() for l in lines if l.strip()]
+    if not valid_lines:
+        return 0.0
+
+    syllables_per_line = [_line_syllables_simple(l) for l in valid_lines]
+    n_lines = len(valid_lines)
+
+    raw_score = 0.0
+
+    # 音節数ばらつき（標準偏差ベース・標準偏差1毎に10点・最大40点）
+    if n_lines >= 2:
+        stdev = statistics.stdev(syllables_per_line)
+        raw_score += min(stdev * 10.0, 40.0)
+
+    # 強母音の種類数（多いほど加点・最大5種で満点20点）
+    distinct_vowels = set()
+    for line in valid_lines:
+        distinct_vowels.update(STRONG_VOWEL_RE.findall(line))
+    raw_score += min(len(distinct_vowels) * 4.0, 20.0)
+
+    # 強母音の行ごとの遷移（隣接行で強母音セットが変化すれば加点・最大20点）
+    # 例: 行1=「あ行中心」、行2=「か行中心」→ 母音セットが変化 → +5点
+    prev_vowels = None
+    transitions = 0
+    for line in valid_lines:
+        curr_vowels = set(STRONG_VOWEL_RE.findall(line))
+        if prev_vowels is not None and curr_vowels != prev_vowels:
+            transitions += 1
+        prev_vowels = curr_vowels
+    raw_score += min(transitions * 5.0, 20.0)
+
+    # 行数ボーナス（サビは最低4行あるべき）
+    if n_lines >= 4:
+        raw_score += 10.0
+
+    # 平板メロ減点: 音節数の最小/最大差が2以下で減点
+    if n_lines >= 3:
+        spread = max(syllables_per_line) - min(syllables_per_line)
+        if spread <= 2:
+            raw_score -= 15.0
+
+    # セクション重み
+    weight = SECTION_WEIGHTS.get(section_name, 0.5)
+    weighted = raw_score * weight
+
+    return max(0.0, min(100.0, weighted))
 
 
 def line_syllables(line: str) -> int:
