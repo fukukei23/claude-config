@@ -19,12 +19,9 @@ python-reading-guide で使われている .term / .term-popup パターンを�
 
 ### 1. HTML マークアップ
 
-
 ### 2. CSS（</style> 直前に挿入）
 
-
 ### 3. JS（</body> 直前に挿入）
-
 
 ---
 

@@ -484,7 +484,6 @@ Please add steps to your TodoList, if you have such a thing, to make sure you do
 
 Good luck!
 
-
 ---
 
 ## Post-creation: ドキュメント化（スキル完成後に必ず実施）
@@ -504,7 +503,6 @@ Good luck!
 このスキルの内容に最も関連する教科書・ガイドを特定して、スキルの紹介セクションを追記する。
 
 追記内容の構成:
-
 
 追記先の候補 (環境固有):
 - ~/projects/claude-code-guide/source/ 配下の関連章
