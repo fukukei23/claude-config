@@ -313,13 +313,24 @@ def line_syllables(line: str) -> int:
     return len(line)
 
 
-def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -> dict:
-    """軸A: 音節密度計算
+def check_syllable_density(
+    lyrics_path: Path,
+    bpm: int,
+    default_bars: int = 8,
+    audio_path: Path | None = None,
+) -> dict:
+    """軸A: 音節密度計算 + 軸B/C 融合評価
 
     行ベースでセクションを抽出:
     - Markdown見出し行（# で始まる）も対象に含める（`### [Intro] 8小節` 形式）
     - コードフェンス ``` を尊重（歌詞が ``` ブロック内の場合は内容を抽出）
     - `---` 以降はメタデータ扱いで打ち切り
+
+    Args:
+        lyrics_path: 歌詞ファイルパス
+        bpm: BPM
+        default_bars: デフォルト小節数
+        audio_path: wavファイルパス（Noneなら文字列評価のみ・後方互換）
     """
     content = lyrics_path.read_text(encoding="utf-8")
     lines = content.splitlines()
@@ -368,9 +379,13 @@ def check_syllable_density(lyrics_path: Path, bpm: int, default_bars: int = 8) -
             else:
                 verdict = "❌ 禁止域"
 
-            # 軸B/軸C スコア計算（Phase 1 追加）
-            mid_high_score = calc_mid_high_score(current_section, current_lines)
-            pitch_range_score = calc_pitch_range_score(current_section, current_lines)
+            # 軸B/軸C スコア計算（Phase 2: 融合評価）
+            mid_high_score = calc_mid_high_score_fused(
+                current_section, current_lines, audio_path=audio_path
+            )
+            pitch_range_score = calc_pitch_range_score_fused(
+                current_section, current_lines, audio_path=audio_path
+            )
 
             # 総合判定（3軸のうち最低値で判定）
             axes = [
@@ -557,6 +572,12 @@ def main() -> None:
         default=8,
         help="デフォルトの小節数（セクション固有値がない場合・default=8）",
     )
+    parser.add_argument(
+        "--audio",
+        type=Path,
+        default=None,
+        help="wavファイルパス（Phase 2: 実測オーディオ解析用・省略時は文字列評価のみ）",
+    )
 
     args = parser.parse_args()
 
@@ -564,7 +585,7 @@ def main() -> None:
         print(f"❌ ファイルが見つかりません: {args.lyrics_path}", file=sys.stderr)
         sys.exit(2)
 
-    results = check_syllable_density(args.lyrics_path, args.bpm, args.bars)
+    results = check_syllable_density(args.lyrics_path, args.bpm, args.bars, args.audio)
     if not results:
         print("⚠️ セクションが見つかりません ([Intro] 等のヘッダーが必要)", file=sys.stderr)
         sys.exit(2)
