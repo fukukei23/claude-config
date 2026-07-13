@@ -219,6 +219,49 @@ description: 任意のジャンル・テーマで曲＋歌詞を制作する汎�
     Verse 1            4   16   39.2    49   1.2   ✅    7.9   ❌   35.0   ⚠️  ❌
     ```
   - **重要**: Chorus 等サビが ✅ でも Verse/Intro で ❌/⚠️ があれば全体再生成検討。3軸全 ✅ になるまで歌詞・プロンプトを調整
+
+### Phase 2: 実測オーディオ解析（librosa/pYIN）
+
+Phase 1 の文字列ベース評価に加え、wav ファイルから実測オーディオ解析を行います。
+**評価融合戦略**（実測50% + 文字列50%）で、Phase 1 の17テストを維持しつつ精度向上。
+
+#### 軸B: 実測中高音使用率（librosa.spectral_centroid）
+
+```bash
+# wav 指定で実行（融合評価）
+python3 scripts/check_song_quality.py --bpm 98 \
+  --audio songs/祭礼前夜/祭礼前夜.wav \
+  songs/祭礼前夜/歌詞.md
+```
+
+- A4（440Hz）以上の周波数帯での音響エネルギーの時間的比率
+- 判定: ≥0.4 → ✅ / 0.2-0.4 → ⚠️ / <0.2 → ❌
+
+#### 軸C: 実測抑揚幅（librosa.pyin）
+
+- pYIN 音程推定で音高時系列の標準偏差
+- 判定: ≥40Hz → ✅ / 20-40Hz → ⚠️ / <20Hz → ❌
+
+#### 評価融合
+
+```python
+# コードから直接呼び出し
+from check_song_quality import calc_mid_high_score_fused
+score = calc_mid_high_score_fused(
+    section_name="Chorus",
+    lines=lyrics_lines,
+    audio_path=wav_path,
+    weight_audio=0.5,  # 実測の重み（1-2ヶ月運用後に0.7等へ調整）
+)
+```
+
+#### 必要な依存ライブラリ
+
+```bash
+pip install librosa==0.10.2 numpy scipy
+```
+
+詳細: `obsidian-ssot/01_DECISIONS/ai-music/2026-07-12_音節密度ルール拡張-Phase2実測オーディオ解析導入.md`
 - ひらがな化（`[L2]発音問題`・日本語ボーカル時必須・janome＋固有名詞）＋**漢字版併記**
 - **4b LLMレビュー**:
   - **MiniMaxで構造・キャッチーさ評価**（1-10点・売れ線構造適合度）
