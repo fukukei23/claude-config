@@ -304,3 +304,44 @@ def test_3軸統合_祭礼前夜実歌詞ファイル():
         assert "mid_high_score" in data, f"{section_name}に軸Bスコアが必要"
         assert "pitch_range_score" in data, f"{section_name}に軸Cスコアが必要"
         assert "axes" in data, f"{section_name}に3軸判定が必要"
+
+
+# ========================================
+# 軸B/C 融合評価: 実測+文字列統合
+# ========================================
+
+def test_軸B_実測版_統合_融合評価が動作する():
+    """wavファイルが存在する場合、融合評価（実測50% + 文字列50%）が動作する"""
+    from check_song_quality import calc_mid_high_score_fused
+    chorus_path = Path(__file__).parent / "fixtures" / "祭礼前夜_chorus.wav"
+    if not chorus_path.exists():
+        import pytest
+        pytest.skip(f"テストフィクスチャ未生成: {chorus_path}")
+    lines = [
+        "祭礼前夜 胸を張れ",
+        "朝日が出るまで 足踏み鳴らせ",
+        "名もない連帯を信じて",
+        "漏れそうな火種を抱いて行け",
+    ]
+    fused_score = calc_mid_high_score_fused(
+        section_name="Chorus",
+        lines=lines,
+        audio_path=chorus_path,
+    )
+    assert 0.0 <= fused_score <= 100.0, f"融合スコアは0-100が期待: {fused_score}"
+    assert isinstance(fused_score, float)
+
+
+def test_軸B_実測版_統合_wav無しでも動作する():
+    """wavファイルが存在しない場合、文字列評価のみ実行"""
+    from check_song_quality import calc_mid_high_score_fused
+    lines = ["胸を張れ", "足踏み鳴らせ"]
+    fused_score = calc_mid_high_score_fused(
+        section_name="Chorus",
+        lines=lines,
+        audio_path=None,
+    )
+    string_only = calc_mid_high_score("Chorus", lines)
+    assert abs(fused_score - string_only) < 0.001, (
+        f"wav無しなら文字列と同等: fused={fused_score}, string={string_only}"
+    )
