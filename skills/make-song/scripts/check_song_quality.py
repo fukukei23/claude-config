@@ -185,6 +185,34 @@ def calc_mid_high_score(section_name: str, lines: list[str]) -> float:
     return max(0.0, min(100.0, weighted))
 
 
+def calc_mid_high_score_fused(
+    section_name: str,
+    lines: list[str],
+    audio_path: Path | None = None,
+    weight_audio: float = 0.5,
+) -> float:
+    """軸B 融合評価: 実測（spectral_centroid）+ 文字列の重み付き統合"""
+    string_score_100 = calc_mid_high_score(section_name, lines)
+    string_score = string_score_100 / 100.0
+
+    if audio_path is not None and audio_path.exists():
+        try:
+            from audio_analyzer import calc_spectral_centroid_ratio, fuse_scores
+            audio_ratio = calc_spectral_centroid_ratio(audio_path)
+            fused_ratio = fuse_scores(
+                audio_score=audio_ratio,
+                string_score=string_score,
+                weight_audio=weight_audio,
+            )
+            return fused_ratio * 100.0
+        except ImportError:
+            return string_score_100
+        except FileNotFoundError:
+            return string_score_100
+    else:
+        return string_score_100
+
+
 def calc_pitch_range_score(section_name: str, lines: list[str]) -> float:
     """軸C: 抑揚幅スコア（0.0-100.0）を計算。
 
@@ -244,6 +272,35 @@ def calc_pitch_range_score(section_name: str, lines: list[str]) -> float:
     weighted = raw_score * weight
 
     return max(0.0, min(100.0, weighted))
+
+
+def calc_pitch_range_score_fused(
+    section_name: str,
+    lines: list[str],
+    audio_path: Path | None = None,
+    weight_audio: float = 0.5,
+) -> float:
+    """軸C 融合評価: 実測（pYIN音高stdev）+ 文字列の重み付き統合"""
+    string_score_100 = calc_pitch_range_score(section_name, lines)
+
+    if audio_path is not None and audio_path.exists():
+        try:
+            from audio_analyzer import calc_pitch_range_stdev, fuse_scores
+            audio_stdev = calc_pitch_range_stdev(audio_path)
+            audio_normalized = min(audio_stdev / 40.0, 1.0)
+            string_normalized = string_score_100 / 100.0
+            fused = fuse_scores(
+                audio_score=audio_normalized,
+                string_score=string_normalized,
+                weight_audio=weight_audio,
+            )
+            return fused * 100.0
+        except ImportError:
+            return string_score_100
+        except FileNotFoundError:
+            return string_score_100
+    else:
+        return string_score_100
 
 
 def line_syllables(line: str) -> int:
