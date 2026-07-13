@@ -345,3 +345,48 @@ def test_軸B_実測版_統合_wav無しでも動作する():
     assert abs(fused_score - string_only) < 0.001, (
         f"wav無しなら文字列と同等: fused={fused_score}, string={string_only}"
     )
+
+
+# ========================================
+# E2E: 統合テスト
+# ========================================
+
+
+def test_e2e_祭礼前夜_実測融合_3軸安全判定():
+    """E2E: 祭礼前夜歌詞+祭礼前夜Chorus.wavで3軸安全判定"""
+    from check_song_quality import check_syllable_density
+    lyrics_path = Path(__file__).parent / "fixtures" / "祭礼前夜_歌詞.md"
+    audio_path = Path(__file__).parent / "fixtures" / "祭礼前夜_chorus.wav"
+    if not lyrics_path.exists() or not audio_path.exists():
+        import pytest
+        pytest.skip("テストフィクスチャ未生成")
+    results = check_syllable_density(
+        lyrics_path=lyrics_path,
+        bpm=98,
+        audio_path=audio_path,
+    )
+    chorus_keys = [k for k in results if "Chorus" in k]
+    assert len(chorus_keys) > 0, "Chorusセクションが必要"
+    chorus_data = results[chorus_keys[0]]
+    overall = chorus_data["overall"]
+    assert "✅" in overall, f"祭礼前夜Chorusは安全判定が期待: {overall}"
+
+
+def test_e2e_v2低音ウィスパー_実測融合_警告判定():
+    """E2E: v2歌詞+v2.wavで軸B警告判定"""
+    from check_song_quality import check_syllable_density
+    lyrics_path = Path(__file__).parent / "fixtures" / "v2_歌詞.md"
+    audio_path = Path(__file__).parent / "fixtures" / "v2_低音ウィスパー.wav"
+    if not lyrics_path.exists() or not audio_path.exists():
+        import pytest
+        pytest.skip("テストフィクスチャ未生成")
+    results = check_syllable_density(
+        lyrics_path=lyrics_path,
+        bpm=98,
+        audio_path=audio_path,
+    )
+    has_warning = any(
+        "⚠️" in data["overall"] or "❌" in data["overall"]
+        for data in results.values()
+    )
+    assert has_warning, "v2低音ウィスパーは警告判定が期待"
