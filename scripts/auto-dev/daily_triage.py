@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from datetime import date, datetime
 from pathlib import Path
 
@@ -340,6 +341,59 @@ def _resolve_claude_bin() -> str:
 
 CLAUDE_BIN = _resolve_claude_bin()
 
+# LLM応答の構造検証（D'案・2026-07-14）。
+# 文字数下限は空応答の、必須ヘッダ/箇条書きは中身が壊れた応答の検知用。
+MIN_BODY_CHARS = 100
+REQUIRED_HEADER = "## 今日のタスク候補"
+_GENERATED_AT_RE = re.compile(r"<!-- generated_at: (\d{4}-\d{2}-\d{2})T")
+_NUMBERED_LIST_RE = re.compile(r"(?m)^\d+\.\s")
+
+
+def validate_judge_output(body: str, min_chars: int = MIN_BODY_CHARS) -> str:
+    """LLM判定結果の構造検証。無効なら RuntimeError。
+
+    rc=0 でも空/壊れた応答を返す claude --print の事故（2026-07-13）を検知する。
+    文字数下限（空検知）＋必須ヘッダ・数字箇条書き（中身の形検知）の3層。
+
+    Args:
+        body: judge_with_claude の生応答。
+        min_chars: 最小文字数（デフォルト100・正常時は2457バイト）。
+
+    Returns:
+        検証OKなら body をそのまま返す。
+
+    Raises:
+        RuntimeError: 空/短すぎる・必須ヘッダ不在・箇条書き不在。
+    """
+    stripped = body.strip()
+    if len(stripped) < min_chars:
+        raise RuntimeError(f"LLM応答が短すぎます ({len(stripped)}文字 < 下限{min_chars})")
+    if REQUIRED_HEADER not in stripped:
+        raise RuntimeError(f"LLM応答に必須ヘッダ不在: '{REQUIRED_HEADER}'")
+    if not _NUMBERED_LIST_RE.search(stripped):
+        raise RuntimeError("LLM応答に数字箇条書き不在")
+    return body
+
+
+def is_generated_today(path: Path, today_str: str) -> bool:
+    """today-tasks.md が当日日付で既に生成済みか（当日重複実行防止・D'案核心）。
+
+    flock は「秒差の同時実行」しか防げず「分差の再実行」は防げない（17分差事故）。
+    generated_at タイムスタンプが当日と一致すれば「今日分は生成済み」と判定し skip する。
+
+    Args:
+        path: today-tasks.md のパス。
+        today_str: 当日日付（YYYY-MM-DD）。
+
+    Returns:
+        当日生成済みなら True・未生成/別日/ファイル不在/旧形式なら False。
+    """
+    if not path.exists():
+        return False
+    match = _GENERATED_AT_RE.search(path.read_text(encoding="utf-8"))
+    return bool(match and match.group(1) == today_str)
+
+
 JUDGE_PROMPT = """あなたは Daily Triage エージェント。以下の収集データから「今日取り組むべきタスク候補」を優先度順に最大5つ選び、指定フォーマットで出力せよ。
 
 # 判定基準
@@ -385,7 +439,7 @@ def judge_with_claude(context: str, date_str: str, repo_list: list[str]) -> str:
     )
     if result.returncode != 0:
         raise RuntimeError(f"claude --print 失敗 (rc={result.returncode}): {result.stderr}")
-    return result.stdout.strip()
+    return validate_judge_output(result.stdout)
 
 
 DISCORD_WEBHOOK_ENV = "DISCORD_CLAUDE_WEBHOOK"
@@ -407,7 +461,9 @@ def send_discord(content: str, webhook_url: str, max_chars: int = DISCORD_MAX_CH
         送信成功なら True、失敗・例外時は False。
     """
     import urllib.request
-    payload = json.dumps({"content": content[:max_chars]}).encode("utf-8")
+    if len(content) > max_chars:
+        content = content[: max_chars - 30] + "\n…(Discord文字数上限で省略)"
+    payload = json.dumps({"content": content}).encode("utf-8")
     req = urllib.request.Request(
         webhook_url, data=payload,
         headers={"Content-Type": "application/json", "User-Agent": "ClaudeCode-DailyTriage/1.0"},
@@ -451,7 +507,22 @@ def main() -> int:
         return 0
 
     date_str = date.today().isoformat()
-    body = context if args.no_llm else judge_with_claude(context, date_str, repo_list)
+
+    # 当日重複実行防止（D'案核心・2026-07-14）: 当日分が既に生成済みなら skip。
+    # flock は「秒差の同時実行」しか防げず「分差の再実行」は防げない（17分差事故）。
+    # --no-llm（検証モード）では強制再生成を許可する。
+    if not args.no_llm and is_generated_today(args.output, date_str):
+        print(f"⏭️ 当日分の today-tasks.md 生成済み ({args.output})。スキップします。")
+        return 0
+
+    try:
+        body = context if args.no_llm else judge_with_claude(context, date_str, repo_list)
+    except RuntimeError as e:
+        # LLM判定失敗時のフォールバック: 収集生データで代用＋失敗原因を可視化（空通知防止）。
+        # catch範囲はLLM判定のみ（ファイル書込/Discord失敗ではフォールバックしない）。
+        err = str(e)
+        print(f"⚠️ LLM判定失敗・フォールバック（収集生データで代用）: {err}", file=sys.stderr)
+        body = f"<!-- ⚠LLM判定失敗・収集生データで代用 -->\n<!-- 原因: {err} -->\n{context}"
 
     # 並行再生成対策: 生成タイムスタンプを埋め込み、approve.py で人間が承認時に
     # 「自分が閲覧した候補か」を照合できるようにする（別セッションで再生成されると時刻が進む）

@@ -7,6 +7,16 @@
 #   bash daily-triage.sh --collect-only  # 収集データのみstdout（検証用）
 #   bash daily-triage.sh --no-llm        # LLM不使用・収集データをそのまま出力
 set -euo pipefail
+# 並行実行防止（D'案・2026-07-14 補助層）: 秒差の真の同時重複を防ぐ。
+# 分差の再実行（17分差事故）は daily_triage.py 側の当日既生成チェックが主軸で防ぐ。
+# 動的FD（bash 4+）で未使用FDを自動割当→exec python にも引き継がれプロセス終了で自動解放。
+LOCK_FILE="$HOME/.claude/state/daily-triage.lock"
+mkdir -p "$(dirname "$LOCK_FILE")"
+exec {_LOCK_FD}>"$LOCK_FILE"
+if ! flock -n "$_LOCK_FD"; then
+  echo "[daily-triage] 別プロセスが実行中です。スキップします。" >&2
+  exit 0
+fi
 # gh は ~/.local/bin にあり、非ログインシェル（cron/wsl bash -c 経由の実行は全て非ログイン）では
 # ~/.bashrc 等が読まれないため PATH に含まれない。command -v で未検出時のみ明示的に補う。
 if ! command -v gh >/dev/null 2>&1; then
