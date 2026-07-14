@@ -35,7 +35,7 @@ def test_send_discord_success(monkeypatch):
 
 
 def test_send_discord_truncates_long_content(monkeypatch):
-    """2000文字超はDiscord上限に切り詰められる。"""
+    """2000文字超はDiscord上限内に切り詰められ、省略印が付く。"""
     captured = {}
 
     def fake_urlopen(req, timeout=30):
@@ -45,7 +45,9 @@ def test_send_discord_truncates_long_content(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     long_text = "あ" * (DISCORD_MAX_CHARS + 1000)
     assert send_discord(long_text, "https://discord.test/hook") is True
-    assert len(json.loads(captured["data"])["content"]) == DISCORD_MAX_CHARS
+    content = json.loads(captured["data"])["content"]
+    assert len(content) <= DISCORD_MAX_CHARS
+    assert "省略" in content
 
 
 def test_send_discord_exception_returns_false(monkeypatch):
