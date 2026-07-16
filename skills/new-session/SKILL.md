@@ -22,9 +22,16 @@ TODAY=$(date +%Y-%m-%d)
 # 2. 今日の日記
 cat ~/projects/obsidian-ssot/10_DAILY/${TODAY}.md 2>/dev/null | tail -60
 
-# 3. 直近のDECISIONSファイル（claude-code関連、新しい順3件）
-ls -t ~/projects/obsidian-ssot/01_DECISIONS/claude-code/*.md 2>/dev/null | \
-  grep -v '_INDEX\|README\|参考資料' | head -3 | xargs head -30
+# 3. 直近のDECISIONSファイル（複数プロジェクト・新しい順3件ずつ・claude-code決め打ち廃止）
+for proj in claude-code career; do
+  echo "=== 01_DECISIONS/$proj ==="
+  ls -t ~/projects/obsidian-ssot/01_DECISIONS/$proj/*.md 2>/dev/null | \
+    grep -v '_INDEX\|README\|参考資料' | head -3 | xargs -r head -30
+done
+
+# 3b. 40_CAREER 配下の最近更新ファイル（新しい順3件・career関連セッションの見落とし対策）
+ls -t ~/projects/obsidian-ssot/40_CAREER/01_ドキュメント/*.md 2>/dev/null | \
+  grep -v '_INDEX' | head -3 | xargs -r head -20
 
 # 4. 主要リポジトリのgit状態（自セッション成果にフィルタ・spec 2026-07-09 並行汚染対策）
 SINCE=$(date -d '6 hours ago' '+%Y-%m-%d %H:%M')  # セッション開始推定時刻
