@@ -30,9 +30,9 @@ ls -t ~/projects/obsidian-ssot/01_DECISIONS/*/*.md 2>/dev/null | \
 ls -t ~/projects/obsidian-ssot/40_CAREER/01_ドキュメント/*.md 2>/dev/null | \
   grep -v '_INDEX' | head -3 | xargs -r head -20
 
-# 3c. 00_SYSTEM 配下の最近更新ファイル（新しい順5件・バックログ/active-sessions/handoffは別枠で読むためここでは除外）
+# 3c. 00_SYSTEM 配下の最近更新ファイル（新しい順5件・ボード/handoff/活動統計は自動生成ログのため除外）
 find ~/projects/obsidian-ssot/00_SYSTEM -name '*.md' 2>/dev/null | \
-  grep -v 'active-sessions.md\|バックログ.md\|/handoff/\|_INDEX' | \
+  grep -v 'active-sessions.md\|バックログ.md\|/handoff/\|/活動統計/\|_INDEX' | \
   xargs -r ls -t 2>/dev/null | head -5 | xargs -r head -20
 
 # 3d. その他SSOTフォルダの最近更新ファイル（新しい順3件ずつ・99_ARCHIVEは定義上振り返り対象外のため除外）
