@@ -30,6 +30,18 @@ ls -t ~/projects/obsidian-ssot/01_DECISIONS/*/*.md 2>/dev/null | \
 ls -t ~/projects/obsidian-ssot/40_CAREER/01_ドキュメント/*.md 2>/dev/null | \
   grep -v '_INDEX' | head -3 | xargs -r head -20
 
+# 3c. 00_SYSTEM 配下の最近更新ファイル（新しい順5件・バックログ/active-sessions/handoffは別枠で読むためここでは除外）
+find ~/projects/obsidian-ssot/00_SYSTEM -name '*.md' 2>/dev/null | \
+  grep -v 'active-sessions.md\|バックログ.md\|/handoff/\|_INDEX' | \
+  xargs -r ls -t 2>/dev/null | head -5 | xargs -r head -20
+
+# 3d. その他SSOTフォルダの最近更新ファイル（新しい順3件ずつ・99_ARCHIVEは定義上振り返り対象外のため除外）
+for dir in 20_PUBLISHING 30_RESEARCH 50_PROJECTS 70_PROMPTS; do
+  echo "=== $dir ==="
+  find ~/projects/obsidian-ssot/$dir -name '*.md' 2>/dev/null | \
+    grep -v '_INDEX' | xargs -r ls -t 2>/dev/null | head -3 | xargs -r head -20
+done
+
 # 4. 主要リポジトリのgit状態（自セッション成果にフィルタ・spec 2026-07-09 並行汚染対策）
 SINCE=$(date -d '6 hours ago' '+%Y-%m-%d %H:%M')  # セッション開始推定時刻
 for repo in claude-config claude-code-guide guides obsidian-ssot; do
