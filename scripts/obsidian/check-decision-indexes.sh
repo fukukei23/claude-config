@@ -23,8 +23,12 @@ for dir in "$DECISIONS_DIR"/*/; do
     # index_count: 純粋なファイル名参照のみ（パス区切り/Win/チルダの外部参照は除外）
     # バッククォート形式 `file.md` と リンク形式 [text](file.md) の両方を集計
     # md_count(直下のみ)と口径を一致させることで偽陽性を防止
+    # 修正(2026-07-17):
+    #   - リンク形式は URL decode（%20 → 半角スペース等）して実体ファイル名と一致させる
+    #   - `_INDEX.md` 自己参照を集計から除外（孤児カウント防止）
     index_count=$(python3 -c "
 import re
+from urllib.parse import unquote
 with open('$INDEX','rb') as f: c=f.read().decode('utf-8','replace')
 refs=set()
 for m in re.findall(r'\x60([^\x60]+\.md)\x60', c):
@@ -34,8 +38,9 @@ for m in re.findall(r'\x60([^\x60]+\.md)\x60', c):
 for m in re.findall(r'\]\(([^)]+\.md)\)', c):
     if '/' in m or '\\\\' in m or m.startswith('~'):
         continue
-    refs.add(m)
+    refs.add(unquote(m))
 refs.discard('README.md')
+refs.discard('_INDEX.md')
 print(len(refs))
 ")
 
