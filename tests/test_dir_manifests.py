@@ -12,6 +12,7 @@ from scripts.obsidian.dir_manifests import (
     _llm_meaning,
     build_manifest_entry,
     list_dirs_via_git,
+    list_project_dirs_in_ssot,
     meaning_hash,
     validate_manifest,
 )
@@ -140,3 +141,70 @@ def test_approve_manifest_clears_pending_and_freezes_hash(tmp_path):
     assert data["directories"][0]["pending_approval"] is False
     # 本hashは固定（不変）・承認で hash 値は変わらない
     assert data["directories"][0]["meaning_hash"] == original_hash
+
+
+# --- list_project_dirs_in_ssot (Task 4・post-commit hook 検知ロジック) ---
+
+
+def _init_ssot_repo(tmp_path: Path) -> Path:
+    """テスト用の git repo を tmp_path に初期化して返す"""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"],
+        cwd=tmp_path, check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"],
+        cwd=tmp_path, check=True,
+    )
+    return tmp_path
+
+
+def _commit_dirs(repo_root: Path, paths: list[str], msg: str = "init") -> None:
+    """指定ディレクトリを .gitkeep 付きで作成して commit"""
+    for rel in paths:
+        d = repo_root / rel
+        d.mkdir(parents=True, exist_ok=True)
+        (d / ".gitkeep").write_text("", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo_root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", msg], cwd=repo_root, check=True)
+
+
+def test_list_project_dirs_in_ssot_returns_top_level_only(tmp_path):
+    """01_DECISIONS/<project>/ 直下の top-level dir 名のみを返す（深いパスは集約）"""
+    repo = _init_ssot_repo(tmp_path)
+    _commit_dirs(
+        repo,
+        [
+            "01_DECISIONS/proj1/alpha",
+            "01_DECISIONS/proj1/beta",
+            "01_DECISIONS/proj1/beta/deep1",  # top-level ではない
+            "01_DECISIONS/proj1/gamma/deep2",  # gamma は top-level
+        ],
+    )
+    result = list_project_dirs_in_ssot(repo, "proj1")
+    assert result == ["alpha", "beta", "gamma"]
+
+
+def test_list_project_dirs_in_ssot_empty_when_project_missing(tmp_path):
+    """存在しないプロジェクト・git管理外の場合は空リスト"""
+    repo = _init_ssot_repo(tmp_path)
+    _commit_dirs(repo, ["01_DECISIONS/proj1/alpha"])
+    # proj2 は存在しない
+    assert list_project_dirs_in_ssot(repo, "proj2") == []
+
+
+def test_list_project_dirs_in_ssot_isolates_other_projects(tmp_path):
+    """別プロジェクトの dir は混入しない（指定 project のみ取得）"""
+    repo = _init_ssot_repo(tmp_path)
+    _commit_dirs(
+        repo,
+        [
+            "01_DECISIONS/proj1/alpha",
+            "01_DECISIONS/proj1/beta",
+            "01_DECISIONS/proj2/other1",  # proj2 側
+            "01_DECISIONS/proj2/other2",  # proj2 側
+        ],
+    )
+    result = list_project_dirs_in_ssot(repo, "proj1")
+    assert result == ["alpha", "beta"]
