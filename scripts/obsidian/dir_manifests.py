@@ -1,6 +1,7 @@
 """SSOT体系化 P1: .dir-manifest.json 操作中核モジュール."""
 import hashlib
 import subprocess
+import sys
 import unicodedata
 from pathlib import Path
 
@@ -120,7 +121,7 @@ def _llm_meaning(repo_path: Path, dir_path: str) -> str:
     prompt = f"以下のディレクトリの役割を日本語1行(20字以内)で: {dir_path}"
     gemini_script = Path.home() / ".claude/scripts/api/gemini_text.py"
     result = subprocess.run(
-        ["python3", str(gemini_script), prompt],
+        [sys.executable, str(gemini_script), prompt],
         capture_output=True, text=True, timeout=30,
     )
     if result.returncode != 0:
