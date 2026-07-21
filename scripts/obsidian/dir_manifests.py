@@ -37,43 +37,60 @@ def validate_manifest(manifest: dict) -> None:
 
 
 def list_dirs_via_git(repo_path: Path) -> list[str]:
-    """git ls-tree でディレクトリ一覧を取得（path昇順）.
+    """git ls-tree -r -d --name-only でディレクトリ一覧を再帰取得（path昇順）.
+
+    - ``-r``: 再帰（深いパスまで取得）
+    - ``-d``: tree（ディレクトリ）のみ・blob=ファイル除外
+    - ``--name-only``: パスのみ出力（tab区切りパース不要）
+    - ``-c core.quotepath=false``: 日本語パスの octal-escape 抑止
 
     Args:
         repo_path: 対象 Git リポジトリのパス。
 
     Returns:
-        ``git ls-tree HEAD`` の tree エントリパスを昇順ソートしたリスト。
+        ディレクトリパスの昇順リスト。空リポジトリ（HEAD無し等）は [] 。
     """
-    out = subprocess.check_output(
-        ["git", "ls-tree", "HEAD"],
-        cwd=str(repo_path),
-    )
+    try:
+        out = subprocess.check_output(
+            [
+                "git", "-c", "core.quotepath=false",
+                "ls-tree", "-r", "-d", "--name-only", "HEAD",
+            ],
+            cwd=str(repo_path),
+        )
+    except subprocess.CalledProcessError:
+        return []
     text = out.decode("utf-8") if isinstance(out, bytes) else out
-    dirs = set()
-    for line in text.splitlines():
-        if "\t" in line:
-            dirs.add(line.split("\t", 1)[1])
-    return sorted(dirs)
+    return sorted(line for line in text.splitlines() if line.strip())
 
 
 def _llm_meaning(repo_path: Path, dir_path: str) -> str:
-    """Gemini API でdirの1行meaningを生成（scripts/api/gemini.py 経由）.
+    """Gemini API でdirの1行meaningを生成（scripts/api/gemini_text.py 経由）.
 
     Args:
-        repo_path: 対象 Git リポジトリのパス（将来的な文脈付与用）。
+        repo_path: 対象 Git リポジトリのパス（将来の文脈付与用・現状未使用）。
         dir_path: ディレクトリパス文字列。
 
     Returns:
         生成された意味文字列（stdout・strip 済み）。
+
+    Raises:
+        RuntimeError: API呼出が非0 exit または空応答を返した場合。
+            呼出側（Task 6）でスキップ判定する契約。
     """
     prompt = f"以下のディレクトリの役割を日本語1行(20字以内)で: {dir_path}"
-    gemini_script = Path.home() / ".claude/scripts/api/gemini.py"
+    gemini_script = Path.home() / ".claude/scripts/api/gemini_text.py"
     result = subprocess.run(
         ["python3", str(gemini_script), prompt],
         capture_output=True, text=True, timeout=30,
     )
-    return result.stdout.strip()
+    if result.returncode != 0:
+        err = result.stderr.strip() or f"exit {result.returncode}"
+        raise RuntimeError(f"gemini_text.py failed: {err}")
+    meaning = result.stdout.strip()
+    if not meaning:
+        raise RuntimeError("gemini_text.py returned empty stdout")
+    return meaning
 
 
 def build_manifest_entry(repo_path: Path, dir_path: str) -> dict:

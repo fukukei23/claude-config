@@ -1,11 +1,13 @@
 """dir_manifests.py の単体テスト（SSOT体系化 P1 Task 1/2）"""
 import hashlib
+import subprocess
 import unicodedata
 from pathlib import Path
 
 import pytest
 
 from scripts.obsidian.dir_manifests import (
+    _llm_meaning,
     build_manifest_entry,
     list_dirs_via_git,
     meaning_hash,
@@ -57,14 +59,42 @@ def test_validate_manifest_rejects_empty_meaning():
 
 
 def test_list_dirs_via_git_parses_ls_tree(tmp_path, monkeypatch):
-    """git ls-tree の出力をパースしてディレクトリ一覧(昇順)を返す"""
-    fake_output = "tree abc123\tsrc/handlers\ntree def456\tsrc/services\n"
+    """git ls-tree -r -d --name-only の出力をパースしてディレクトリ一覧(昇順)を返す"""
+    fake_output = "src/handlers\nsrc/services\n"  # --name-only 形式
     monkeypatch.setattr(
         "subprocess.check_output",
         lambda *a, **k: fake_output.encode(),
     )
     dirs = list_dirs_via_git(tmp_path)
     assert dirs == ["src/handlers", "src/services"]
+
+
+def test_list_dirs_via_git_returns_empty_on_called_process_error(
+    tmp_path, monkeypatch,
+):
+    """空リポジトリ（CalledProcessError・HEAD無し等）では空リストを返す"""
+
+    def raise_error(*a, **k):
+        raise subprocess.CalledProcessError(128, "git")
+
+    monkeypatch.setattr("subprocess.check_output", raise_error)
+    assert list_dirs_via_git(tmp_path) == []
+
+
+def test_llm_meaning_raises_runtime_error_on_api_failure(monkeypatch):
+    """_llm_meaning は非0 exit 時に RuntimeError を送出（呼出側でスキップ判定）"""
+
+    class FakeResult:
+        returncode = 1
+        stdout = ""
+        stderr = "error: invalid api key"
+
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda *a, **k: FakeResult(),
+    )
+    with pytest.raises(RuntimeError, match="gemini_text.py failed"):
+        _llm_meaning(Path("/fake"), "src/handlers")
 
 
 def test_build_manifest_entry_marks_pending_with_provisional_hash(monkeypatch):
