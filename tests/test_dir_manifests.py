@@ -1,11 +1,13 @@
-"""dir_manifests.py の単体テスト（SSOT体系化 P1 Task 1/2）"""
+"""dir_manifests.py の単体テスト（SSOT体系化 P1 Task 1/2/3）"""
 import hashlib
+import json
 import subprocess
 import unicodedata
 from pathlib import Path
 
 import pytest
 
+from scripts.obsidian.approve_meaning import approve_manifest
 from scripts.obsidian.dir_manifests import (
     _llm_meaning,
     build_manifest_entry,
@@ -107,3 +109,34 @@ def test_build_manifest_entry_marks_pending_with_provisional_hash(monkeypatch):
     assert entry["meaning"] == "LINE受信イベント処理"
     assert entry["meaning_hash"] == meaning_hash("LINE受信イベント処理")
     assert entry["pending_approval"] is True
+
+
+def test_approve_manifest_clears_pending_and_freezes_hash(tmp_path):
+    """approve_manifest は pending_approval=False 化・meaning_hash は不変(固定)."""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    original_hash = meaning_hash("処理")
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "project": "x",
+                "has_external_repo": False,
+                "last_verified": "2026-07-21",
+                "directories": [
+                    {
+                        "path": "src",
+                        "meaning": "処理",
+                        "meaning_hash": original_hash,
+                        "pending_approval": True,
+                    },
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    approve_manifest(manifest_path, "src")
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert data["directories"][0]["pending_approval"] is False
+    # 本hashは固定（不変）・承認で hash 値は変わらない
+    assert data["directories"][0]["meaning_hash"] == original_hash
