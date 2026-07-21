@@ -160,18 +160,25 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
 {ユーザーの記録内容}
 
 【SSOTフォルダ構成】
-- 01_DECISIONS/<project>/ — 技術的決定・バグ修正・設計変更・「なぜそうしたか」の記録
-- 00_SYSTEM/ — システム設定変更（hooks, cron, settings.json 等）
+- 01_DECISIONS/<project>/ — **技術的決定の経緯（なぜそうしたか・複数案比較・root_cause）** ※「経緯」のみ。成果物改訂・正典は別場所
+- 00_SYSTEM/ — システム設定変更（hooks, cron, settings.json, ガイド・運用ルール）
 - 10_DAILY/ — 日記ハブ（直接の記録先ではない。サマリー追記のみ）
 - 20_PUBLISHING/ — 外部公開コンテンツ（Zenn記事, note等）の草稿・管理
 - 30_RESEARCH/ — LLMモデル・価格・外部サービスの調査結果（時系列で陳腐化する情報）
-- 40_CAREER/ — ポートフォリオ・キャリア資料・求人関連
+- 40_CAREER/ — ポートフォリオ・キャリア資料・**成果物改訂・正典（設計書・数値マスター・修正ログ）**・求人関連
+- 50_PROJECTS/・70_PROMPTS/・99_ARCHIVE/ — プロジェクト作業・再利用プロンプト・アーカイブ
+
+【特性カタログ（保管場所判定の正典・必須参照）】
+`obsidian-ssot/00_SYSTEM/特性カタログ/01_保管場所.md` を読み、記録内容の「性質」に合致する保管場所を選ぶ。
+**01_DECISIONS は一候補**（技術的決定の経緂のみ）。典型誤判定パターン（ポートフォリオ改訂→01_DECISIONS ではなく 40_CAREER 等）に注意。
 
 【ガイドサイト（転記判断基準）】
 - claude-code-guide — Claude Codeの使い方・手順・チュートリアル（再利用できる手順のみ）
 - ssot-guide — SSOTシステムの設計・使い方の説明
 
 【判定ルール】
+- **保管場所は「内容の性質」で判定**: 「なぜそう決めたか（設計判断・経緯）」= `01_DECISIONS` / 「何を完成させたか（成果物改訂・正典）」= `40_CAREER`等 / 設定変更 = `00_SYSTEM` / 調査 = `30_RESEARCH`。**01_DECISIONS は技術的決定の経緂のみ**（2026-07-22 ポートフォリオを01_DECISIONSに振り分けたバイアス再発防止）
+- **正典（設計書・数値マスター・修正ログ等）に関わる記録は 01_DECISIONS に新規せず正典と同場所へ**（真実のソースを分散させない・Surgical Changes）
 - also_daily は「セッションの主要な作業成果」の場合のみ true。途中メモ・調査記録・設定追記は false
 - guide_needed は「他人や将来の自分が手順として再利用できる内容」の場合のみ true
 - primary が 00_SYSTEM の場合、project は "claude-code" とする
@@ -227,7 +234,7 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
 
 返答フォーマット（JSON のみ、コードブロック不要）:
 {
-  "primary": "01_DECISIONS",
+  "primary": "01_DECISIONS or 00_SYSTEM or 40_CAREER or 30_RESEARCH 等（内容の性質で判定・01_DECISIONSは技術的決定の経緂のみ）",
   "project": "プロジェクト名",
   "category": "技術的決定 or ノウハウ or 調査 or キャリア or システム設定 or 公開コンテンツ",
   "also_daily": true or false,
