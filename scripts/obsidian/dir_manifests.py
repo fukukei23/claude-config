@@ -64,6 +64,45 @@ def list_dirs_via_git(repo_path: Path) -> list[str]:
     return sorted(line for line in text.splitlines() if line.strip())
 
 
+def list_project_dirs_in_ssot(ssot_root: Path, project: str) -> list[str]:
+    """obsidian-ssot 内 ``01_DECISIONS/<project>/`` 配下の top-level dir 一覧を取得.
+
+    ``has_external_repo=false`` のプロジェクト検知用（Task 4・post-commit hook）。
+    ``git ls-tree -r -d`` の結果から ``01_DECISIONS/<project>/`` 直下のみ抽出。
+    深いパスは top-level(``split('/')[0]``) に集約（ノイズ回避）。
+
+    Args:
+        ssot_root: obsidian-ssot リポジトリルートのパス。
+        project: ``01_DECISIONS/`` 配下のプロジェクト名（dir名）。
+
+    Returns:
+        ``01_DECISIONS/<project>/`` 直下のディレクトリ名の昇順リスト。
+        プロジェクトdirが存在しない・git管理外の場合は [] 。
+    """
+    project_dir = f"01_DECISIONS/{project}"
+    try:
+        out = subprocess.check_output(
+            [
+                "git", "-c", "core.quotepath=false",
+                "ls-tree", "-r", "-d", "--name-only", "HEAD",
+            ],
+            cwd=str(ssot_root),
+        )
+    except subprocess.CalledProcessError:
+        return []
+    text = out.decode("utf-8") if isinstance(out, bytes) else out
+    prefix = f"{project_dir}/"
+    tops: set[str] = set()
+    for line in text.splitlines():
+        if not line.startswith(prefix):
+            continue
+        rest = line[len(prefix):]
+        if not rest:
+            continue
+        tops.add(rest.split("/")[0])
+    return sorted(tops)
+
+
 def _llm_meaning(repo_path: Path, dir_path: str) -> str:
     """Gemini API でdirの1行meaningを生成（scripts/api/gemini_text.py 経由）.
 
