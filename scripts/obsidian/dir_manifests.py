@@ -6,6 +6,24 @@ import unicodedata
 from pathlib import Path
 
 
+# ドット始まりtop-level dir（ツール設定dir）の固定意味（D案・両LLM一致推奨）
+# LLM非呼出・べき等・意味は業界標準で自明。未知ドットdirは汎用フォールバック。
+DOT_DIR_MEANINGS: dict[str, str] = {
+    ".claude": "Claude Code設定",
+    ".cursor": "Cursor IDE設定",
+    ".devcontainer": "開発コンテナ設定",
+    ".github": "GitHub設定(CI/Actions)",
+    ".gitlab": "GitLab CI設定",
+    ".gradio": "Gradio UI定義",
+    ".husky": "Git hooks設定",
+    ".nexus": "NexusCore内部状態",
+    ".spec": "仕様書ディレクトリ",
+    ".vscode": "VS Code設定",
+}
+
+_DOT_DIR_GENERIC_PREFIX = "ツール設定ディレクトリ"
+
+
 def meaning_hash(meaning: str) -> str:
     """meaning文字列をSHA-256先頭8桁に正規化hash化（NFKC・trim・lower）.
 
@@ -133,21 +151,45 @@ def _llm_meaning(repo_path: Path, dir_path: str) -> str:
     return meaning
 
 
+def _resolve_dot_dir_meaning(dir_path: str) -> str | None:
+    """ドット始まりtop-level dirの固定意味を返す（非ドットdirは None）.
+
+    Args:
+        dir_path: top-level ディレクトリ名。
+
+    Returns:
+        固定意味文字列。dir_path が ``.`` 始まりでなければ None。
+        既知のドットdir は ``DOT_DIR_MEANINGS``、未知は汎用文言。
+    """
+    if not dir_path.startswith("."):
+        return None
+    return DOT_DIR_MEANINGS.get(dir_path, f"{_DOT_DIR_GENERIC_PREFIX}({dir_path})")
+
+
 def build_manifest_entry(repo_path: Path, dir_path: str) -> dict:
-    """1ディレクトリ分のmanifest entryを生成（仮hash・pending）.
+    """1ディレクトリ分のmanifest entryを生成（D案: ドット固定/本体LLM）.
+
+    - ドットdir(``.claude`` 等): 固定意味(DOT_DIR_MEANINGS)・承認不要(pending=False)
+    - 本体dir: Gemini API で meaning 生成・人間承認待ち(pending=True)
 
     Args:
         repo_path: 対象 Git リポジトリのパス。
-        dir_path: ディレクトリパス文字列。
+        dir_path: top-level ディレクトリパス文字列。
 
     Returns:
         path/meaning/meaning_hash/pending_approval を持つ dict。
-        ``pending_approval`` は人間承認待ちを示す True（Task 3 で False 化）。
+        ドットdir は pending_approval=False(固定)・本体dir は True(承認待ち)。
     """
-    meaning = _llm_meaning(repo_path, dir_path)
+    fixed = _resolve_dot_dir_meaning(dir_path)
+    if fixed is not None:
+        meaning: str = fixed
+        pending = False
+    else:
+        meaning = _llm_meaning(repo_path, dir_path)
+        pending = True
     return {
         "path": dir_path,
         "meaning": meaning,
         "meaning_hash": meaning_hash(meaning),
-        "pending_approval": True,
+        "pending_approval": pending,
     }

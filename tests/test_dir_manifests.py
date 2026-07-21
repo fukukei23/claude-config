@@ -112,6 +112,30 @@ def test_build_manifest_entry_marks_pending_with_provisional_hash(monkeypatch):
     assert entry["pending_approval"] is True
 
 
+def test_build_manifest_entry_uses_fixed_meaning_for_known_dot_dir(monkeypatch):
+    """ドットdir(.claude等)は LLM 呼ばず固定意味・pending=False（D案）"""
+
+    def _no_llm(*a, **k):
+        raise AssertionError("LLM must not be called for dot dir")
+
+    monkeypatch.setattr("scripts.obsidian.dir_manifests._llm_meaning", _no_llm)
+    entry = build_manifest_entry(Path("/fake"), ".claude")
+    assert entry["meaning"] == "Claude Code設定"
+    assert entry["meaning_hash"] == meaning_hash("Claude Code設定")
+    assert entry["pending_approval"] is False
+
+
+def test_build_manifest_entry_unknown_dot_dir_uses_generic_fallback(monkeypatch):
+    """未知ドットdirは汎用文言にフォールバック・pending=False（D案）"""
+    monkeypatch.setattr(
+        "scripts.obsidian.dir_manifests._llm_meaning",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no llm")),
+    )
+    entry = build_manifest_entry(Path("/fake"), ".unknown")
+    assert entry["meaning"] == "ツール設定ディレクトリ(.unknown)"
+    assert entry["pending_approval"] is False
+
+
 def test_approve_manifest_clears_pending_and_freezes_hash(tmp_path):
     """approve_manifest は pending_approval=False 化・meaning_hash は不変(固定)."""
     manifest_path = tmp_path / ".dir-manifest.json"
