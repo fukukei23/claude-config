@@ -19,7 +19,8 @@ def test_meaning_hash_normalizes_nfkc_trim_lower():
     """全角半角・前後空白・大小文字を NFKC + trim + lower で正規化してから hash"""
     raw = "  ＬＩＮＥ受信  "
     normalized = unicodedata.normalize("NFKC", raw).strip().lower()
-    assert meaning_hash(raw) == hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+    expected = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+    assert meaning_hash(raw) == expected
 
 
 def test_validate_manifest_rejects_duplicate_paths():
