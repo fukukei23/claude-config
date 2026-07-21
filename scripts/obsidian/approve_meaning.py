@@ -20,7 +20,7 @@ def approve_manifest(manifest_path: Path, dir_path: str) -> None:
         dir_path: 承認するディレクトリパス文字列。
 
     Raises:
-        SystemExit: 対象 dir が存在しない・既に承認済(pending_approval=True 无)時。
+        SystemExit: 対象 dir が存在しない・または既承認済(pending_approval=False)時。
     """
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     for d in data["directories"]:
