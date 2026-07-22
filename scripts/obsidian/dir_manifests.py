@@ -237,10 +237,13 @@ def retry_meaning_with_backoff(
 ) -> str:
     """meaning 生成を HTTP ステータス別リトライ戦略で実行.
 
-    - 429: 指数バックオフ（60s / 300s / 900s）でリトライ
-    - 5xx: 短リトライ（10s / 20s / 40s）でリトライ
-    - 4xx: 即スキップ（リトライしない）
-    - other: 1回だけリトライ（5s 待ち）
+    - 429: 指数バックオフ（60s / 300s / 900s）で max_retries-1 回 sleep
+    - 5xx: 短リトライ（10s / 20s / 40s）で max_retries-1 回 sleep
+    - 4xx: 即スキップ（リトライしない・即 raise）
+    - other: 5s で max_retries-1 回 sleep（実装上は 1回以上のリトライ）
+
+    note: max_retries=3 時、各 kind は試行 1 + sleep 2 回まで。
+    例: 5xx → 試行(0)→sleep(10)→試行(1)→sleep(20)→試行(2)→raise
 
     Args:
         repo_path: 対象 Git リポジトリのパス。
@@ -274,20 +277,24 @@ def retry_meaning_with_backoff(
 # --- 新規dir検知・pending再生成 (Task 1: spec R3) ---
 
 
-def regenerate_pending(manifest_path: Path, repo_path: Path) -> list[str]:
+def regenerate_pending(manifest_path: Path, repo_path: Path) -> dict:
     """manifest の directories と実dir を比較し、新規dir に meaning 候補を追加.
 
     - spec R1: 既存dir の meaning は触らない（べき等性）
-    - spec R3: 新規dir のみ LLM 生成（retry_meaning_with_backoff 経由）
+    - spec R2: ドットdir は LLM 呼ばず固定意味・pending=False（D案）
+    - spec R3: 本体dir のみ LLM 生成（retry_meaning_with_backoff 経由）
+    - spec R5: actual_tops/recorded 両方を top-level 化（再帰パスの偽検知防止）
 
     Args:
         manifest_path: ``.dir-manifest.json`` のパス。
         repo_path: 対象リポジトリのパス（has_external_repo 時の git ls-tree 用）。
 
     Returns:
-        新規追加した top-level dir パスのリスト（追加無しは空リスト）。
+        ``{"added": [新規dir list], "failed": [(dir, kind), ...]}``.
+        Task 3 orchestrator が Discord 通知に使う（spec R2③）.
     """
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data.setdefault("directories", [])  # 欠落時の KeyError 防衛（spec R5・#6）
     recorded = {
         d["path"].split("/")[0]
         for d in data.get("directories", [])
@@ -301,10 +308,24 @@ def regenerate_pending(manifest_path: Path, repo_path: Path) -> list[str]:
         )
     new_tops = sorted(actual_tops - recorded)
     added: list[str] = []
+    failed: list[tuple[str, str]] = []
     for top in new_tops:
+        # ドットdir は固定意味（D案・LLM呼出なし）
+        fixed = _resolve_dot_dir_meaning(top)
+        if fixed is not None:
+            entry = {
+                "path": top,
+                "meaning": fixed,
+                "meaning_hash": meaning_hash(fixed),
+                "pending_approval": False,
+            }
+            data["directories"].append(entry)
+            added.append(top)
+            continue
         try:
             meaning = retry_meaning_with_backoff(repo_path, top)
-        except MeaningGenError:
+        except MeaningGenError as e:
+            failed.append((top, e.kind))
             continue
         entry = {
             "path": top,
@@ -320,4 +341,4 @@ def regenerate_pending(manifest_path: Path, repo_path: Path) -> list[str]:
             json.dumps(data, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
-    return added
+    return {"added": added, "failed": failed}

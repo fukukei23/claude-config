@@ -290,12 +290,13 @@ def test_regenerate_pending_adds_new_dirs_with_provisional_hash(tmp_path, monkey
     monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git",
         lambda p: ["src/handlers/sub1", "src/handlers/sub2", "src/services/deep", "docs"])
     monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", lambda r, d, **k: "新規docs層")
-    added = regenerate_pending(manifest_path, tmp_path)
+    result = regenerate_pending(manifest_path, tmp_path)
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     paths = [d["path"] for d in data["directories"]]
     # docs のみ新規top-level（src は src/handlers で既存・src/services/deep も src に集約）
     assert "docs" in paths
-    assert added == ["docs"]
+    assert result["added"] == ["docs"]
+    assert result["failed"] == []
     # サブdir が偽検知されていないことを確認
     assert "src/handlers/sub1" not in paths
     assert "src/services/deep" not in paths
@@ -320,5 +321,107 @@ def test_regenerate_pending_skips_meaning_change_for_existing_dirs(tmp_path, mon
         "scripts.obsidian.dir_manifests.retry_meaning_with_backoff",
         lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not be called for existing top-level")),
     )
-    added = regenerate_pending(manifest_path, tmp_path)
-    assert added == []
+    result = regenerate_pending(manifest_path, tmp_path)
+    assert result["added"] == []
+    assert result["failed"] == []
+
+
+def test_regenerate_pending_uses_fixed_meaning_for_known_dot_dir(tmp_path, monkeypatch):
+    """ドットdir(.github等)はLLM呼ばず固定意味+pending_approval=Falseで追加（D案・spec R2）"""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "repo_path": str(tmp_path), "has_external_repo": True,
+        "last_verified": "2026-07-22",
+        "directories": [],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git",
+        lambda p: [".github", "src/handlers"])
+    # retry がドットdir(.github)に対して呼ばれたらD案違反
+    def _llm_guard(*args, **kwargs):
+        dir_path = args[1] if len(args) >= 2 else kwargs.get("dir_path", "")
+        if dir_path == ".github":
+            raise AssertionError("LLM must not be called for dot dir")
+        return "srcの意味"
+
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", _llm_guard)
+    result = regenerate_pending(manifest_path, tmp_path)
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    paths = [d["path"] for d in data["directories"]]
+    # .github は固定意味("GitHub設定(CI/Actions)")・pending=False
+    github_entry = [d for d in data["directories"] if d["path"] == ".github"][0]
+    assert github_entry["meaning"] == "GitHub設定(CI/Actions)"
+    assert github_entry["pending_approval"] is False
+    assert github_entry["meaning_hash"] == meaning_hash("GitHub設定(CI/Actions)")
+    # src/handlers は top-level 集約後"src"になる・LLMで生成・pending=True
+    src_entry = [d for d in data["directories"] if d["path"] == "src"][0]
+    assert src_entry["pending_approval"] is True
+    assert ".github" in result["added"]
+    assert "src" in result["added"]
+    assert result["failed"] == []
+
+
+def test_retry_meaning_with_backoff_raises_on_5xx_exhaustion(monkeypatch):
+    """5xxで3回全失敗→MeaningGenErrorをraise（kind='5xx'・spec R2: max_retries到達）"""
+    calls = []
+
+    def fake(repo, path):
+        calls.append(path)
+        raise RuntimeError("gemini_text.py failed: HTTP_STATUS:503 Service Unavailable")
+
+    monkeypatch.setattr("scripts.obsidian.dir_manifests._llm_meaning", fake)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    try:
+        retry_meaning_with_backoff(Path("/fake"), "src/handlers", max_retries=3)
+        assert False, "should raise MeaningGenError"
+    except MeaningGenError as e:
+        assert e.kind == "5xx"
+        assert "HTTP_STATUS:503" in str(e)
+    assert len(calls) == 3
+
+
+def test_regenerate_pending_records_failed_dirs_without_aborting(tmp_path, monkeypatch):
+    """MeaningGenErrorで失敗したdirはfailedリストに記録、他dirの処理は継続"""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "repo_path": str(tmp_path), "has_external_repo": True,
+        "last_verified": "2026-07-22",
+        "directories": [],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    # 異なるtop-level にして1dirだけ失敗するように
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git",
+        lambda p: ["alpha/sub", "beta/sub", "gamma/sub"])
+
+    def fake_retry(repo, dir_path):
+        if dir_path == "beta":
+            raise MeaningGenError("gemini_text.py failed: HTTP_STATUS:503", kind="5xx")
+        return f"成功({dir_path})"
+
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", fake_retry)
+    result = regenerate_pending(manifest_path, tmp_path)
+    # beta 失敗・alpha/gamma 成功
+    assert result["added"] == ["alpha", "gamma"]
+    assert result["failed"] == [("beta", "5xx")]
+
+
+def test_regenerate_pending_uses_list_project_dirs_in_ssot_when_no_external_repo(tmp_path, monkeypatch):
+    """has_external_repo=False の場合 list_project_dirs_in_ssot 経由で新規dir検知"""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "myproj", "repo_path": str(tmp_path), "has_external_repo": False,
+        "last_verified": "2026-07-22",
+        "directories": [],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    # list_dirs_via_git は呼ばれないことを保証（has_external_repo=False分岐の確認）
+    monkeypatch.setattr(
+        "scripts.obsidian.dir_manifests.list_dirs_via_git",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not call list_dirs_via_git when has_external_repo=False")),
+    )
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_project_dirs_in_ssot",
+        lambda repo, project: ["alpha", "beta"])
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", lambda r, d, **k: f"意味({d})")
+    result = regenerate_pending(manifest_path, tmp_path)
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    paths = [d["path"] for d in data["directories"]]
+    assert sorted(paths) == ["alpha", "beta"]
+    assert sorted(result["added"]) == ["alpha", "beta"]
+    assert result["failed"] == []
