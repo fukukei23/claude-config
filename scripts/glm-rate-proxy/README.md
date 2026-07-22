@@ -79,10 +79,28 @@ tail -20 /tmp/glm-proxy.log
 
 | モード | 使用率 | モデル | いつ |
 |---|---|---|---|
+| peak_block | peak_hours時間帯 | `fallback.model`（既定: MiniMax-M3） | 設定されたピーク時間帯 |
 | normal | <80% | GLM-5.2 | 通常時 |
 | economy | 80-95% | GLM-4.7 | 使用量が多い時 |
 | emergency | 95%+ | GLM-4.7-Flash | 使用量限界付近 |
 | fallback | 全滅時 | MiniMax-M2.7 | GLMが全モデル429の時 |
+
+## ピーク時間帯（peak_hours）
+
+`config/config.json` の `peak_hours` セクションで、**Z.AI（GLM）への呼出を遮断する時間帯**を定義する。
+
+| 設定キー | 意味 | 既定値 |
+|---|---|---|
+| `enabled` | peak_hours機能の有効化 | `true` |
+| `start_hour` | 開始時刻（24h表記・JST） | `15` |
+| `end_hour` | 終了時刻（24h表記・JST・排他的） | `19` |
+| `timezone_offset` | タイムゾーンオフセット | `9`（JST） |
+
+**動作**: peak_hours時間帯中は、ModelRouterの `determine_mode()` が `peak_block` を返し、`route_model()` がフォールバック先（既定 `MiniMax-M3`）へ**強制切替**する。Z.AI（GLM）は呼ばれず、結果としてCoding Plan側のレートリミットを回避する。
+
+**実装**: `src/glm_rate_proxy/model_router.py` の `_is_peak_hour()` が JST タイムゾーンで現在時刻を判定。`start_hour <= now_hour < end_hour` の条件。
+
+**⚠️ 重要な制約**: peak_hours は **glm-rate-proxy を経由する呼出のみに効く**。`ANTHROPIC_BASE_URL` でZ.AI直エンドポイントを指定するクライアント（例: NexusCore の `GLM_API_BASE=https://api.z.ai/api/coding/paas/v4`）は proxy を経由しないため、peak_hours制御の対象外となる。この時間帯にZ.AI直呼出すると429多発を直接受ける（フォールバックなし）。
 
 ## 設定ファイル
 
