@@ -12,11 +12,13 @@ from scripts.obsidian.dir_manifests import (
     MeaningGenError,
     _llm_meaning,
     build_manifest_entry,
+    idempotency_key,
     list_dirs_via_git,
     list_project_dirs_in_ssot,
     meaning_hash,
     regenerate_pending,
     retry_meaning_with_backoff,
+    update_last_verified,
     validate_manifest,
 )
 
@@ -425,3 +427,26 @@ def test_regenerate_pending_uses_list_project_dirs_in_ssot_when_no_external_repo
     assert sorted(paths) == ["alpha", "beta"]
     assert sorted(result["added"]) == ["alpha", "beta"]
     assert result["failed"] == []
+
+
+def test_idempotency_key_is_deterministic_sha256_12hex():
+    k1 = idempotency_key("reserve-optimizer", "src/handlers", "abc12345")
+    k2 = idempotency_key("reserve-optimizer", "src/handlers", "abc12345")
+    assert k1 == k2
+    assert len(k1) == 12  # sha256 先頭12桁
+    # 異なる入力は異なるキー
+    k3 = idempotency_key("reserve-optimizer", "src/services", "abc12345")
+    assert k1 != k3
+
+
+def test_update_last_verified_updates_date_only(tmp_path):
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "last_verified": "2026-07-01",
+        "directories": [{"path": "src", "meaning": "m", "meaning_hash": "h", "pending_approval": False}],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    update_last_verified(manifest_path, "2026-07-22")
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert data["last_verified"] == "2026-07-22"
+    # meaning は触らない
+    assert data["directories"][0]["meaning"] == "m"

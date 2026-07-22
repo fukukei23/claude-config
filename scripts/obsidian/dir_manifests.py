@@ -342,3 +342,18 @@ def regenerate_pending(manifest_path: Path, repo_path: Path) -> dict:
             encoding="utf-8",
         )
     return {"added": added, "failed": failed}
+
+
+def idempotency_key(project: str, dir_path: str, meaning_hash_val: str) -> str:
+    """べき等性キー（sha256 先頭12桁）。同一内容の二重処理検出用."""
+    raw = f"{project}|{dir_path}|{meaning_hash_val}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def update_last_verified(manifest_path: Path, today: str) -> None:
+    """manifest の last_verified を当日で更新（meaning は触らない・spec R1）."""
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["last_verified"] = today
+    manifest_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
