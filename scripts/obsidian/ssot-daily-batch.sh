@@ -54,6 +54,16 @@ DRY_FLAG=""
 
 cd "$SSOT_ROOT" || { echo "[ssot-daily] cd失敗: $SSOT_ROOT" >> "$LOG_FILE"; exit 1; }
 
+# === ステップ0: daily-activity-stats（昨日の活動取得・|| 継続・dry-run時skip・spec v2）===
+# 活動統計は INDEX/last_verified/pending と独立・1件失敗で全体停止しない（非致命）
+# dry-run 時は skip（活動統計ファイル書き込みは副作用・純粋dry-run保持）
+# ステップ0単独失敗は Discord通知しない（ステップ3通知は Python/commit/pending エラーのみ）
+if [ "$DRY_RUN" != "--dry-run" ]; then
+  echo "[ssot-daily] ステップ0: daily-activity-stats 開始" >> "$LOG_FILE"
+  bash "$HOME/bin/daily-activity-stats" >> "$LOG_FILE" 2>&1 || \
+    echo "[ssot-daily] daily-activity-stats 失敗（継続・ステップ0は非致命）" >> "$LOG_FILE"
+fi
+
 SUMMARY=$(PYTHONPATH="$CLAUDE_CONFIG" python3 -m scripts.obsidian.ssot_daily_batch \
   --ssot-root "$SSOT_ROOT" $DRY_FLAG 2>>"$LOG_FILE")
 PYTHON_RC=$?
