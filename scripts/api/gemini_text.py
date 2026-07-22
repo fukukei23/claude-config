@@ -15,6 +15,7 @@ APIキー: GEMINI_API_KEY (env または ~/.secrets.env)。
 """
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -92,6 +93,19 @@ def _call_factory(prompt_text: str, api_key: str):
     return factory
 
 
+def _extract_http_status(exc: Exception) -> int | None:
+    """例外メッセージから HTTP ステータスコード(3桁)を抽出する.
+
+    genai ClientError はステータスコードを文字列表現に含むため正規表現で取得。
+    api_base.py の文字列マッチ方式と同じアプローチ（堅牢・依存属性なし）。
+
+    Returns:
+        ステータスコード(400-599)または None（抽出不可時）。
+    """
+    m = re.search(r"\b([45]\d{2})\b", str(exc))
+    return int(m.group(1)) if m else None
+
+
 def main(argv: list[str] | None = None) -> int:
     """エントリポイント。応答テキストを stdout に出す（エラー時 stderr + 非0 exit）."""
     args = parse_args(argv)
@@ -123,7 +137,16 @@ def main(argv: list[str] | None = None) -> int:
             api_key,
         )
     except Exception as exc:
+        status = _extract_http_status(exc)
+        if status:
+            print(f"HTTP_STATUS:{status}", file=sys.stderr)
         print(f"error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        if status == 429:
+            return 4
+        if status is not None and 500 <= status < 600:
+            return 3
+        if status is not None and 400 <= status < 500:
+            return 2
         return 1
 
     sys.stdout.write(text)

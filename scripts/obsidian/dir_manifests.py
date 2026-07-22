@@ -1,7 +1,10 @@
 """SSOT体系化 P1: .dir-manifest.json 操作中核モジュール."""
 import hashlib
+import json
+import re
 import subprocess
 import sys
+import time
 import unicodedata
 from pathlib import Path
 
@@ -193,3 +196,128 @@ def build_manifest_entry(repo_path: Path, dir_path: str) -> dict:
         "meaning_hash": meaning_hash(meaning),
         "pending_approval": pending,
     }
+
+
+# --- HTTP 分岐リトライ (Task 1: spec R2) ---
+
+
+class MeaningGenError(RuntimeError):
+    """meaning 生成失敗。kind: '429' / '5xx' / '4xx' / 'other'."""
+
+    def __init__(self, msg: str, kind: str = "other"):
+        super().__init__(msg)
+        self.kind = kind
+
+
+def _classify_meaning_error(err: Exception) -> str:
+    """例外メッセージから HTTP ステータスを分類する.
+
+    gemini_text.py の stderr に ``HTTP_STATUS:<code>`` が含まれる前提。
+    含まれない場合は ``other``（1回だけリトライ）。
+
+    Returns:
+        ``'429'`` / ``'5xx'`` / ``'4xx'`` / ``'other'``
+    """
+    msg = str(err)
+    m = re.search(r"HTTP_STATUS:(\d{3})", msg)
+    if not m:
+        return "other"
+    code = int(m.group(1))
+    if code == 429:
+        return "429"
+    if 500 <= code < 600:
+        return "5xx"
+    if 400 <= code < 500:
+        return "4xx"
+    return "other"
+
+
+def retry_meaning_with_backoff(
+    repo_path: Path, dir_path: str, max_retries: int = 3
+) -> str:
+    """meaning 生成を HTTP ステータス別リトライ戦略で実行.
+
+    - 429: 指数バックオフ（60s / 300s / 900s）でリトライ
+    - 5xx: 短リトライ（10s / 20s / 40s）でリトライ
+    - 4xx: 即スキップ（リトライしない）
+    - other: 1回だけリトライ（5s 待ち）
+
+    Args:
+        repo_path: 対象 Git リポジトリのパス。
+        dir_path: ディレクトリパス文字列。
+        max_retries: 最大試行回数（デフォルト3）。
+
+    Returns:
+        生成された意味文字列。
+
+    Raises:
+        MeaningGenError: max_retries に達しても成功しない場合。
+    """
+    backoff = {"429": [60, 300, 900], "5xx": [10, 20, 40], "other": [5]}
+    last_err: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            return _llm_meaning(repo_path, dir_path)
+        except Exception as e:
+            last_err = e
+            kind = _classify_meaning_error(e)
+            if kind == "4xx":
+                raise MeaningGenError(str(e), kind="4xx")
+            waits = backoff.get(kind, backoff["other"])
+            if attempt >= max_retries - 1:
+                break
+            sleep_s = waits[min(attempt, len(waits) - 1)]
+            time.sleep(sleep_s)
+    raise MeaningGenError(str(last_err), kind=_classify_meaning_error(last_err))
+
+
+# --- 新規dir検知・pending再生成 (Task 1: spec R3) ---
+
+
+def regenerate_pending(manifest_path: Path, repo_path: Path) -> list[str]:
+    """manifest の directories と実dir を比較し、新規dir に meaning 候補を追加.
+
+    - spec R1: 既存dir の meaning は触らない（べき等性）
+    - spec R3: 新規dir のみ LLM 生成（retry_meaning_with_backoff 経由）
+
+    Args:
+        manifest_path: ``.dir-manifest.json`` のパス。
+        repo_path: 対象リポジトリのパス（has_external_repo 時の git ls-tree 用）。
+
+    Returns:
+        新規追加した top-level dir パスのリスト（追加無しは空リスト）。
+    """
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    recorded = {
+        d["path"]
+        for d in data.get("directories", [])
+        if d.get("path")
+    }
+    if data.get("has_external_repo"):
+        actual_tops = set(list_dirs_via_git(repo_path))
+    else:
+        actual_tops = set(
+            list_project_dirs_in_ssot(repo_path, data.get("project", ""))
+        )
+    new_tops = sorted(actual_tops - recorded)
+    added: list[str] = []
+    for top in new_tops:
+        try:
+            meaning = retry_meaning_with_backoff(repo_path, top)
+        except MeaningGenError:
+            continue
+        entry = {
+            "path": top,
+            "meaning": meaning,
+            "meaning_hash": meaning_hash(meaning),
+            "pending_approval": True,
+        }
+        data["directories"].append(entry)
+        added.append(top)
+    if added:
+        validate_manifest(data)
+        manifest_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    return added

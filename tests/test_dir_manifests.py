@@ -9,11 +9,14 @@ import pytest
 
 from scripts.obsidian.approve_meaning import approve_manifest
 from scripts.obsidian.dir_manifests import (
+    MeaningGenError,
     _llm_meaning,
     build_manifest_entry,
     list_dirs_via_git,
     list_project_dirs_in_ssot,
     meaning_hash,
+    regenerate_pending,
+    retry_meaning_with_backoff,
     validate_manifest,
 )
 
@@ -232,3 +235,77 @@ def test_list_project_dirs_in_ssot_isolates_other_projects(tmp_path):
     )
     result = list_project_dirs_in_ssot(repo, "proj1")
     assert result == ["alpha", "beta"]
+
+
+# --- retry_meaning_with_backoff (Task 1: HTTP分岐リトライ・spec R2) ---
+
+
+def test_retry_meaning_with_backoff_retries_on_5xx_then_succeeds(monkeypatch):
+    """5xxエラーは短リトライ(10s/20s/40s)で再試行し、最終的に成功する"""
+    calls = []
+
+    def fake(repo, path):
+        calls.append(path)
+        if len(calls) < 3:
+            raise MeaningGenError("gemini_text.py failed: HTTP_STATUS:503", kind="5xx")
+        return "LINE受信イベント処理"
+
+    monkeypatch.setattr("scripts.obsidian.dir_manifests._llm_meaning", fake)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    result = retry_meaning_with_backoff(Path("/fake"), "src/handlers", max_retries=3)
+    assert result == "LINE受信イベント処理"
+    assert len(calls) == 3
+
+
+def test_retry_meaning_with_backoff_skips_immediately_on_4xx(monkeypatch):
+    """4xxエラーは即スキップ（リトライしない）"""
+    calls = []
+
+    def fake(repo, path):
+        calls.append(path)
+        raise MeaningGenError("gemini_text.py failed: HTTP_STATUS:401", kind="4xx")
+
+    monkeypatch.setattr("scripts.obsidian.dir_manifests._llm_meaning", fake)
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    try:
+        retry_meaning_with_backoff(Path("/fake"), "src/handlers", max_retries=3)
+        assert False, "should raise"
+    except MeaningGenError as e:
+        assert e.kind == "4xx"
+    assert len(calls) == 1
+
+
+# --- regenerate_pending (Task 1: 新規dir検知・spec R3) ---
+
+
+def test_regenerate_pending_adds_new_dirs_with_provisional_hash(tmp_path, monkeypatch):
+    """新規dir に meaning 候補(仮hash・pending=True)を追加し、追加パスリストを返す"""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "repo_path": str(tmp_path), "has_external_repo": True,
+        "last_verified": "2026-07-22",
+        "directories": [{"path": "src/handlers", "meaning": "既存", "meaning_hash": meaning_hash("既存"), "pending_approval": False}],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git", lambda p: ["src/handlers", "src/services"])
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", lambda r, d, **k: "新規サービス層")
+    added = regenerate_pending(manifest_path, tmp_path)
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    paths = [d["path"] for d in data["directories"]]
+    assert "src/services" in paths
+    new_entry = [d for d in data["directories"] if d["path"] == "src/services"][0]
+    assert new_entry["pending_approval"] is True
+    assert new_entry["meaning_hash"] == meaning_hash("新規サービス層")
+    assert added == ["src/services"]
+
+
+def test_regenerate_pending_skips_meaning_change_for_existing_dirs(tmp_path, monkeypatch):
+    """既存dir の meaning は触らない（べき等性・spec R1）"""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "repo_path": str(tmp_path), "has_external_repo": True,
+        "last_verified": "2026-07-22",
+        "directories": [{"path": "src/handlers", "meaning": "既存", "meaning_hash": meaning_hash("既存"), "pending_approval": False}],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git", lambda p: ["src/handlers"])
+    added = regenerate_pending(manifest_path, tmp_path)
+    assert added == []
