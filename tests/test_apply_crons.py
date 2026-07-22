@@ -113,6 +113,19 @@ def test_match_both_markers_diff_id():
     assert not apply_crons._match(defn, task)
 
 
+def test_match_both_markers_same_id_diff_schedule():
+    """両方マーカー有り・id一致だがschedule違う → False（schedule変更検知・MiniMax指摘）"""
+    defn = _make_defn(3, "prompt\n[cron-id:3]", schedule="0 5 * * *")
+    task = {"cron": "0 3 * * *", "prompt": "prompt\n[cron-id:3]"}  # schedule違う
+    assert not apply_crons._match(defn, task)
+
+
+def test_extract_cron_id_whitespace_only_returns_none():
+    """空白のみprompt で IndexError 起こさず None（Gemini指摘）"""
+    assert apply_crons._extract_cron_id("   \n  \n") is None
+    assert apply_crons._extract_cron_id("") is None
+
+
 def test_match_one_side_no_marker_legacy():
     """片方のみマーカー無し → 従来（schedule+先頭40字）で True（層3・clean誤削除防止）"""
     long_prompt = (

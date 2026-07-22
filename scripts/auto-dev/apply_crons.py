@@ -78,10 +78,12 @@ def _extract_cron_id(prompt: str) -> int | None:
     Returns:
         抽出したid・末尾に [cron-id:N] マーカーがなければ None。
     """
-    if not prompt:
+    if not prompt or not prompt.strip():
         return None
-    last_line = prompt.rstrip().splitlines()[-1]
-    matched = _CRON_ID_RE.match(last_line)
+    lines = prompt.rstrip().splitlines()
+    if not lines:
+        return None
+    matched = _CRON_ID_RE.match(lines[-1])
     return int(matched.group(1)) if matched else None
 
 
@@ -264,7 +266,8 @@ def _match(defn: CronDefinition, task: dict) -> bool:
     task_prompt = task.get("prompt") or ""
     task_id = _extract_cron_id(task_prompt)
     if defn_id is not None and task_id is not None:
-        return defn_id == task_id
+        # id一致でも schedule は比較（schedule変更を検知して再登録）
+        return defn_id == task_id and defn.schedule == task.get("cron")
     if defn.schedule != task.get("cron"):
         return False
     return defn.prompt.strip()[:40] == task_prompt[:40]
