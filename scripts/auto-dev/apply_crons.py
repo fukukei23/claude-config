@@ -248,10 +248,26 @@ def load_tasks(path: str = TASKS_PATH) -> list[dict]:
 
 
 def _match(defn: CronDefinition, task: dict) -> bool:
-    """同一判定: schedule完全一致 + prompt先頭40字一致。"""
+    """同一判定（3層・spec v3）.
+
+    1. 両方の prompt に cron-id マーカー有り → id で比較（一致=True・不一致=False）
+    2. 片方のみマーカー無し → 従来（schedule完全一致 + prompt先頭40字一致）で後方互換
+
+    Args:
+        defn: Cron定義（prompt は末尾マーカー付き・parse_definitions で付与済）。
+        task: scheduled_tasks.json の1エントリ。
+
+    Returns:
+        同一と判定されれば True。
+    """
+    defn_id = _extract_cron_id(defn.prompt)
+    task_prompt = task.get("prompt") or ""
+    task_id = _extract_cron_id(task_prompt)
+    if defn_id is not None and task_id is not None:
+        return defn_id == task_id
     if defn.schedule != task.get("cron"):
         return False
-    return defn.prompt.strip()[:40] == (task.get("prompt") or "")[:40]
+    return defn.prompt.strip()[:40] == task_prompt[:40]
 
 
 def diff(definitions: list[CronDefinition], tasks: list[dict]) -> list[Action]:
