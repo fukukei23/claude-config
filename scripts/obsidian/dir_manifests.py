@@ -289,12 +289,12 @@ def regenerate_pending(manifest_path: Path, repo_path: Path) -> list[str]:
     """
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     recorded = {
-        d["path"]
+        d["path"].split("/")[0]
         for d in data.get("directories", [])
         if d.get("path")
     }
     if data.get("has_external_repo"):
-        actual_tops = set(list_dirs_via_git(repo_path))
+        actual_tops = {p.split("/")[0] for p in list_dirs_via_git(repo_path)}
     else:
         actual_tops = set(
             list_project_dirs_in_ssot(repo_path, data.get("project", ""))

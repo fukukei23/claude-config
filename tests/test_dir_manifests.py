@@ -279,33 +279,46 @@ def test_retry_meaning_with_backoff_skips_immediately_on_4xx(monkeypatch):
 
 
 def test_regenerate_pending_adds_new_dirs_with_provisional_hash(tmp_path, monkeypatch):
-    """新規dir に meaning 候補(仮hash・pending=True)を追加し、追加パスリストを返す"""
+    """新規top-level dir に meaning 候補を追加。再帰サブdir は偽新規検知しない（spec R5）"""
     manifest_path = tmp_path / ".dir-manifest.json"
     manifest_path.write_text(json.dumps({
         "project": "x", "repo_path": str(tmp_path), "has_external_repo": True,
         "last_verified": "2026-07-22",
         "directories": [{"path": "src/handlers", "meaning": "既存", "meaning_hash": meaning_hash("既存"), "pending_approval": False}],
     }, ensure_ascii=False, indent=2), encoding="utf-8")
-    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git", lambda p: ["src/handlers", "src/services"])
-    monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", lambda r, d, **k: "新規サービス層")
+    # 再帰パス含む（実 git ls-tree -r -d と同じ・サブdir多数）
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git",
+        lambda p: ["src/handlers/sub1", "src/handlers/sub2", "src/services/deep", "docs"])
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.retry_meaning_with_backoff", lambda r, d, **k: "新規docs層")
     added = regenerate_pending(manifest_path, tmp_path)
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     paths = [d["path"] for d in data["directories"]]
-    assert "src/services" in paths
-    new_entry = [d for d in data["directories"] if d["path"] == "src/services"][0]
+    # docs のみ新規top-level（src は src/handlers で既存・src/services/deep も src に集約）
+    assert "docs" in paths
+    assert added == ["docs"]
+    # サブdir が偽検知されていないことを確認
+    assert "src/handlers/sub1" not in paths
+    assert "src/services/deep" not in paths
+    new_entry = [d for d in data["directories"] if d["path"] == "docs"][0]
     assert new_entry["pending_approval"] is True
-    assert new_entry["meaning_hash"] == meaning_hash("新規サービス層")
-    assert added == ["src/services"]
+    assert new_entry["meaning_hash"] == meaning_hash("新規docs層")
 
 
 def test_regenerate_pending_skips_meaning_change_for_existing_dirs(tmp_path, monkeypatch):
-    """既存dir の meaning は触らない（べき等性・spec R1）"""
+    """既存top-level dir は meaning を触らない（べき等性・spec R1・サブdir含む）"""
     manifest_path = tmp_path / ".dir-manifest.json"
     manifest_path.write_text(json.dumps({
         "project": "x", "repo_path": str(tmp_path), "has_external_repo": True,
         "last_verified": "2026-07-22",
         "directories": [{"path": "src/handlers", "meaning": "既存", "meaning_hash": meaning_hash("既存"), "pending_approval": False}],
     }, ensure_ascii=False, indent=2), encoding="utf-8")
-    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git", lambda p: ["src/handlers"])
+    # src/handlers 配下のサブdir のみ（src top-level は既存）
+    monkeypatch.setattr("scripts.obsidian.dir_manifests.list_dirs_via_git",
+        lambda p: ["src/handlers/sub1", "src/handlers/sub2", "src/handlers/deep/nested"])
+    # retry が呼ばれたら新規dir検知のバグ（top-level化されてない証拠）
+    monkeypatch.setattr(
+        "scripts.obsidian.dir_manifests.retry_meaning_with_backoff",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not be called for existing top-level")),
+    )
     added = regenerate_pending(manifest_path, tmp_path)
     assert added == []
