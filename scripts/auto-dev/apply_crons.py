@@ -49,6 +49,42 @@ _TAG_RE = re.compile(
 _PROMPT_PREFIX_RE = re.compile(r'^#\s{2,}(.*)$')
 
 
+def _append_cron_id_marker(prompt: str, cron_id: int) -> str:
+    """prompt 末尾に [cron-id:N] マーカーを付与（冪等・rstrip で二重改行防止）.
+
+    Args:
+        prompt: 対象プロンプト文字列。
+        cron_id: 付与する管理id。
+
+    Returns:
+        マーカー付きプロンプト。既に末尾に同じマーカーがあればそのまま（冪等）。
+    """
+    marker = f"[cron-id:{cron_id}]"
+    stripped = prompt.rstrip()
+    if stripped.endswith(marker):
+        return stripped
+    return f"{stripped}\n{marker}"
+
+
+_CRON_ID_RE = re.compile(r'^\[cron-id:(\d+)\]$')
+
+
+def _extract_cron_id(prompt: str) -> int | None:
+    """prompt 末尾1行から cron-id を抽出（無しは None・本文中の類似文字列は無視）.
+
+    Args:
+        prompt: 対象プロンプト文字列。
+
+    Returns:
+        抽出したid・末尾に [cron-id:N] マーカーがなければ None。
+    """
+    if not prompt:
+        return None
+    last_line = prompt.rstrip().splitlines()[-1]
+    matched = _CRON_ID_RE.match(last_line)
+    return int(matched.group(1)) if matched else None
+
+
 def parse_definitions(text: str) -> list[CronDefinition]:
     """renew-crons.sh のテキストをparseし、CronDefinitionリストを返す。
 
@@ -72,7 +108,9 @@ def parse_definitions(text: str) -> list[CronDefinition]:
         if current is not None:
             if not prompt_lines:
                 raise ParseError(f"id={current.id}: promptブロックがありません")
-            current.prompt = "\n".join(prompt_lines)
+            current.prompt = _append_cron_id_marker(
+                "\n".join(prompt_lines), current.id
+            )
             defs.append(current)
             current = None
             prompt_lines = []
