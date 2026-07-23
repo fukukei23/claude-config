@@ -11,6 +11,7 @@ from pathlib import Path
 from scripts.obsidian.dir_manifests import (
     MeaningGenError,
     regenerate_pending,
+    update_last_full_sync,
     update_last_verified,
 )
 from scripts.obsidian.manifest_health import check_project_health
@@ -197,6 +198,40 @@ def _resolve_repo_path(data: dict, ssot_root: Path, project: str) -> Path:
     return Path(raw.replace("~", str(Path.home())))
 
 
+def _mark_full_sync(
+    ssot_root: Path,
+    projects: list[str],
+    today: str,
+    dry_run: bool,
+    result: BatchResult,
+) -> None:
+    """フル同期成功プロジェクトの last_full_sync を更新する（P3-A・第6形態）.
+
+    成功条件: 「構造drift無し AND pending_approval エントリ無し」。
+    drift/pending が残るプロジェクトは更新せず（→30日超で full_sync_stale 警告）。
+    """
+    if dry_run:
+        return
+    for project in projects:
+        if project in result.structural_drift:
+            continue
+        manifest = (
+            ssot_root / "01_DECISIONS" / project / ".dir-manifest.json"
+        )
+        if not manifest.is_file():
+            continue
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        has_pending = any(
+            d.get("pending_approval") for d in data.get("directories", [])
+        )
+        if has_pending:
+            continue
+        update_last_full_sync(manifest, today)
+
+
 def run_batch(
     ssot_root: Path,
     today: str,
@@ -216,6 +251,7 @@ def run_batch(
         result.pending_skipped = True
         return result
     _regenerate_all_pending(ssot_root, projects, dry_run, result)
+    _mark_full_sync(ssot_root, projects, today, dry_run, result)
     return result
 
 
