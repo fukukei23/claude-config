@@ -448,11 +448,23 @@ def ensure_index_frontmatter(
     return True
 
 
-def _empty_manifest(project: str, has_external_repo: bool, date: str) -> dict:
-    """dir無しプロジェクト用の空manifest dictを生成."""
+def _empty_manifest(
+    project: str, has_external_repo: bool, repo_path: str, date: str
+) -> dict:
+    """dir無しプロジェクト用の空manifest dictを生成.
+
+    Args:
+        project: プロジェクト名。
+        has_external_repo: 外部リポ有無。
+        repo_path: 外部リポパス文字列（has_external_repo=False時は ""）。
+        date: ``YYYY-MM-DD``。
+
+    Returns:
+        空directoriesのmanifest dict。
+    """
     return {
         "project": project,
-        "repo_path": "",
+        "repo_path": repo_path,
         "has_external_repo": has_external_repo,
         "directories": [],
         "last_verified": date,
@@ -494,7 +506,8 @@ def generate_manifest_for_project(
 
     manifest_created = False
     if not manifest_path.exists():
-        manifest = _empty_manifest(project, has_external, date)
+        repo_path_str = str(repo_path) if repo_path is not None else ""
+        manifest = _empty_manifest(project, has_external, repo_path_str, date)
         manifest_path.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
