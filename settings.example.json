@@ -326,6 +326,14 @@
             "command": "bash /home/yn4416/projects/obsidian-ssot/00_SYSTEM/claude-config/scripts/sync-claude-md.sh --push"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/obsidian/check-manifest-health.sh"
+          }
+        ]
       }
     ],
     "Stop": [
