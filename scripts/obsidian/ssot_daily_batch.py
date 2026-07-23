@@ -269,10 +269,12 @@ def main() -> int:
     parser.add_argument(
         "--projects",
         nargs="*",
-        default=["reserve-optimizer", "NexusCore", "claude-code"],
+        default=None,
     )
     args = parser.parse_args()
     today = args.today or datetime.date.today().isoformat()
+    if args.projects is None:
+        args.projects = discover_manifest_projects(Path(args.ssot_root))
     try:
         datetime.date.fromisoformat(today)
     except ValueError:

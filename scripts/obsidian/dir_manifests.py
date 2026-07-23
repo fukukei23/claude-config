@@ -388,6 +388,28 @@ def update_last_full_sync(manifest_path: Path, today: str) -> None:
 # --- P3-B: frontmatter付与・manifest生成オーケストレータ ---
 
 
+def discover_manifest_projects(ssot_root: Path) -> list[str]:
+    """01_DECISIONS 配下で .dir-manifest.json を持つプロジェクト名を昇順返す.
+
+    P3-B: batch(SessionStart/4:23)の対象プロジェクトを動的に発見するための
+    ヘルパー。manifest未展開プロジェクトは自動的に対象外（ハードコード不要）。
+
+    Args:
+        ssot_root: obsidian-ssot ルート。
+
+    Returns:
+        manifestを持つプロジェクト名の昇順リスト。01_DECISIONS無しは []。
+    """
+    decisions = ssot_root / "01_DECISIONS"
+    if not decisions.is_dir():
+        return []
+    return sorted(
+        p.name
+        for p in decisions.iterdir()
+        if p.is_dir() and (p / ".dir-manifest.json").is_file()
+    )
+
+
 def _parse_frontmatter(text: str) -> tuple[dict[str, str], str, str]:
     """_INDEX.md本文を (既存FM dict, FM文字列, 本文) に分割.
 
