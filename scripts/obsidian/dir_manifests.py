@@ -366,3 +366,20 @@ def update_last_verified(manifest_path: Path, today: str) -> None:
     manifest_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+
+
+def update_last_full_sync(manifest_path: Path, today: str) -> None:
+    """manifest の last_full_sync を当日で更新（P3-A・第6形態）.
+
+    spec: 「構造drift無し AND pending無し」のフル同期成功時に限り更新。
+    meaning/directories/last_verified は触らない（べき等）。
+
+    Args:
+        manifest_path: ``.dir-manifest.json`` のパス。
+        today: ISO 8601 (YYYY-MM-DD) の当日日付。
+    """
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["last_full_sync"] = today
+    manifest_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
