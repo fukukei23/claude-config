@@ -4,6 +4,8 @@ from pathlib import Path
 
 from scripts.obsidian.manifest_health import (
     detect_structural_drift,
+    is_freshness_stale,
+    is_full_sync_stale,
 )
 
 
@@ -101,3 +103,41 @@ def test_structural_drift_empty_repo_all_removed(tmp_path, monkeypatch):
     result = detect_structural_drift(manifest, tmp_path / "repo", tmp_path)
     assert result["added"] == []
     assert result["removed"] == ["src"]
+
+
+# --- is_freshness_stale / is_full_sync_stale ---
+
+
+def test_freshness_stale_over_threshold():
+    """last_verified 90日超 → stale."""
+    m = {"last_verified": "2026-04-23"}  # 91日前(基準2026-07-23)
+    assert is_freshness_stale(m, "2026-07-23") is True
+
+
+def test_freshness_not_stale_at_boundary():
+    """last_verified ちょうど90日 → staleでない（>90で判定）."""
+    m = {"last_verified": "2026-04-24"}  # 90日前
+    assert is_freshness_stale(m, "2026-07-23") is False
+
+
+def test_freshness_stale_when_missing():
+    """last_verified 未設定 → stale."""
+    assert is_freshness_stale({}, "2026-07-23") is True
+
+
+def test_full_sync_stale_over_threshold():
+    """last_full_sync 30日超 → stale."""
+    m = {"last_full_sync": "2026-06-22"}  # 31日前
+    assert is_full_sync_stale(m, "2026-07-23") is True
+
+
+def test_full_sync_not_stale_at_boundary():
+    """last_full_sync ちょうど30日 → staleでない."""
+    m = {"last_full_sync": "2026-06-23"}  # 30日前
+    assert is_full_sync_stale(m, "2026-07-23") is False
+
+
+def test_full_sync_stale_when_none():
+    """last_full_sync None/未設定 → stale."""
+    assert is_full_sync_stale({}, "2026-07-23") is True
+    assert is_full_sync_stale({"last_full_sync": None}, "2026-07-23") is True
