@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from scripts.obsidian.dir_manifests import (
+    DEFAULT_STATUS,
     list_dirs_via_git,
     list_project_dirs_in_ssot,
 )
@@ -29,7 +30,7 @@ class HealthResult:
     removed: list[str] = field(default_factory=list)
     freshness_stale: bool = False
     full_sync_stale: bool = False
-    status: str = "active"
+    status: str = DEFAULT_STATUS
 
     @property
     def has_issues(self) -> bool:
@@ -122,7 +123,7 @@ def check_project_health(
         removed=drift["removed"],
         freshness_stale=is_freshness_stale(manifest, today),
         full_sync_stale=is_full_sync_stale(manifest, today),
-        status=manifest.get("status", "active"),
+        status=manifest.get("status", DEFAULT_STATUS),
     )
 
 

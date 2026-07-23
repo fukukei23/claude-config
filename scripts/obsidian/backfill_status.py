@@ -9,10 +9,10 @@ import json
 import sys
 from pathlib import Path
 
-from scripts.obsidian.dir_manifests import discover_manifest_projects
+from scripts.obsidian.dir_manifests import DEFAULT_STATUS, discover_manifest_projects
 
 
-def backfill(ssot_root: Path) -> dict:
+def backfill_status(ssot_root: Path) -> dict:
     """status 未設定の manifest に 'active' を付与する.
 
     Args:
@@ -29,7 +29,7 @@ def backfill(ssot_root: Path) -> dict:
         if "status" in data:
             skipped.append(project)
             continue
-        data["status"] = "active"
+        data["status"] = DEFAULT_STATUS
         mpath.write_text(
             json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
@@ -43,7 +43,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description="backfill status=active to manifests")
     p.add_argument("--ssot-root", default="/home/yn4416/projects/obsidian-ssot")
     args = p.parse_args()
-    result = backfill(Path(args.ssot_root))
+    result = backfill_status(Path(args.ssot_root))
     print(f"updated: {len(result['updated'])} / skipped: {len(result['skipped'])}")
     if result["updated"]:
         print("  updated:", ", ".join(result["updated"]))

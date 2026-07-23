@@ -13,6 +13,9 @@ from pathlib import Path
 # active=現在作業中 / paused=一時停止(再開予定) / archived=完了・参照用 / aborted=中止・失敗
 VALID_STATUSES: tuple[str, ...] = ("active", "paused", "archived", "aborted")
 
+# 新規PJ・status未設定時のデフォルト（spec §5・VALID_STATUSES と一元管理）
+DEFAULT_STATUS: str = "active"
+
 # ドット始まりtop-level dir（ツール設定dir）の固定意味（D案・両LLM一致推奨）
 # LLM非呼出・べき等・意味は業界標準で自明。未知ドットdirは汎用フォールバック。
 DOT_DIR_MEANINGS: dict[str, str] = {
@@ -512,7 +515,7 @@ def _empty_manifest(
         "repo_path": repo_path,
         "has_external_repo": has_external_repo,
         "directories": [],
-        "status": "active",
+        "status": DEFAULT_STATUS,
         "last_verified": date,
         "last_full_sync": date,
     }
