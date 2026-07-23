@@ -446,3 +446,69 @@ def ensure_index_frontmatter(
         return False
     index_path.write_text(new_text, encoding="utf-8")
     return True
+
+
+def _empty_manifest(project: str, has_external_repo: bool, date: str) -> dict:
+    """dir無しプロジェクト用の空manifest dictを生成."""
+    return {
+        "project": project,
+        "repo_path": "",
+        "has_external_repo": has_external_repo,
+        "directories": [],
+        "last_verified": date,
+        "last_full_sync": date,
+    }
+
+
+def generate_manifest_for_project(
+    ssot_root: Path,
+    project: str,
+    repo_path: Path | None,
+    date: str,
+    status: str = "active",
+) -> dict:
+    """1プロジェクト分の frontmatter付与 + manifest生成をオーケストレーション.
+
+    - frontmatter無し_Index → ensure_index_frontmatter で付与
+    - .dir-manifest.json 無し → 生成（dir無しは空directories）
+    - 既存manifestあり → 触らない（べき等・R1）
+
+    Args:
+        ssot_root: obsidian-ssot ルート。
+        project: プロジェクト名。
+        repo_path: 外部リポパス（None=SSOT内のみ）。
+        date: ``YYYY-MM-DD``。
+        status: frontmatter status（既存優先）。
+
+    Returns:
+        実行結果 dict(frontmatter_changed/manifest_created/pending_count)。
+    """
+    proj_dir = ssot_root / "01_DECISIONS" / project
+    idx = proj_dir / "_INDEX.md"
+    manifest_path = proj_dir / ".dir-manifest.json"
+    has_external = repo_path is not None
+
+    frontmatter_changed = False
+    if idx.exists():
+        frontmatter_changed = ensure_index_frontmatter(idx, project, date, status)
+
+    manifest_created = False
+    if not manifest_path.exists():
+        manifest = _empty_manifest(project, has_external, date)
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        manifest_created = True
+
+    pending_count = 0
+    if manifest_path.exists():
+        m = json.loads(manifest_path.read_text(encoding="utf-8"))
+        pending_count = sum(
+            1 for d in m.get("directories", []) if d.get("pending_approval")
+        )
+    return {
+        "frontmatter_changed": frontmatter_changed,
+        "manifest_created": manifest_created,
+        "pending_count": pending_count,
+    }
