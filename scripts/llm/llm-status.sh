@@ -69,18 +69,14 @@ if model_name == 'unknown' and proxy_provider != 'minimax':
     except:
         pass
 
+# --- 作業量（優先度低・末尾に追加。コストは非表示→claude-costコマンドで確認）---
+work_str = None
 try:
-    # --- コスト（公式JSONの cost.total_cost_usd） ---
-    cost = d.get('cost', {}).get('total_cost_usd')
-    if cost is not None:
-        parts.append(f'\${cost:.2f}')
-
-    # --- 行追加/削除（作業量の目安） ---
     cost_d = d.get('cost', {})
     added = cost_d.get('total_lines_added')
     removed = cost_d.get('total_lines_removed')
     if added is not None and removed is not None:
-        parts.append(f'+{added} -{removed}')
+        work_str = f'+{added} -{removed}'
 except:
     pass
 
@@ -151,6 +147,20 @@ try:
         parts.append(f'{rcolor}Req {req_mb:.1f}MB/32\033[0m')
 except:
     pass
+
+# 作業量は末尾（優先度低）
+if work_str:
+    parts.append(work_str)
+
+# タブ識別子を先頭に（WT_SESSION先頭4桁・/clearで不変・タブ単位の識別子。
+# WT_SESSION未設定時は session_id 先頭4桁でフォールバック）
+wt = os.environ.get('WT_SESSION', '')
+if wt:
+    tab_id = wt[:4]
+else:
+    sid = d.get('session_id', '')
+    tab_id = sid[:4] if sid else '----'
+parts.insert(0, f'\033[36m🪟{tab_id}\033[0m')
 
 # str() で包む: 万が一 dict が混入しても TypeError を起こさない安全策
 print(' | '.join(str(p) for p in parts))
