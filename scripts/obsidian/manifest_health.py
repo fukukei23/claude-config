@@ -22,13 +22,14 @@ from scripts.obsidian.dir_manifests import (
 
 @dataclass
 class HealthResult:
-    """単一プロジェクトのヘルス検知結果（3軸統合）."""
+    """単一プロジェクトのヘルス検知結果（3軸統合 + status）."""
 
     project: str
     added: list[str] = field(default_factory=list)
     removed: list[str] = field(default_factory=list)
     freshness_stale: bool = False
     full_sync_stale: bool = False
+    status: str = "active"
 
     @property
     def has_issues(self) -> bool:
@@ -121,6 +122,7 @@ def check_project_health(
         removed=drift["removed"],
         freshness_stale=is_freshness_stale(manifest, today),
         full_sync_stale=is_full_sync_stale(manifest, today),
+        status=manifest.get("status", "active"),
     )
 
 

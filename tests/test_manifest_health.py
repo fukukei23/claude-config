@@ -192,3 +192,31 @@ def test_check_project_health_all_issues(tmp_path, monkeypatch):
     assert r.freshness_stale is True
     assert r.full_sync_stale is True
     assert r.has_issues is True
+
+
+def test_check_project_health_reads_status(tmp_path):
+    """check_project_health は manifest の status を HealthResult に含める."""
+    import json
+    from scripts.obsidian.manifest_health import check_project_health
+    mpath = tmp_path / ".dir-manifest.json"
+    mpath.write_text(
+        json.dumps({"project": "p", "status": "paused", "directories": [],
+                    "last_verified": "2026-07-24", "last_full_sync": "2026-07-24"}),
+        encoding="utf-8",
+    )
+    result = check_project_health(mpath, tmp_path, tmp_path, "2026-07-24")
+    assert result.status == "paused"
+
+
+def test_check_project_health_status_defaults_active(tmp_path):
+    """status 未設定 manifest は 'active' と解釈する（後方互換・バックフィル前）."""
+    import json
+    from scripts.obsidian.manifest_health import check_project_health
+    mpath = tmp_path / ".dir-manifest.json"
+    mpath.write_text(
+        json.dumps({"project": "p", "directories": [],
+                    "last_verified": "2026-07-24", "last_full_sync": "2026-07-24"}),
+        encoding="utf-8",
+    )
+    result = check_project_health(mpath, tmp_path, tmp_path, "2026-07-24")
+    assert result.status == "active"
