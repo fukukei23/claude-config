@@ -99,6 +99,31 @@ def is_full_sync_stale(
     return days > threshold_days
 
 
+def check_project_health(
+    manifest_path: Path, repo_path: Path, ssot_root: Path, today: str
+) -> HealthResult:
+    """単一プロジェクトの manifest ヘルスを3軸で検知する（read-only）.
+
+    Args:
+        manifest_path: ``.dir-manifest.json`` のパス。
+        repo_path: 対象リポジトリパス（has_external_repo 時の git ls-tree 用）。
+        ssot_root: obsidian-ssot ルート（has_external_repo=False 時の列挙用）。
+        today: 基準日（``YYYY-MM-DD``）。
+
+    Returns:
+        3軸統合結果の ``HealthResult``。manifest は変更しない。
+    """
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    drift = detect_structural_drift(manifest, repo_path, ssot_root)
+    return HealthResult(
+        project=manifest.get("project", manifest_path.parent.name),
+        added=drift["added"],
+        removed=drift["removed"],
+        freshness_stale=is_freshness_stale(manifest, today),
+        full_sync_stale=is_full_sync_stale(manifest, today),
+    )
+
+
 def detect_structural_drift(
     manifest: dict, repo_path: Path, ssot_root: Path
 ) -> dict:
