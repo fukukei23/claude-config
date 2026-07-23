@@ -18,6 +18,7 @@ from scripts.obsidian.dir_manifests import (
     meaning_hash,
     regenerate_pending,
     retry_meaning_with_backoff,
+    update_last_full_sync,
     update_last_verified,
     validate_manifest,
 )
@@ -487,3 +488,31 @@ def test_update_last_verified_updates_date_only(tmp_path):
     assert data["last_verified"] == "2026-07-22"
     # meaning は触らない
     assert data["directories"][0]["meaning"] == "m"
+
+
+def test_update_last_full_sync_sets_when_missing(tmp_path):
+    """P3-A: last_full_sync未設定→today設定・directories/last_verified不変."""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "last_verified": "2026-07-22",
+        "directories": [{"path": "src", "meaning": "m", "meaning_hash": "h", "pending_approval": False}],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    update_last_full_sync(manifest_path, "2026-07-23")
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert data["last_full_sync"] == "2026-07-23"
+    # directories / last_verified は触らない
+    assert data["last_verified"] == "2026-07-22"
+    assert data["directories"][0]["meaning"] == "m"
+
+
+def test_update_last_full_sync_overwrites_and_idempotent(tmp_path):
+    """P3-A: 既存last_full_sync更新・2回呼出でべき等."""
+    manifest_path = tmp_path / ".dir-manifest.json"
+    manifest_path.write_text(json.dumps({
+        "project": "x", "last_full_sync": "2026-06-01",
+        "directories": [],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    update_last_full_sync(manifest_path, "2026-07-23")
+    update_last_full_sync(manifest_path, "2026-07-23")
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert data["last_full_sync"] == "2026-07-23"

@@ -94,7 +94,10 @@
       "Bash(kubectl delete namespace*)",
       "Bash(helm uninstall*)"
     ],
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "bypassPermissions",
+    "ask": [
+      "Bash(git worktree add:*)"
+    ]
   },
   "model": "opus",
   "hooks": {
