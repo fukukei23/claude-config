@@ -10,12 +10,35 @@
 from __future__ import annotations
 
 import datetime
+import json
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from scripts.obsidian.dir_manifests import (
     list_dirs_via_git,
     list_project_dirs_in_ssot,
 )
+
+
+@dataclass
+class HealthResult:
+    """単一プロジェクトのヘルス検知結果（3軸統合）."""
+
+    project: str
+    added: list[str] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
+    freshness_stale: bool = False
+    full_sync_stale: bool = False
+
+    @property
+    def has_issues(self) -> bool:
+        """いずれかの軸で異常があれば True."""
+        return bool(
+            self.added
+            or self.removed
+            or self.freshness_stale
+            or self.full_sync_stale
+        )
 
 
 def _days_since(date_str: str | None, today: str) -> int | None:

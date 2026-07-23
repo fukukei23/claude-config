@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 
 from scripts.obsidian.manifest_health import (
+    HealthResult,
+    check_project_health,
     detect_structural_drift,
     is_freshness_stale,
     is_full_sync_stale,
@@ -141,3 +143,52 @@ def test_full_sync_stale_when_none():
     """last_full_sync None/未設定 → stale."""
     assert is_full_sync_stale({}, "2026-07-23") is True
     assert is_full_sync_stale({"last_full_sync": None}, "2026-07-23") is True
+
+
+# --- check_project_health 統合 ---
+
+
+def _write_manifest(path, data):
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def test_check_project_health_healthy(tmp_path, monkeypatch):
+    """異常なし: drift無し・鮮度OK・full_sync OK → has_issues False."""
+    manifest_path = tmp_path / "proj" / ".dir-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    _write_manifest(manifest_path, {
+        "project": "x", "has_external_repo": True,
+        "last_verified": "2026-07-22", "last_full_sync": "2026-07-22",
+        "directories": [{"path": "src", "meaning": "m", "meaning_hash": "h", "pending_approval": False}],
+    })
+    monkeypatch.setattr(
+        "scripts.obsidian.manifest_health.list_dirs_via_git",
+        lambda repo_path: ["src"],
+    )
+    r = check_project_health(manifest_path, tmp_path / "repo", tmp_path, "2026-07-23")
+    assert r.added == [] and r.removed == []
+    assert r.freshness_stale is False
+    assert r.full_sync_stale is False
+    assert r.has_issues is False
+
+
+def test_check_project_health_all_issues(tmp_path, monkeypatch):
+    """3軸全異常: drift有り・freshness stale・full_sync None."""
+    manifest_path = tmp_path / "proj" / ".dir-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    _write_manifest(manifest_path, {
+        "project": "x", "has_external_repo": True,
+        "last_verified": "2026-04-01",  # かなり古い
+        "last_full_sync": None,
+        "directories": [{"path": "gone", "meaning": "m", "meaning_hash": "h", "pending_approval": False}],
+    })
+    monkeypatch.setattr(
+        "scripts.obsidian.manifest_health.list_dirs_via_git",
+        lambda repo_path: ["new"],
+    )
+    r = check_project_health(manifest_path, tmp_path / "repo", tmp_path, "2026-07-23")
+    assert r.added == ["new"]
+    assert r.removed == ["gone"]
+    assert r.freshness_stale is True
+    assert r.full_sync_stale is True
+    assert r.has_issues is True
