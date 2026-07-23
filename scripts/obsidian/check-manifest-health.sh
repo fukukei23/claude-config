@@ -14,6 +14,7 @@ import datetime
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 from scripts.obsidian.manifest_health import check_project_health
@@ -26,6 +27,7 @@ projects = discover_manifest_projects(ssot_root)
 
 added = removed = fresh = sync = 0
 checked = 0
+non_active = []  # status != "active" の (status, project)（spec §5）
 for project in projects:
     manifest = ssot_root / "01_DECISIONS" / project / ".dir-manifest.json"
     if not manifest.is_file():
@@ -41,6 +43,8 @@ for project in projects:
     removed += len(h.removed)
     fresh += int(h.freshness_stale)
     sync += int(h.full_sync_stale)
+    if h.status != "active":
+        non_active.append((h.status, h.project))
 
 issues = []
 if added or removed:
@@ -49,6 +53,14 @@ if fresh:
     issues.append(f"fresh{fresh}")
 if sync:
     issues.append(f"sync{sync}")
+if non_active:
+    cnt = Counter(s for s, _ in non_active)
+    proj_list = ", ".join(p for _, p in non_active)
+    issues.append(
+        "status: "
+        + " ".join(f"{k}={v}" for k, v in sorted(cnt.items()))
+        + f" ({proj_list})"
+    )
 if issues:
     print(f"⚠️ manifestヘルス: {'/'.join(issues)} ({checked}proj)")
 else:
