@@ -3,9 +3,27 @@ import json
 from pathlib import Path
 
 from scripts.obsidian.dir_manifests import (
+    discover_manifest_projects,
     ensure_index_frontmatter,
     generate_manifest_for_project,
 )
+
+
+def test_discover_manifest_projects_sorted_manifest_only(tmp_path: Path) -> None:
+    """manifest持つプロジェクトを昇順返す・manifest無しは除外."""
+    for p in ["career", "zenn", "ai-music"]:
+        d = tmp_path / "01_DECISIONS" / p
+        d.mkdir(parents=True)
+        (d / ".dir-manifest.json").write_text("{}", encoding="utf-8")
+    nofm = tmp_path / "01_DECISIONS" / "nomanifest"
+    nofm.mkdir(parents=True)  # manifest無し
+    result = discover_manifest_projects(tmp_path)
+    assert result == ["ai-music", "career", "zenn"]
+
+
+def test_discover_manifest_projects_empty_when_no_decisions(tmp_path: Path) -> None:
+    """01_DECISIONS 無しは空リスト."""
+    assert discover_manifest_projects(tmp_path) == []
 
 
 def test_ensure_index_frontmatter_inserts_when_absent(tmp_path: Path) -> None:
