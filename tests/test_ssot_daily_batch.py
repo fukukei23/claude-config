@@ -1,6 +1,11 @@
 import json
 
-from scripts.obsidian.ssot_daily_batch import BatchResult, run_batch
+from scripts.obsidian.ssot_daily_batch import (
+    BatchResult,
+    _check_health_all,
+    run_batch,
+)
+from scripts.obsidian.manifest_health import HealthResult
 
 
 def test_run_batch_skips_pending_when_index_update_fails(tmp_path, monkeypatch):
@@ -88,3 +93,57 @@ def test_run_batch_dry_run_makes_no_changes(tmp_path, monkeypatch):
         dry_run=True,
     )
     assert manifest.read_text(encoding="utf-8") == original
+
+
+# --- P3-A: _check_health_all + summary ---
+
+
+def test_check_health_all_aggregates_three_axes(tmp_path, monkeypatch):
+    """3軸を per-project 集計: 片方はhealthy・片方は全異常."""
+    for proj in ["ok-proj", "bad-proj"]:
+        d = tmp_path / "01_DECISIONS" / proj
+        d.mkdir(parents=True)
+        (d / ".dir-manifest.json").write_text(
+            json.dumps({"project": proj, "has_external_repo": False}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    healthy = HealthResult(project="ok-proj")
+    bad = HealthResult(
+        project="bad-proj", added=["new"], removed=["gone"],
+        freshness_stale=True, full_sync_stale=True,
+    )
+    calls = {"ok-proj": healthy, "bad-proj": bad}
+
+    def fake_check(manifest_path, repo_path, ssot_root, today):
+        name = manifest_path.parent.name
+        return calls[name]
+
+    monkeypatch.setattr(
+        "scripts.obsidian.ssot_daily_batch.check_project_health", fake_check
+    )
+    result = BatchResult()
+    _check_health_all(tmp_path, ["ok-proj", "bad-proj"], "2026-07-23", False, result)
+    assert result.structural_drift == {"bad-proj": {"added": ["new"], "removed": ["gone"]}}
+    assert result.freshness_stale == ["bad-proj"]
+    assert result.full_sync_stale == ["bad-proj"]
+
+
+def test_summary_health_ok_when_no_issues():
+    """異常なし → summary に health:OK."""
+    r = BatchResult()
+    r.index_ok = True
+    assert "health:OK" in r.summary()
+
+
+def test_summary_health_reports_issues():
+    """異常あり → drift/fresh/sync 件数を報告."""
+    r = BatchResult()
+    r.index_ok = True
+    r.structural_drift = {"p": {"added": ["a", "b"], "removed": ["c"]}}
+    r.freshness_stale = ["p"]
+    r.full_sync_stale = ["p", "q"]
+    s = r.summary()
+    assert "drift+2/-1" in s
+    assert "fresh1" in s
+    assert "sync2" in s

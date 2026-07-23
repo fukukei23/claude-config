@@ -13,6 +13,7 @@ from scripts.obsidian.dir_manifests import (
     regenerate_pending,
     update_last_verified,
 )
+from scripts.obsidian.manifest_health import check_project_health
 
 
 @dataclass
@@ -26,6 +27,10 @@ class BatchResult:
     pending_skipped: bool = False
     pending_errors: list[str] = field(default_factory=list)
     dry_run: bool = False
+    # P3-A: ヘルス検知（drift 3軸）
+    structural_drift: dict[str, dict] = field(default_factory=dict)
+    freshness_stale: list[str] = field(default_factory=list)
+    full_sync_stale: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         """バッチ結果を通知用の1行文字列に整形する."""
@@ -44,6 +49,25 @@ class BatchResult:
                 f"/err{len(self.pending_errors)}" if self.pending_errors else ""
             )
             flags.append(f"pending:追加{total}件{error_suffix}")
+        # P3-A: ヘルス検知行
+        added_total = sum(
+            len(v.get("added", [])) for v in self.structural_drift.values()
+        )
+        removed_total = sum(
+            len(v.get("removed", [])) for v in self.structural_drift.values()
+        )
+        if (
+            not self.structural_drift
+            and not self.freshness_stale
+            and not self.full_sync_stale
+        ):
+            flags.append("health:OK")
+        else:
+            flags.append(
+                f"health:drift+{added_total}/-{removed_total}"
+                f"/fresh{len(self.freshness_stale)}"
+                f"/sync{len(self.full_sync_stale)}"
+            )
         prefix = "[DRY-RUN] " if self.dry_run else ""
         return prefix + " / ".join(flags)
 
@@ -65,6 +89,40 @@ def _update_last_verified_all(
         if not dry_run:
             update_last_verified(manifest, today)
         result.last_verified_projects.append(project)
+
+
+def _check_health_all(
+    ssot_root: Path,
+    projects: list[str],
+    today: str,
+    dry_run: bool,
+    result: BatchResult,
+) -> None:
+    """対象プロジェクトの manifest ヘルスを3軸で検知し結果に集計する（read-only）.
+
+    P3-A: last_verified 更新の前に実行（更新前の状態で検知するのが意味論的に正）。
+    """
+    for project in projects:
+        manifest = (
+            ssot_root / "01_DECISIONS" / project / ".dir-manifest.json"
+        )
+        if not manifest.is_file():
+            continue
+        try:
+            manifest_data = json.loads(manifest.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        repo_path = _resolve_repo_path(manifest_data, ssot_root, project)
+        health = check_project_health(manifest, repo_path, ssot_root, today)
+        if health.added or health.removed:
+            result.structural_drift[project] = {
+                "added": health.added,
+                "removed": health.removed,
+            }
+        if health.freshness_stale:
+            result.freshness_stale.append(project)
+        if health.full_sync_stale:
+            result.full_sync_stale.append(project)
 
 
 def _update_index(dry_run: bool) -> None:
@@ -147,6 +205,7 @@ def run_batch(
 ) -> BatchResult:
     """日次バッチをステップ依存ルール付きで実行する."""
     result = BatchResult(dry_run=dry_run)
+    _check_health_all(ssot_root, projects, today, dry_run, result)
     _update_last_verified_all(ssot_root, projects, today, dry_run, result)
     try:
         _update_index(dry_run)
