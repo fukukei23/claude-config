@@ -108,6 +108,18 @@ elif [ "$COMMIT_RC" -ne 0 ]; then
 elif grep -q '4xx\|429\|5xx\|MeaningGenError\|pending:追加[0-9]*件/err[1-9]' "$LOG_FILE" 2>/dev/null; then
   cleanup_and_notify 1 "pending再生成で一部エラー（ログ確認）"
   FINAL_RC=1
+# P3-A: manifest ヘルス警告（rc=0でも drift/stale 検知時は通知・正常時は黙る）
+elif echo "$SUMMARY" | grep -q 'health:' \
+   && ! echo "$SUMMARY" | grep -q 'health:OK'; then
+  if [ -n "${DISCORD_CLAUDE_WEBHOOK:-}" ]; then
+    curl -s -X POST "$DISCORD_CLAUDE_WEBHOOK" \
+      -H "Content-Type: application/json" \
+      -d "{\"content\":\"⚠️ SSOT manifest ヘルス警告\\n$SUMMARY\"}" > /dev/null 2>&1 || \
+      echo "[$(date)] Discord通知失敗(health): $SUMMARY" >> "$LOG_FILE"
+  else
+    echo "[$(date)] Discord未設定・health通知skip: $SUMMARY" >> "$LOG_FILE"
+  fi
+  # FINAL_RC=0 のまま（ヘルス警告は失敗扱いしない・翌朝の調査トリガ）
 fi
 
 exit "$FINAL_RC"
