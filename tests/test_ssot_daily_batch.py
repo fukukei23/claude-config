@@ -147,3 +147,70 @@ def test_summary_health_reports_issues():
     assert "drift+2/-1" in s
     assert "fresh1" in s
     assert "sync2" in s
+
+
+# --- P3-A: フル同期成功時 last_full_sync 更新 ---
+
+
+def _make_manifest(path, directories, extra=None):
+    data = {"project": path.parent.name, "has_external_repo": False,
+            "directories": directories}
+    if extra:
+        data.update(extra)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def test_mark_full_sync_updates_healthy_project(tmp_path):
+    """drift無し AND pending無し → last_full_sync 更新."""
+    from scripts.obsidian.ssot_daily_batch import _mark_full_sync
+    proj = tmp_path / "01_DECISIONS" / "p"
+    proj.mkdir(parents=True)
+    m = proj / ".dir-manifest.json"
+    _make_manifest(m, [{"path": "src", "meaning": "m", "meaning_hash": "h",
+                        "pending_approval": False}])
+    result = BatchResult()  # structural_drift 空 = drift無し
+    _mark_full_sync(tmp_path, ["p"], "2026-07-23", False, result)
+    data = json.loads(m.read_text(encoding="utf-8"))
+    assert data["last_full_sync"] == "2026-07-23"
+
+
+def test_mark_full_sync_skips_project_with_drift(tmp_path):
+    """drift有り → last_full_sync 更新しない."""
+    from scripts.obsidian.ssot_daily_batch import _mark_full_sync
+    proj = tmp_path / "01_DECISIONS" / "p"
+    proj.mkdir(parents=True)
+    m = proj / ".dir-manifest.json"
+    _make_manifest(m, [{"path": "src", "meaning": "m", "meaning_hash": "h",
+                        "pending_approval": False}])
+    result = BatchResult()
+    result.structural_drift = {"p": {"added": ["new"], "removed": []}}
+    _mark_full_sync(tmp_path, ["p"], "2026-07-23", False, result)
+    data = json.loads(m.read_text(encoding="utf-8"))
+    assert "last_full_sync" not in data
+
+
+def test_mark_full_sync_skips_project_with_pending(tmp_path):
+    """pending_approval有り → last_full_sync 更新しない."""
+    from scripts.obsidian.ssot_daily_batch import _mark_full_sync
+    proj = tmp_path / "01_DECISIONS" / "p"
+    proj.mkdir(parents=True)
+    m = proj / ".dir-manifest.json"
+    _make_manifest(m, [{"path": "src", "meaning": "m", "meaning_hash": "h",
+                        "pending_approval": True}])
+    result = BatchResult()
+    _mark_full_sync(tmp_path, ["p"], "2026-07-23", False, result)
+    data = json.loads(m.read_text(encoding="utf-8"))
+    assert "last_full_sync" not in data
+
+
+def test_mark_full_sync_noop_in_dry_run(tmp_path):
+    """dry_run → 更新しない."""
+    from scripts.obsidian.ssot_daily_batch import _mark_full_sync
+    proj = tmp_path / "01_DECISIONS" / "p"
+    proj.mkdir(parents=True)
+    m = proj / ".dir-manifest.json"
+    _make_manifest(m, [{"path": "src", "meaning": "m", "meaning_hash": "h",
+                        "pending_approval": False}])
+    _mark_full_sync(tmp_path, ["p"], "2026-07-23", True, BatchResult())
+    data = json.loads(m.read_text(encoding="utf-8"))
+    assert "last_full_sync" not in data
