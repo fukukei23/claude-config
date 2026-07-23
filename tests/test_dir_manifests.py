@@ -527,3 +527,25 @@ def test_empty_manifest_has_active_status_default():
     assert "paused" in VALID_STATUSES
     assert "archived" in VALID_STATUSES
     assert "aborted" in VALID_STATUSES
+
+
+def test_update_status_writes_valid_status(tmp_path):
+    """update_status は manifest の status を有効値で更新する."""
+    import json
+    from scripts.obsidian.dir_manifests import update_status
+    mpath = tmp_path / ".dir-manifest.json"
+    mpath.write_text(json.dumps({"project": "p", "status": "active"}), encoding="utf-8")
+    update_status(mpath, "paused")
+    data = json.loads(mpath.read_text(encoding="utf-8"))
+    assert data["status"] == "paused"
+
+
+def test_update_status_rejects_invalid(tmp_path):
+    """update_status は無効な status 値を拒否する（spec §5 4値のみ）."""
+    import json
+    import pytest
+    from scripts.obsidian.dir_manifests import update_status
+    mpath = tmp_path / ".dir-manifest.json"
+    mpath.write_text(json.dumps({"project": "p", "status": "active"}), encoding="utf-8")
+    with pytest.raises(ValueError):
+        update_status(mpath, "deleted")

@@ -389,6 +389,25 @@ def update_last_full_sync(manifest_path: Path, today: str) -> None:
     )
 
 
+def update_status(manifest_path: Path, status: str) -> None:
+    """manifest の status を更新（spec §5・有効値のみ許可）.
+
+    Args:
+        manifest_path: ``.dir-manifest.json`` のパス。
+        status: ``VALID_STATUSES`` のいずれか（active/paused/archived/aborted）。
+
+    Raises:
+        ValueError: ``status`` が ``VALID_STATUSES`` に含まれない場合。
+    """
+    if status not in VALID_STATUSES:
+        raise ValueError(f"invalid status: {status!r} (must be one of {VALID_STATUSES})")
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    data["status"] = status
+    manifest_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 # --- P3-B: frontmatter付与・manifest生成オーケストレータ ---
 
 
