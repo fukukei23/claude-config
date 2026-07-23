@@ -1,7 +1,7 @@
 #!/bin/bash
-# SSOT体系化 P3-A: manifest ヘルス状態を /tmp/claude-startup/manifest-health.status へ出力
+# SSOT体系化 P3-A/P3-B: manifest ヘルス状態を /tmp/claude-startup/manifest-health.status へ出力
 # SessionStart hook（banner が .status を自動集約・表示）
-# 重い処理は日次バッチ(4:23)担当・本hookは既存3プロジェクトのread-only検知のみ
+# 重い処理は日次バッチ(4:23)担当・本hookは全manifest保持プロジェクトのread-only検知
 set -uo pipefail
 
 SSOT_ROOT="${SSOT_ROOT:-$HOME/projects/obsidian-ssot}"
@@ -17,11 +17,12 @@ import sys
 from pathlib import Path
 
 from scripts.obsidian.manifest_health import check_project_health
+from scripts.obsidian.dir_manifests import discover_manifest_projects
 from scripts.obsidian.ssot_daily_batch import _resolve_repo_path
 
 ssot_root = Path(os.environ["SSOT_ROOT"])
 today = datetime.date.today().isoformat()
-projects = ["reserve-optimizer", "NexusCore", "claude-code"]
+projects = discover_manifest_projects(ssot_root)
 
 added = removed = fresh = sync = 0
 checked = 0

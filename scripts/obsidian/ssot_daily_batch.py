@@ -10,6 +10,7 @@ from pathlib import Path
 
 from scripts.obsidian.dir_manifests import (
     MeaningGenError,
+    discover_manifest_projects,
     regenerate_pending,
     update_last_full_sync,
     update_last_verified,
