@@ -383,3 +383,66 @@ def update_last_full_sync(manifest_path: Path, today: str) -> None:
     manifest_path.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+
+
+# --- P3-B: frontmatter付与・manifest生成オーケストレータ ---
+
+
+def _parse_frontmatter(text: str) -> tuple[dict[str, str], str, str]:
+    """_INDEX.md本文を (既存FM dict, FM文字列, 本文) に分割.
+
+    frontmatter無し場合は ( {}, "", text ) を返す。
+    """
+    if not text.startswith("---\n"):
+        return {}, "", text
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return {}, "", text
+    fm_block = text[4:end]
+    body = text[end + len("\n---\n"):]
+    fm: dict[str, str] = {}
+    for line in fm_block.splitlines():
+        if ":" in line:
+            k, _, v = line.partition(":")
+            fm[k.strip()] = v.strip()
+    return fm, fm_block, body
+
+
+def ensure_index_frontmatter(
+    index_path: Path,
+    project: str,
+    date: str,
+    status: str = "active",
+) -> bool:
+    """_INDEX.md に frontmatter(project/status/last_verified) を冪等に付与.
+
+    frontmatter無し → 先頭に挿入。frontmatterあり → last_verifiedのみ更新(
+    project/statusは既存値保持)。同日再投入で差分無しの場合は False を返す(
+    冪等性の客観判定用)。
+
+    Args:
+        index_path: ``_INDEX.md`` の絶対パス。
+        project: プロジェクト名（フォルダ名と一致）。
+        date: ``YYYY-MM-DD`` 形式の last_verified 日付。
+        status: デフォルト ``active``。既存値あれば上書きしない。
+
+    Returns:
+        変更があったかどうか。
+    """
+    text = index_path.read_text(encoding="utf-8")
+    fm, _fm_block, body = _parse_frontmatter(text)
+    new_status = fm.get("status", status)
+    new_project = fm.get("project", project)
+    new_fm = (
+        f"---\nproject: {new_project}\n"
+        f"status: {new_status}\n"
+        f"last_verified: {date}\n---\n"
+    )
+    if fm:
+        new_text = new_fm + body
+    else:
+        new_text = new_fm + text
+    if new_text == text:
+        return False
+    index_path.write_text(new_text, encoding="utf-8")
+    return True
