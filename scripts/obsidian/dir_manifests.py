@@ -9,6 +9,10 @@ import unicodedata
 from pathlib import Path
 
 
+# spec §5 status管理: プロジェクトの活動状態
+# active=現在作業中 / paused=一時停止(再開予定) / archived=完了・参照用 / aborted=中止・失敗
+VALID_STATUSES: tuple[str, ...] = ("active", "paused", "archived", "aborted")
+
 # ドット始まりtop-level dir（ツール設定dir）の固定意味（D案・両LLM一致推奨）
 # LLM非呼出・べき等・意味は業界標準で自明。未知ドットdirは汎用フォールバック。
 DOT_DIR_MEANINGS: dict[str, str] = {
@@ -489,6 +493,7 @@ def _empty_manifest(
         "repo_path": repo_path,
         "has_external_repo": has_external_repo,
         "directories": [],
+        "status": "active",
         "last_verified": date,
         "last_full_sync": date,
     }

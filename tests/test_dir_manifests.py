@@ -516,3 +516,14 @@ def test_update_last_full_sync_overwrites_and_idempotent(tmp_path):
     update_last_full_sync(manifest_path, "2026-07-23")
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert data["last_full_sync"] == "2026-07-23"
+
+
+def test_empty_manifest_has_active_status_default():
+    """_empty_manifest は status='active' をデフォルトで含む（spec §5）."""
+    from scripts.obsidian.dir_manifests import _empty_manifest, VALID_STATUSES
+    m = _empty_manifest("proj", False, "", "2026-07-24")
+    assert m["status"] == "active"
+    assert "active" in VALID_STATUSES
+    assert "paused" in VALID_STATUSES
+    assert "archived" in VALID_STATUSES
+    assert "aborted" in VALID_STATUSES
