@@ -456,6 +456,36 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, str], str, str]:
     return fm, fm_block, body
 
 
+# Phase1: managed3キー以外を保持しつつ frontmatter を再構築(approved_themes 等の保護)
+_FRONTMATTER_MANAGED_KEYS = ("project", "status", "last_verified")
+
+
+def _rebuild_frontmatter_preserving(
+    fm: dict[str, str], fm_block: str, updates: dict[str, str]
+) -> str:
+    """既存 frontmatter の managed外キーを行単位で保持し、updates を反映したFM文字列を返す.
+
+    Args:
+        fm: ``_parse_frontmatter`` が返した既存FM dict(managed値の既存優先判定用)。
+        fm_block: ``_parse_frontmatter`` が返したFM生文字列(未知キーを行保持)。
+        updates: 上書きするキー→値(``{"project","status","last_verified"}``)。
+
+    Returns:
+        ``---\\n...\\n---\\n`` 形式のFM文字列。managed3キーが先頭、未知キーが元順序で続く。
+    """
+    lines: list[str] = []
+    for key in _FRONTMATTER_MANAGED_KEYS:
+        lines.append(f"{key}: {updates[key]}")
+    for line in (fm_block.splitlines() if fm_block else []):
+        if ":" not in line:
+            continue
+        k = line.partition(":")[0].strip()
+        if k in _FRONTMATTER_MANAGED_KEYS:
+            continue
+        lines.append(line)
+    return "---\n" + "\n".join(lines) + "\n---\n"
+
+
 def ensure_index_frontmatter(
     index_path: Path,
     project: str,
@@ -466,7 +496,7 @@ def ensure_index_frontmatter(
 
     frontmatter無し → 先頭に挿入。frontmatterあり → last_verifiedのみ更新(
     project/statusは既存値保持)。同日再投入で差分無しの場合は False を返す(
-    冪等性の客観判定用)。
+    冪等性の客観判定用)。managed3キー以外の既存キー(approved_themes等)は保持する。
 
     Args:
         index_path: ``_INDEX.md`` の絶対パス。
@@ -478,14 +508,13 @@ def ensure_index_frontmatter(
         変更があったかどうか。
     """
     text = index_path.read_text(encoding="utf-8")
-    fm, _fm_block, body = _parse_frontmatter(text)
-    new_status = fm.get("status", status)
-    new_project = fm.get("project", project)
-    new_fm = (
-        f"---\nproject: {new_project}\n"
-        f"status: {new_status}\n"
-        f"last_verified: {date}\n---\n"
-    )
+    fm, fm_block, body = _parse_frontmatter(text)
+    updates = {
+        "project": fm.get("project", project),
+        "status": fm.get("status", status),
+        "last_verified": date,
+    }
+    new_fm = _rebuild_frontmatter_preserving(fm, fm_block, updates)
     if fm:
         new_text = new_fm + body
     else:

@@ -102,3 +102,17 @@ def test_generate_manifest_for_project_idempotent_second_run(tmp_path, monkeypat
     )
     assert result2["frontmatter_changed"] is False
     assert result2["manifest_created"] is False
+
+
+def test_ensure_index_frontmatter_preserves_unknown_keys(tmp_path: Path) -> None:
+    """managed3キー以外のfrontmatter(approved_themes等)を保持する(Phase1・§4.4前提)."""
+    idx = tmp_path / "_INDEX.md"
+    idx.write_text(
+        "---\nproject: ai-music\nstatus: active\nlast_verified: 2026-07-01\n"
+        "approved_themes: [hiphop, cyber-wa]\n---\n# T\n",
+        encoding="utf-8",
+    )
+    ensure_index_frontmatter(idx, project="ai-music", date="2026-07-24")
+    text = idx.read_text(encoding="utf-8")
+    assert "approved_themes: [hiphop, cyber-wa]" in text
+    assert "last_verified: 2026-07-24" in text
