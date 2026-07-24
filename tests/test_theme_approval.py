@@ -55,3 +55,15 @@ def test_update_approved_themes_appends_second_approval(tmp_path: Path) -> None:
     text = idx.read_text(encoding="utf-8")
     assert "- 2026-07-23: themes=[a]" in text
     assert "- 2026-07-24: themes=[b]" in text
+
+
+def test_update_approved_themes_no_frontmatter(tmp_path: Path) -> None:
+    """FM無しファイル（後方互換）: FM挿入 + 末尾に承認ログセクション."""
+    idx = tmp_path / "_INDEX.md"
+    idx.write_text("# T\n本文\n", encoding="utf-8")
+    diff = update_approved_themes(idx, ["x"], "2026-07-24")
+    text = idx.read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    assert "approved_themes: [x]" in text
+    assert "## テーマ承認ログ" in text
+    assert diff

@@ -25,6 +25,8 @@ def update_approved_themes(index_path: Path, themes: list[str], date: str) -> st
 
     Returns:
         変更差分の unified diff 文字列（ユーザー確認用・§4.4 承認フィードバック）。
+
+    契約: 承認ログは追記型（同一日再承認で重複行が積まれる・重複排除はしない）。
     """
     original = index_path.read_text(encoding="utf-8")
     fm, fm_block, body = _parse_frontmatter(original)
@@ -57,7 +59,11 @@ def update_approved_themes(index_path: Path, themes: list[str], date: str) -> st
 
 
 def _themes_yaml(themes: list[str]) -> str:
-    """テーマリストをFM値文字列へ（空は []）."""
+    """テーマリストをFM値文字列へ（空は []）.
+
+    識別子前提・カンマ/コロン/シャープ/括弧等の特殊文字は未エスケープ
+    （バリデーションは過剰のため未実装・識別子以外は呼び出し側責務）。
+    """
     return "[" + ", ".join(themes) + "]" if themes else "[]"
 
 
@@ -72,12 +78,19 @@ def _append_approval_log(body: str, log_line: str) -> str:
             sep = "\n\n"
         return body + sep + _APPROVAL_LOG_HEADER + "\n\n" + log_line + "\n"
     idx = body.index(_APPROVAL_LOG_HEADER) + len(_APPROVAL_LOG_HEADER)
-    nl = body.index("\n", idx)
+    try:
+        nl = body.index("\n", idx)
+    except ValueError:
+        # ヘッダが body 末尾にあって改行がない手書きファイル対策
+        nl = len(body) - 1
     return body[: nl + 1] + "\n" + log_line + body[nl + 1 :]
 
 
 def _format_diff(before: str, after: str) -> str:
-    """unified diff 文字列を返す（LLM誤記録検出用・§4.4）."""
+    """unified diff 文字列を返す（LLM誤記録検出用・§4.4）.
+
+    差分無し(before==after)時は空文字列を返す。
+    """
     return "".join(
         difflib.unified_diff(
             before.splitlines(keepends=True),
