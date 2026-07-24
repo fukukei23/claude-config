@@ -1,17 +1,24 @@
 ---
 name: multi-llm-review-lite
-description: 設計・方針・構想にOpenRouter経由のfree枠LLM（1〜2機）から独立にツッコミをもらい、ホストが重複排除＋重要度振り分け＋「押さえどころ」1行提言を返す軽量スキル。採用/却下はユーザー判断。会話内完結・ファイル出力なし。ユーザーが「各LLMでツッコミ」「LLMにツッコミさせて」「方針チェックして」「これで抜けないか各LLMに聞いて」と言った時、または /multi-llm-review-lite を呼んだ時にトリガー。
+description: 設計・方針・構想にOpenRouter経由のfree枠LLM（1〜2機）から独立にツッコミをもらい、ホストが重複排除＋重要度振り分け＋「押さえどころ」1行提言を返す軽量スキル。採用/却下はユーザー判断。会話内完結・ファイル出力なし・改訂案は作らない。ユーザーが「軽くツッコミ」「軽く他LLMでレビュー」「サクッと方針チェック」「これで抜けないか軽く聞いて」と言った時、または /multi-llm-review-lite を呼んだ時にトリガー。「軽く/サクッと」が入らないレビュー依頼（「各LLMにレビューして」「しっかり」「3機で」等・改訂案が欲しい）は multi-llm-review（本式）へ。
 user-invocable: true
 ---
 
 # multi-llm-review-lite（軽量マルチLLMレビュー）
 
-設計・方針・構想を OpenRouter free 枠の LLM に独立ツッコミさせ、ホストが「重要度高/その他 + 押さえどころ1行」に整理。**採用/却下はユーザー**。本式 `multi-llm-review`（改訂案生成・268行）より軽い（箇条書き・会話内完結）。
+設計・方針・構想を OpenRouter free 枠の LLM に独立ツッコミさせ、ホストが「重要度高/その他 + 押さえどころ1行」に整理。**採用/却下はユーザー**。本式 `multi-llm-review`（改訂案生成）より軽い（箇条書き・会話内完結・**改訂案は作らない**）。
 
 > **前提**: WSL CLI環境（bash/python3/curl・`~/.secrets.env`）。Windows Desktop版は本式 `multi-llm-review` 推奨（MCP経由・機密フラグ厚）。
 
+> **lite vs normal 切り分け（鉄則・ユーザー方針 2026-07-25）**:
+> - 「**軽く**」「**サクッと**」が入った → **lite（本スキル）**：箇条書きツッコミ・改訂案なし・1〜2機（OpenRouter free）
+> - 「軽く」が入らない（「各LLMにレビューして」「しっかり」「3機で」等）→ **normal（`multi-llm-review`）**：改訂案生成
+> - **1機でも効果あり**（ホストと別のLLMの新鮮な視点で盲点洗い）。複数LLMの確度確認や改訂案が要る時だけ normal へ。
+
 ## トリガーワード
-「各LLMでツッコミ」「LLMにツッコミさせて」「方針チェックして」「これで抜けないか各LLMに聞いて」/ `/multi-llm-review-lite [--model <slug>] [--purpose code|design|general] [--mode dual]`
+「軽くツッコミ」「軽く他LLMでレビュー」「サクッと方針チェック」「これで抜けないか軽く聞いて」 / `/multi-llm-review-lite [--model <slug>] [--purpose code|design|general] [--mode dual]`
+
+> 「各LLMにレビューして」「複数LLMでレビュー」「3つのLLMで」は **normal（`multi-llm-review`）のトリガー**（改訂案が欲しい時）。本スキルは「軽く」が付いた時のみ。
 
 ## フロー（4手順）
 
@@ -65,7 +72,7 @@ curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authoriz
 - **dual で 1/2 失敗**: 残りの指摘のみで A′（縮退）
 
 ## 棲み分け
-実装前叩き=`doubt-driven-development` / A/B/C選び=`sentaku` L3 / **設計・方針ツッコミ（本スキル）** / 改訂案・コード全体・深統合=`multi-llm-review`（本式）
+実装前叩き=`doubt-driven-development` / A/B/C選び=`sentaku` L3 / **「軽く」ツッコミ・箇条書き・改訂案不要（本スキル）** / **改訂案が欲しい・しっかり・3機（triple）**＝`multi-llm-review`（本式・normal）
 
 ## YAGNI
 採用/却下の自動判断・改訂案生成・コード全体レビュー・反復ラウンド・ファイル出力・Gemini curl直叩き

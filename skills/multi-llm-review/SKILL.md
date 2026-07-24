@@ -14,9 +14,12 @@ disable-model-invocation: true
 
 ## トリガーワード（手動発動のみ）
 
-- 「マルチLLMレビューして」「複数LLMでレビュー」
+- 「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「各LLMでレビューして」
+- 「3つのLLMで」「3機でしっかり」「しっかりレビューして」→ **triple モード**（3機・後述）
 - 「panel review」「jury review」「クロスLLMレビュー」
-- `/multi-llm-review`
+- `/multi-llm-review` / `/multi-llm-review --triple`
+
+> **lite（multi-llm-review-lite）との切り分け（鉄則）**: 「軽く」「サクッと」が入ったら lite（箇条書きツッコミ・改訂案なし）。「改訂案が欲しい」「しっかり」「3機で」は本スキル（normal）。曖昧なら確認。
 
 ## 既存スキルとの棲み分け（機械的振り分け表）
 
@@ -24,8 +27,9 @@ disable-model-invocation: true
 |---|---|
 | 実装前・選択肢なし（単一案を叩く） | `doubt-driven-development` |
 | 既存案 A/B/C から選ぶ | `sentaku` L3 |
-| 設計・方針のツッコミをサクッと（1〜2LLM・箇条書き・会話内完結・OpenRouter） | `multi-llm-review-lite`（軽量版） |
-| 既存案を改良したい・改訂案が欲しい（多LLM独立レビュー→統合・ファイル出力） | **multi-llm-review（本）** |
+| **ツッコミをサクッと（1〜2LLM・箇条書き・会話内完結・OpenRouter・改訂案なし）** 「軽く」「サクッと」 | `multi-llm-review-lite`（軽量版） |
+| **改訂案が欲しい・既存案を改良（多LLM独立レビュー→統合・ファイル出力）** 「各LLMにレビュー」「しっかり」 | **multi-llm-review（本）** |
+| **3機でしっかり批評（MiniMax+Gemini+OpenRouter free）→ 改訂案** 「3つのLLMで」「3機で」 | **multi-llm-review（本）`--triple`** |
 | 「〜して」と作業依頼 | スキル不起動 |
 
 曖昧な場合はユーザーに確認する。
@@ -34,13 +38,14 @@ disable-model-invocation: true
 
 ## 環境前提（2層・ホスト以外の利用可能LLM全部を自動呼出）
 
-| 環境 | ホストLLM（統合役） | レビュアーLLM（自動呼出） |
-|---|---|---|
-| WSL CLI版 | GLM | MiniMax + Gemini（2） |
-| Windows デスクトップアプリ版 | Sonnet | GLM + MiniMax + Gemini（3） |
+| 環境 | ホストLLM（統合役） | レビュアーLLM（デフォルト） | triple 指定時（`--triple` / 「3機で」） |
+|---|---|---|---|
+| WSL CLI版 | GLM | MiniMax + Gemini（2） | MiniMax + Gemini + **OpenRouter無料枠1機**（3） |
+| Windows デスクトップアプリ版 | Sonnet | GLM + MiniMax + Gemini（3） | （既に3機・triple指定は実質同じ） |
 
 - ホスト自身はレビュアーに含めない（自己レビューは多様性ゼロ）
 - ホスト以外の利用可能LLM全部を自動呼出（利用不能LLMは discover で検知してスキップ）
+- **triple 時の OpenRouter 機選定**: purpose 別（`code`=cohere/north-mini-code:free / `design`=openai/gpt-oss-20b:free / `general`=nvidia/nemotron-3-super-120b-a12b:free・liteと共通）。退役時は `/api/v1/models` で最新 slug 確認
 
 ## 🔐 機密情報の取り扱い（必須・冒頭確認）
 
@@ -84,6 +89,7 @@ disable-model-invocation: true
 |---|---|---|---|
 | MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨 |
 | Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
+| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（purpose別選定）・`max_tokens=2000`（思考モデルでないので8000不要）・既存 lite のcurl手順を流用 |
 | Windows版 GLM | glm-rate-proxy or MCP経由 | プロキシ設定 | WSL版ホスト=GLM自身は呼ばない |
 
 ## 実装手順（Claude Code環境・2段階ファイル経由・必須）
@@ -92,9 +98,11 @@ disable-model-invocation: true
 
 1. **各LLMのAPIリクエストJSONペイロードを一時ファイルに書出**（Write ツール or python3）:
    - `/tmp/req_gemini.json`（Windows Desktop は環境に応じた一時パス）
-2. **並列送信**（同一メッセージで2ツール呼出）:
+   - triple時: `/tmp/req_or.json`（OpenRouter用）も生成
+2. **並列送信**（同一メッセージでツール呼出・triple時は3ツール同時）:
    - MiniMax: `mcp__minimax__minimax_ask`（prompt に同一プロンプトを指定）
    - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
+   - OpenRouter（triple時のみ）: Bash で `set -a; source ~/.secrets.env 2>/dev/null; set +a; curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authorization: Bearer $OPENROUTER_API_KEY" -H "Content-Type: application/json" -d @/tmp/req_or.json`（プロンプトはPROMPT環境変数経由でpython3に渡してペイロード生成・liteと同一手順）
 3. **JSON抽出**: 結果から**文字種ステートマシン**でJSON配列を再構成（下記「JSON抽出」参照）
 
 > python3 でペイロード生成する例:
