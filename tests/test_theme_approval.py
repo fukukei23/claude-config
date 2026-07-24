@@ -67,3 +67,22 @@ def test_update_approved_themes_no_frontmatter(tmp_path: Path) -> None:
     assert "approved_themes: [x]" in text
     assert "## テーマ承認ログ" in text
     assert diff
+
+
+def test_approve_themes_cli_writes_and_prints_diff(tmp_path: Path, monkeypatch) -> None:
+    """CLI approve-themes が _INDEX を更新し差分をstdoutへ出力する."""
+    import scripts.obsidian.approve_themes as cli
+    proj = tmp_path / "projects" / "obsidian-ssot" / "01_DECISIONS" / "p"
+    proj.mkdir(parents=True)
+    idx = proj / "_INDEX.md"
+    idx.write_text("---\nproject: p\nstatus: active\nlast_verified: 2026-07-24\n---\n# T\n", encoding="utf-8")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr("sys.argv", ["approve-themes", "p", "a,b", "--date", "2026-07-24"])
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        cli.main()
+    text = idx.read_text(encoding="utf-8")
+    assert "approved_themes: [a, b]" in text
+    assert "- 2026-07-24: themes=[a, b]" in text
+    assert buf.getvalue()  # diff出力あり
