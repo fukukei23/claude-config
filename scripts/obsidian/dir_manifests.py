@@ -461,12 +461,11 @@ _FRONTMATTER_MANAGED_KEYS = ("project", "status", "last_verified")
 
 
 def _rebuild_frontmatter_preserving(
-    fm: dict[str, str], fm_block: str, updates: dict[str, str]
+    fm_block: str, updates: dict[str, str]
 ) -> str:
     """既存 frontmatter の managed外キーを行単位で保持し、updates を反映したFM文字列を返す.
 
     Args:
-        fm: ``_parse_frontmatter`` が返した既存FM dict(managed値の既存優先判定用)。
         fm_block: ``_parse_frontmatter`` が返したFM生文字列(未知キーを行保持)。
         updates: 上書きするキー→値(``{"project","status","last_verified"}``)。
 
@@ -514,7 +513,7 @@ def ensure_index_frontmatter(
         "status": fm.get("status", status),
         "last_verified": date,
     }
-    new_fm = _rebuild_frontmatter_preserving(fm, fm_block, updates)
+    new_fm = _rebuild_frontmatter_preserving(fm_block, updates)
     if fm:
         new_text = new_fm + body
     else:

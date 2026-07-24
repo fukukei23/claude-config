@@ -116,3 +116,18 @@ def test_ensure_index_frontmatter_preserves_unknown_keys(tmp_path: Path) -> None
     text = idx.read_text(encoding="utf-8")
     assert "approved_themes: [hiphop, cyber-wa]" in text
     assert "last_verified: 2026-07-24" in text
+    assert text.count("project: ai-music") == 1  # managed3キーが重複出力されない
+
+
+def test_ensure_index_frontmatter_idempotent_with_unknown_keys(tmp_path: Path) -> None:
+    """未知キーあり状態でも2回目投入は差分無し(False)・順序保持で同一文字列."""
+    idx = tmp_path / "_INDEX.md"
+    idx.write_text(
+        "---\nproject: ai-music\nstatus: active\nlast_verified: 2026-07-24\n"
+        "approved_themes: [hiphop]\n---\n# T\n",
+        encoding="utf-8",
+    )
+    changed1 = ensure_index_frontmatter(idx, project="ai-music", date="2026-07-24")
+    changed2 = ensure_index_frontmatter(idx, project="ai-music", date="2026-07-24")
+    assert changed1 is False  # 初回から同一(last_verified既に2026-07-24)
+    assert changed2 is False
