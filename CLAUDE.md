@@ -73,6 +73,7 @@ Think Before Coding / Surgical Changes / Simplicity First
 - 場所: `//wsl.localhost/Ubuntu/home/yn4416/projects/obsidian-ssot/`
 - **SSOTを参照する時はまず `00_SYSTEM/全体マップ_MOC.md` から入ること**
 - バックログ: `00_SYSTEM/バックログ.md`
+- **memory過信禁止・SSOT正典優先**: 記録前に自問→「能力・方針・構造か?」→`00_SYSTEM` / 「なぜそう決めたか理由あるか?」→`01_DECISIONS` / 「私的失敗の直し方か?」→memory。memoryは毎回読まれるが個人FB専用・永久保存版は00_SYSTEM正典へ。ユーザー指摘を待たず自ら判定（2026-07-24 e36d引継ぎ・Gemini+MiniMaxレビュー反映）。
 
 ## MCPツール管理
 `00_SYSTEM/MCPツール使い分けガイド.md` — settings.json変更時にガイドも更新

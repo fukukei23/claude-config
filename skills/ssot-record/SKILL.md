@@ -182,6 +182,7 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
 - also_daily は「セッションの主要な作業成果」の場合のみ true。途中メモ・調査記録・設定追記は false
 - guide_needed は「他人や将来の自分が手順として再利用できる内容」の場合のみ true
 - primary が 00_SYSTEM の場合、project は "claude-code" とする
+- **記録前自己説明ゲート（透明性・2026-07-24 Gemini+MiniMaxレビュー指摘反映）**: 保管場所を決めたら**記録実行前に「なぜこの場所を選んだか」を1文で表明**する（ユーザー提示 or 自己内省）。理由がすんなり言えない＝場所選びが怪しい→再判定。これにより「memory過信事故（永久版情報をmemory/01_DECISIONSに逃がしたe36d）」を構造的に再発防止する。CLAUDE.md「SSOT正典優先」ルールと二重化（CLAUDE.md=常時読込の心構え・本ゲート=記録実行時の強制）。
 
 【Claude Codeガイド自動判定（CC Guide Auto-sync）】
 記録内容がClaude Code機能の設定・変更の場合、CCガイドページへの追記が必要かを判定する。
