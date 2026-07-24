@@ -1,0 +1,140 @@
+{
+  "mcpServers": {
+    "minimax": {
+      "command": "wsl",
+      "args": [
+        "-d",
+        "Ubuntu",
+        "--",
+        "bash",
+        "/home/yn4416/.claude/scripts/mcp/start-minimax-mcp.sh"
+      ]
+    },
+    "glm": {
+      "command": "wsl",
+      "args": [
+        "-d",
+        "Ubuntu",
+        "--",
+        "bash",
+        "/home/yn4416/.claude/scripts/mcp/start-glm-mcp.sh"
+      ]
+    },
+    "minimax-official": {
+      "command": "wsl",
+      "args": [
+        "-d",
+        "Ubuntu",
+        "--",
+        "bash",
+        "/home/yn4416/.claude/scripts/mcp/start-minimax-official-mcp.sh"
+      ]
+    },
+    "zai-video": {
+      "command": "wsl",
+      "args": [
+        "-d",
+        "Ubuntu",
+        "--",
+        "bash",
+        "/home/yn4416/.claude/scripts/mcp/start-zai-video-mcp.sh"
+      ]
+    },
+    "gemini": {
+      "command": "wsl",
+      "args": [
+        "-d",
+        "Ubuntu",
+        "--",
+        "bash",
+        "/home/yn4416/.claude/scripts/mcp/start-gemini-mcp.sh"
+      ]
+    }
+  },
+  "coworkUserFilesPath": "C:\\Users\\yn441\\Claude",
+  "preferences": {
+    "chromeExtension": {
+      "pairedDeviceId": "10fd6828-3b43-430c-962c-e7b0bca0620b",
+      "pairedDeviceName": "Browser 1",
+      "pairedFromDeviceIds": [
+        "10fd6828-3b43-430c-962c-e7b0bca0620b",
+        "86933894-a98f-487e-9d25-40f28411bd87"
+      ]
+    },
+    "launchPreviewPersistedWorkspaces": [],
+    "launchPreviewSessionScopedSessions": [],
+    "launchPreviewAllowedOrigins": [
+      "https://file"
+    ],
+    "localAgentModeTrustedFolders": [
+      "C:\\Users\\yn441\\tools\\reserve-optimizer",
+      "C:\\Users\\yn441",
+      "\\\\wsl.localhost\\Ubuntu\\home\\yn4416\\projects"
+    ],
+    "allowAllBrowserActions": true,
+    "dispatchCodeTasksPermissionMode": "bypassPermissions",
+    "coworkScheduledTasksEnabled": true,
+    "coworkHipaaRestricted": false,
+    "ccdScheduledTasksEnabled": true,
+    "sidebarMode": "epitaxy",
+    "bypassPermissionsModeEnabled": true,
+    "bypassPermissionsOptInByAccount": {
+      "40a267a8-9d49-4d3b-a25e-32a7cd23a937": true
+    },
+    "bypassPermissionsGateByAccount": {
+      "40a267a8-9d49-4d3b-a25e-32a7cd23a937": true
+    },
+    "dockBounceEnabled": true,
+    "coworkWebSearchEnabled": true,
+    "coworkModelAutoFallbackByAccount": {
+      "40a267a8-9d49-4d3b-a25e-32a7cd23a937": true
+    },
+    "keepAwakeEnabled": true,
+    "coworkOnboardingResumeStep": null,
+    "chicagoEnabled": true,
+    "remoteToolsDeviceName": "win-e2iavn1esmh",
+    "ccAutoArchiveOnPrClose": true,
+    "ccRemoteControlDefaultEnabled": true,
+    "epitaxyPrefs": {
+      "starred-local-code-sessions": [],
+      "starred-cowork-spaces": [],
+      "starred-session-groups": [],
+      "dframe-local-slice": {
+        "pinnedOrder": [],
+        "homeProjectsPinnedOrder": []
+      },
+      "epitaxy-perm-mode-acks.40a267a8-9d49-4d3b-a25e-32a7cd23a937": [
+        "\\\\wsl.localhost\\Ubuntu\\home\\yn4416:bypassPermissions",
+        "\\\\wsl.localhost\\Ubuntu\\home\\yn4416:auto",
+        "\\\\wsl.localhost\\Ubuntu\\home\\yn4416\\projects\\NexusCore:auto"
+      ],
+      "epitaxy-folder-permission-mode.40a267a8-9d49-4d3b-a25e-32a7cd23a937": {
+        "\\\\wsl.localhost\\Ubuntu\\home\\yn4416": "auto",
+        "\\\\wsl.localhost\\Ubuntu\\home\\yn4416\\projects\\NexusCore": "auto"
+      },
+      "cc-landing-worktree-enabled": false,
+      "epitaxy-pr-create-mode": "create",
+      "ccd-sessions-filter": {
+        "state": {
+          "selectedProjects": []
+        },
+        "version": 0
+      },
+      "desktop-frame.paneStore.v1": {
+        "state": {
+          "extraPanesByMode": {
+            "code": []
+          },
+          "colWeightsByMode": {},
+          "rowSplit": 0.5,
+          "draftNonce": 0
+        },
+        "version": 4
+      },
+      "epitaxy-spawn-task-target-v2": "here",
+      "epitaxy-transcript-links-in-preview": false,
+      "epitaxy-transcript-links-chooser-seen": true,
+      "dframe-group-scopes": {}
+    }
+  }
+}
