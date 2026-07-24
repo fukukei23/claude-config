@@ -8,6 +8,8 @@ user-invocable: true
 
 設計・方針・構想を OpenRouter free 枠の LLM に独立ツッコミさせ、ホストが「重要度高/その他 + 押さえどころ1行」に整理。**採用/却下はユーザー**。本式 `multi-llm-review`（改訂案生成・268行）より軽い（箇条書き・会話内完結）。
 
+> **前提**: WSL CLI環境（bash/python3/curl・`~/.secrets.env`）。Windows Desktop版は本式 `multi-llm-review` 推奨（MCP経由・機密フラグ厚）。
+
 ## トリガーワード
 「各LLMでツッコミ」「LLMにツッコミさせて」「方針チェックして」「これで抜けないか各LLMに聞いて」/ `/multi-llm-review-lite [--model <slug>] [--purpose code|design|general] [--mode dual]`
 
@@ -27,8 +29,11 @@ user-invocable: true
 
 ### 3. OpenRouter curl 直叩き（モデル数分・並列）
 ```bash
-set -a; source ~/.secrets.env; set +a   # 401対策
-python3 -c "import json; open('/tmp/or_req.json','w').write(json.dumps({'model':'<slug>','messages':[{'role':'user','content':PROMPT}],'max_tokens':2000},ensure_ascii=False))"
+set -a; source ~/.secrets.env 2>/dev/null; set +a   # 401対策（2>/dev/null=stderr抑制でキー値漏洩防止）
+# PROMPT は環境変数経由で python3 に渡す（シェル展開しない＝引用符/インジェクション対策）
+export PROMPT='[目的] ... [対象] <設計/方針> ...'   # 対象テキストをここに
+export MAXTOKENS=2000   # 深い設計・長大specは 4000 に（思考モデルでないので 8000 不要）
+python3 -c "import json,os; open('/tmp/or_req.json','w').write(json.dumps({'model':'<slug>','messages':[{'role':'user','content':os.environ['PROMPT']}],'max_tokens':int(os.environ.get('MAXTOKENS','2000'))},ensure_ascii=False))"
 curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authorization: Bearer $OPENROUTER_API_KEY" -H "Content-Type: application/json" -d @/tmp/or_req.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'] if 'choices' in d else d)"
 ```
 
@@ -51,7 +56,7 @@ curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authoriz
 📌 押さえどころ: <最低限これだけは・1行>
 （採用/却下はあなたが判断してください）
 ```
-ホストはジャッジしない（重要度振り分け＋重複排除のみ）。
+ホストはジャッジしない（重要度振り分け＋重複排除のみ）。**重複判定は文字列一致でなく意味で行う**（ホストがLLM所以・「APIキー漏洩」と「認証情報流出」は同じ意味でまとめる）。
 
 ## 失敗時
 - **401**: `source ~/.secrets.env` 失敗 → 中断・手順案内
