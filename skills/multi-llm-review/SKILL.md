@@ -24,7 +24,8 @@ disable-model-invocation: true
 |---|---|
 | 実装前・選択肢なし（単一案を叩く） | `doubt-driven-development` |
 | 既存案 A/B/C から選ぶ | `sentaku` L3 |
-| 既存案を改良したい（多LLM独立レビュー→統合） | **multi-llm-review（本）** |
+| 設計・方針のツッコミをサクッと（1〜2LLM・箇条書き・会話内完結・OpenRouter） | `multi-llm-review-lite`（軽量版） |
+| 既存案を改良したい・改訂案が欲しい（多LLM独立レビュー→統合・ファイル出力） | **multi-llm-review（本）** |
 | 「〜して」と作業依頼 | スキル不起動 |
 
 曖昧な場合はユーザーに確認する。
