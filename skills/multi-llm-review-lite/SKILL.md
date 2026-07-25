@@ -25,14 +25,12 @@ user-invocable: true
 ### 1. 受け取り＋機密確認
 対象（設計/方針/構想）＋目的＋観点（未指定なら盲点・リスク・代替案）。機密確認1問: **「シークレット/社内情報/個人情報含みますか？」** → 含むならマスク/要約、または本式（機密フラグ扱い厚）へ誘導。
 
-### 2. モデル選定（用途ベース自動・ユーザー指定が優先）
+### 2. モデル選定（全用途 nemotron・2026-07-25 ベンチマーク反映）
 | purpose | モデル |
 |---|---|
-| `code` | `cohere/north-mini-code:free`（コード特化） |
-| `design` | `openai/gpt-oss-20b:free`（汎用） |
-| `general` | `nvidia/nemotron-3-super-120b-a12b:free`（大規模推論） |
+| `code` / `design` / `general`（全用途同一） | `nvidia/nemotron-3-super-120b-a12b:free`（ベンチマーク3審査員一致で全軍首位・詳細: `30_RESEARCH/llm-models/snapshots/2026-07-25_OpenRouter-freeモデル性能比較ベンチマーク.md`） |
 
-`--model <slug>` 指定で上書き・文脈に「コード/実装」含めば自動で `code`・`--mode dual` で2機並列（コスト2倍）・**退役時は `/api/v1/models` で最新 slug 確認**。
+> **2026-07-25 改修（合成案A′）**: 用途別選定を廃止（旧 code=north-mini-code/design=gpt-oss-20b はベンチで否定・gpt-oss-20bは思考トークン汚染+3倍遅・north-mini-codeはセキュリティ検出率最低）。`--purpose` は将来の新型追加用にパラメータ残置（現状は全て同一モデルにフォールバック）。`--model <slug>` で上書き可・`--mode dual` で2機並列・**退役時は `/api/v1/models` で最新 slug 確認**。
 
 ### 3. OpenRouter curl 直叩き（モデル数分・並列）
 ```bash
@@ -67,8 +65,7 @@ curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authoriz
 
 ## 失敗時
 - **401**: `source ~/.secrets.env` 失敗 → 中断・手順案内
-- **429**: 内容表示・時間待ち案内（自動リトライしない）
-- **空応答/タイムアウト**: 「`<slug>` 失敗。別モデルか観点絞りで再実行を」
+- **429 / 空応答 / タイムアウト**: **自動でフォールバックモデル `cohere/north-mini-code:free` に切替し再実行**（合成案A′・品質は落ちるがレビューは届く・nemotron と別プロバイダで多様性も確保）。フォールバック先でも失敗なら「観点絞りで再実行」を案内
 - **dual で 1/2 失敗**: 残りの指摘のみで A′（縮退）
 
 ## 棲み分け

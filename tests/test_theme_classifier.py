@@ -10,6 +10,7 @@ from scripts.obsidian.theme_classifier import (
     _parse_llm_themes,
     _map_to_existing,
     compute_adoption_rate,
+    _classify_file_themes,
 )
 
 
@@ -51,3 +52,112 @@ class TestParseLlmThemes:
         raw = '{"themes": ["  A  ", "B"], "confidence": 0.6}'
         result = _parse_llm_themes(raw)
         assert result["themes"] == ["A", "B"]
+
+
+# ============ T2: _map_to_existing（spec§4 マッピング戦略） ============
+
+class TestMapToExisting:
+    """推論テーマを既存 approved_themes にマップ（一致/類似→matched / 新規→new）."""
+
+    def test_exact_match(self) -> None:
+        approved = ["環境自動化・基本ツール", "セキュリティ"]
+        result = _map_to_existing(["セキュリティ"], approved)
+        assert result["matched"] == ["セキュリティ"]
+        assert result["new"] == []
+
+    def test_new_theme(self) -> None:
+        result = _map_to_existing(["全く新しいテーマ"], ["A", "B"])
+        assert result["matched"] == []
+        assert result["new"] == ["全く新しいテーマ"]
+
+    def test_partial_match_maps_to_existing(self) -> None:
+        # proposed="環境自動化" は approved="環境自動化・基本ツール" に包含→既存マップ
+        approved = ["環境自動化・基本ツール"]
+        result = _map_to_existing(["環境自動化"], approved)
+        assert result["matched"] == ["環境自動化・基本ツール"]
+        assert result["new"] == []
+
+    def test_mixed_matched_and_new(self) -> None:
+        approved = ["環境自動化・基本ツール", "セキュリティ"]
+        result = _map_to_existing(["セキュリティ", "新規X"], approved)
+        assert result["matched"] == ["セキュリティ"]
+        assert result["new"] == ["新規X"]
+
+    def test_empty_proposed_returns_empty(self) -> None:
+        result = _map_to_existing([], ["A"])
+        assert result["matched"] == []
+        assert result["new"] == []
+
+    def test_dedup_matched(self) -> None:
+        approved = ["セキュリティ"]
+        # 2つの推論が同一既存テーマにマップ→重複しない
+        result = _map_to_existing(["セキュリティ", "セキュリティ"], approved)
+        assert result["matched"] == ["セキュリティ"]
+
+
+# ============ T3: compute_adoption_rate（spec§3.1 ゲート≥90%） ============
+
+class TestComputeAdoptionRate:
+    """matched 1件以上のファイル比率 = 採用率（Phase0ゲート基準値）."""
+
+    def test_all_matched(self) -> None:
+        results = [{"matched": ["A"], "new": []}, {"matched": ["B"], "new": []}]
+        assert compute_adoption_rate(results) == 1.0
+
+    def test_none_matched(self) -> None:
+        results = [{"matched": [], "new": ["X"]}, {"matched": [], "new": ["Y"]}]
+        assert compute_adoption_rate(results) == 0.0
+
+    def test_half(self) -> None:
+        results = [{"matched": ["A"], "new": []}, {"matched": [], "new": ["X"]}]
+        assert compute_adoption_rate(results) == 0.5
+
+    def test_empty_results(self) -> None:
+        assert compute_adoption_rate([]) == 0.0
+
+    def test_empty_matched_counts_as_unadopted(self) -> None:
+        # 提案なしファイル（matched/new 共に空）は不採用として分母へ
+        results = [{"matched": ["A"], "new": []}, {"matched": [], "new": []}]
+        assert compute_adoption_rate(results) == 0.5
+
+
+# ============ T4: _classify_file_themes（Gemini呼び出し・モック） ============
+
+class TestClassifyFileThemes:
+    """ファイル→Gemini分類→マップ。_call_gemini を monkeypatch でモック."""
+
+    def test_matched_theme(self, tmp_path, monkeypatch) -> None:
+        f = tmp_path / "2026-07-20_test.md"
+        f.write_text("# 決定\nセキュリティ関連の設定変更")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["セキュリティ"], "confidence": 0.9}',
+        )
+        result = _classify_file_themes(f, ["セキュリティ", "環境自動化"])
+        assert result["matched"] == ["セキュリティ"]
+        assert result["new"] == []
+        assert result["confidence"] == 0.9
+
+    def test_new_theme_flagged(self, tmp_path, monkeypatch) -> None:
+        f = tmp_path / "test.md"
+        f.write_text("内容")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["全く新しいテーマ"], "confidence": 0.6}',
+        )
+        result = _classify_file_themes(f, ["A"])
+        assert result["matched"] == []
+        assert result["new"] == ["全く新しいテーマ"]
+
+    def test_low_confidence_keeps_result_for_review(self, tmp_path, monkeypatch) -> None:
+        # confidence < 閾値でも結果は返す（上位で要確認判定・spec§6）
+        f = tmp_path / "test.md"
+        f.write_text("内容")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["A"], "confidence": 0.3}',
+        )
+        result = _classify_file_themes(f, ["A"])
+        assert result["matched"] == ["A"]
+        assert result["confidence"] == 0.3
+        assert result["needs_review"] is True
