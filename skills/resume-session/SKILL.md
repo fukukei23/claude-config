@@ -154,6 +154,17 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 - 続ける → そのタスクを占有
 - 別タスク → 占有せず（前回タスクはバックログに残置）
 
+### 4b-0. stale🟢警告の確認（SessionStart hook 経由・2026-07-25 L98）
+
+**hook**: `check-stale-sessions.sh` が SessionStart で自動発火。死亡🟢行があれば警告が出る。
+
+- 警告は**人間が✅化するまで消えない**（自動✅化しない＝生セッション誤殺防止）
+- 警告対象ID=WT4は自分行・他行の区別無く列挙される。**他タブの古い🟢はsoft警告**（ブロックしない・ユーザー判断）
+- 警告理由: `heartbeat_timeout`(12h超無活動)/ `handoff_timeout`(handoff mtimeが古い・heartbeat無)/ `no_trace`(6d3f型=証跡ゼロ)/ `[長時間]`マーカー付き行は72h閾値で別判定
+- 対処: `active-sessions.md` で該当行の `🟢` を `✅` に書き換え + 必要なら `new-session` で handoff 生成
+
+**heartbeat 機構（参考）**: `track-tool-usage.sh` (PostToolUse) が毎ツール使用で `~/.claude/state/heartbeat/$WT4` を touch。stale検知の一次情報源（より詳しくは `/home/yn4416/.claude/scripts/obsidian/check-stale-sessions.sh --help`）。
+
 ### 4b. セッション状態表に🟢行を追加（単一表・タスク占有・ID=wt4）
 
 `obsidian-ssot/00_SYSTEM/active-sessions.md` の「## セッション状態」テーブルの**先頭行**（ヘッダ直後）に挿入:

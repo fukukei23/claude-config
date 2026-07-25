@@ -268,7 +268,7 @@ def collect_issues() -> list[str]:
     return [f"{t['title']}（repo: {Path(t['repo']).name}・Issue #{t['issue']}）" for t in tasks]
 
 
-def build_context(backlog: list[str], green: list[str], handoff: str | None, wants: list[str] | None = None) -> str:
+def build_context(backlog: list[str], green: list[str], handoff: str | None, wants: list[str] | None = None, stale_section: str = "") -> str:
     """収集データを Claude判定用プロンプトに組み立てる。
 
     Args:
@@ -276,15 +276,18 @@ def build_context(backlog: list[str], green: list[str], handoff: str | None, wan
         green: collect_active_green() の結果
         handoff: collect_handoff_latest() の結果（None 可）
         wants: collect_wants() の結果（None 可・🎯要望層・タスク選択の軸）
+        stale_section: format_stale_section() の結果（None or 空 → 出力しない）
 
     Returns:
-        セクション（要望/バックログ/🟢進行中/handoff）のテキスト
+        セクション（要望/バックログ/🟢進行中/stale/handoff）のテキスト
     """
     lines: list[str] = []
     if wants:
         lines.append("## 🎯要望（Why）— タスク選択の軸")
         lines.extend(wants)
         lines.append("")
+    if stale_section:
+        lines.append(stale_section)
     lines.append("## バックログ（P0/P1未完了）")
     if backlog:
         lines.extend(f"- {t}" for t in backlog)
@@ -446,6 +449,83 @@ DISCORD_WEBHOOK_ENV = "DISCORD_CLAUDE_WEBHOOK"
 DISCORD_MAX_CHARS = 2000
 
 
+# ============== L98 stale🟢検知 ==============
+HEARTBEAT_DEFAULT_THRESHOLD = 12
+LONG_RUN_DEFAULT_THRESHOLD = 72
+DEFAULT_STALE_CHECK_SCRIPT = Path.home() / ".claude" / "scripts" / "obsidian" / "check-stale-sessions.sh"
+
+
+def detect_stale_green(
+    active_sessions: Path,
+    heartbeat_dir: Path,
+    handoff_dir: Path,
+    *,
+    threshold: int = HEARTBEAT_DEFAULT_THRESHOLD,
+    long_threshold: int = LONG_RUN_DEFAULT_THRESHOLD,
+    script_path: Path | None = DEFAULT_STALE_CHECK_SCRIPT,
+) -> str:
+    """check-stale-sessions.sh を呼び出し、結果JSON配列を返す。
+
+    シェルスクリプト不在/失敗時は空配列を返す（fail-safe：Daily Triageを止めない）。
+
+    Args:
+        active_sessions: active-sessions.md のパス
+        heartbeat_dir: WT4別 heartbeat ディレクトリ
+        handoff_dir: handoff ディレクトリ
+        threshold: デフォルト閾値（時間）
+        long_threshold: [長時間]行の閾値（時間）
+        script_path: check-stale-sessions.sh のパス（既定値あり）
+
+    Returns:
+        JSON配列文字列（例: '[{"id": "df70", ...}]'）
+    """
+    if script_path is None or not script_path.exists():
+        return "[]"
+    ssot_root = active_sessions.parent.parent  # 00_SYSTEM の親 = SSOT root
+    try:
+        result = subprocess.run(
+            [
+                "bash", str(script_path),
+                "--json",
+                "--threshold", str(threshold),
+                "--long-threshold", str(long_threshold),
+                "--ssot-path", str(ssot_root),
+                "--heartbeat-dir", str(heartbeat_dir),
+                "--handoff-dir", str(handoff_dir),
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode not in (0, 1):  # 0=stale無し, 1=stale有り=正常
+            return "[]"
+        return result.stdout.strip() or "[]"
+    except Exception:
+        return "[]"
+
+
+def format_stale_section(stale: list[dict]) -> str:
+    """stale🟢候補を Markdown セクション文字列に整形。
+
+    空リスト → 空文字列（セクション自体出さない）。
+    """
+    if not stale:
+        return ""
+    lines = ["", "## ⚠停滞🟢確認（人間が✅化してください）", ""]
+    for r in stale:
+        age = r.get("age_hours")
+        age_str = f"{age}h" if age is not None else "不明(証跡無)"
+        long_marker = " [長時間]" if r.get("is_long_run") else ""
+        threshold_h = r.get("threshold_hours", HEARTBEAT_DEFAULT_THRESHOLD)
+        reason = r.get("reason", "unknown")
+        sid = r.get("id", "?")
+        session_name = r.get("session", "")
+        lines.append(f"- **{sid}**{long_marker} | 経過: {age_str} | 閾値: {threshold_h}h | 理由: {reason}")
+        lines.append(f"  - タスク: {session_name}")
+    lines.append("")
+    lines.append("※ 上記🟢行が古い=セッション死亡の可能性大。`active-sessions.md` を確認して✅化してください。")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def send_discord(content: str, webhook_url: str, max_chars: int = DISCORD_MAX_CHARS) -> bool:
     """Discord webhook にメッセージを送信する。
 
@@ -497,7 +577,14 @@ def main() -> int:
     handoff = collect_handoff_latest(SSOT / "00_SYSTEM" / "handoff")
     wants = collect_wants(SSOT / "00_SYSTEM" / "バックログ.md")
     repo_list = collect_repo_names(SSOT / "00_SYSTEM" / "repo-index.yaml")
-    context = build_context(backlog, green, handoff, wants)
+    # L98 stale🟢検知: build_context に渡す前に JSON 取得
+    stale_json = detect_stale_green(
+        SSOT / "00_SYSTEM" / "active-sessions.md",
+        Path.home() / ".claude" / "state" / "heartbeat",
+        SSOT / "00_SYSTEM" / "handoff",
+    )
+    stale_list = json.loads(stale_json) if stale_json else []
+    context = build_context(backlog, green, handoff, wants, stale_section=format_stale_section(stale_list))
     issues = collect_issues()
     if issues:
         context = context + "\n\n## OSS Issue 候補（auto-loop ラベル）\n" + "\n".join(f"- {i}" for i in issues)
