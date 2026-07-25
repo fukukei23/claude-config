@@ -15,6 +15,7 @@ from scripts.obsidian.theme_classifier import (
     run_dry_run,
     is_single_pj_complete,
     collect_new_themes,
+    run_approve,
 )
 
 
@@ -291,3 +292,55 @@ class TestCollectNewThemes:
 
     def test_missing_new_key_treated_as_empty(self) -> None:
         assert collect_new_themes([{"matched": ["A"]}]) == []
+
+
+# ============ Phase1-T3: run_approve（本番モード・apply切替） ============
+
+class TestRunApprove:
+    """dry_run + 新規テーマ候補抽出 + apply=Trueでapproved_themes更新・diff."""
+
+    def test_dry_mode_collects_new_themes(self, tmp_path, monkeypatch) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        (proj / "a.md").write_text("---\nproject: demo\n---\nA")
+        (proj / "_INDEX.md").write_text("---\napproved_themes: [既存]\n---\n")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["新規X"], "confidence": 0.9}',
+        )
+        result = run_approve("demo", apply=False, ssot_root=tmp_path)
+        assert result["new_themes"] == ["新規X"]
+        assert result["applied"] is False
+
+    def test_apply_adds_new_themes_to_frontmatter(self, tmp_path, monkeypatch) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        (proj / "a.md").write_text("---\nproject: demo\n---\nA")
+        idx = proj / "_INDEX.md"
+        idx.write_text("---\napproved_themes: [既存]\n---\n")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["新規X"], "confidence": 0.9}',
+        )
+        result = run_approve("demo", apply=True, ssot_root=tmp_path)
+        assert result["applied"] is True
+        assert "新規X" in result["approved"]
+        assert "既存" in result["approved"]
+        text = idx.read_text(encoding="utf-8")
+        assert "新規X" in text
+        assert result["diff"] is not None
+
+    def test_apply_no_new_themes_is_noop(self, tmp_path, monkeypatch) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        (proj / "a.md").write_text("---\nproject: demo\n---\nA")
+        idx = proj / "_INDEX.md"
+        idx.write_text("---\napproved_themes: [既存]\n---\n")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["既存"], "confidence": 0.9}',
+        )
+        result = run_approve("demo", apply=True, ssot_root=tmp_path)
+        assert result["new_themes"] == []
+        assert result["applied"] is False
+        assert result["diff"] is None

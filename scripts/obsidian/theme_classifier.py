@@ -11,9 +11,11 @@ import json
 import re
 import subprocess
 import sys
+from datetime import date as _date
 from pathlib import Path
 
 from scripts.obsidian.dir_manifests import _parse_frontmatter
+from scripts.obsidian.theme_approval import update_approved_themes
 
 CONFIDENCE_THRESHOLD = 0.7
 
@@ -227,3 +229,64 @@ def is_single_pj_complete(
     except ValueError:
         return False
     return True
+
+
+def collect_new_themes(per_file_results: list[dict]) -> list[str]:
+    """分類結果から新規テーマ候補(new)を重複排除して抽出する（spec§4）.
+
+    Args:
+        per_file_results: 各ファイルの分類結果（``new`` キー想定・欠損可）。
+
+    Returns:
+        新規テーマ候補のリスト（出現順・重複なし）。承認候補として提示。
+    """
+    seen: list[str] = []
+    for r in per_file_results:
+        for t in r.get("new", []):
+            if t not in seen:
+                seen.append(t)
+    return seen
+
+
+def run_approve(
+    project: str,
+    apply: bool = False,
+    ssot_root: Path | str | None = None,
+) -> dict:
+    """Phase1 本番モード: dry-run分類＋新規テーマ候補抽出＋applyでapproved_themes更新.
+
+    spec§3.2。``apply=False``（デフォルト）は提示のみ（新規テーマ候補表示）。
+    ``apply=True`` は新規テーマ候補を approved_themes に追加し frontmatter を更新・
+    diff を返す（§4.4 承認フィードバック）。新規テーマ候補がない場合は no-op。
+
+    Args:
+        project: ``01_DECISIONS/<project>`` のPJ名。
+        apply: True で frontmatter 更新を実行。
+        ssot_root: SSOTルート（省略時 ``~/projects/obsidian-ssot``）。
+
+    Returns:
+        ``{"project", "total", "adoption_rate", "approved", "new_themes",
+        "applied", "diff"}``。``applied`` は frontmatter 更新有無。
+    """
+    dry = run_dry_run(project, ssot_root=ssot_root)
+    new_themes = collect_new_themes(dry["per_file"])
+    result = {
+        "project": project,
+        "total": dry["total"],
+        "adoption_rate": dry["adoption_rate"],
+        "approved": list(dry["approved"]),
+        "new_themes": new_themes,
+        "applied": False,
+        "diff": None,
+    }
+    if apply and new_themes:
+        proj_dir = Path(ssot_root or (Path.home() / "projects/obsidian-ssot"))
+        idx = proj_dir / "01_DECISIONS" / project / "_INDEX.md"
+        merged = list(dry["approved"]) + [
+            t for t in new_themes if t not in dry["approved"]
+        ]
+        diff = update_approved_themes(idx, merged, _date.today().isoformat())
+        result["applied"] = True
+        result["diff"] = diff
+        result["approved"] = merged
+    return result
