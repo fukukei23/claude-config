@@ -196,3 +196,34 @@ def run_dry_run(project: str, ssot_root: Path | str | None = None) -> dict:
         "total": len(per_file),
         "approved": approved,
     }
+
+
+def is_single_pj_complete(
+    file_path: Path | str, project: str, ssot_root: Path | str | None = None
+) -> bool:
+    """ファイルが単一PJ内に完結しているか判定する（spec§5・自動承認可否）.
+
+    条件（両方満たす=True）:
+        1. frontmatter ``project`` が対象PJと一致
+        2. 親ディレクトリが ``01_DECISIONS/<project>/`` 配下
+
+    いずれか欠ける = PJ横断リンク・共有ファイル疑い = 要確認（自動承認対象外）。
+
+    Args:
+        file_path: 対象ファイル。
+        project: 検査対象のPJ名。
+        ssot_root: SSOTルート（省略時 ``~/projects/obsidian-ssot``）。
+    """
+    if ssot_root is None:
+        ssot_root = Path.home() / "projects/obsidian-ssot"
+    f = Path(file_path)
+    text = f.read_text(encoding="utf-8")
+    fm, _, _ = _parse_frontmatter(text)
+    if fm.get("project", "").strip() != project:
+        return False
+    expected_dir = (Path(ssot_root) / "01_DECISIONS" / project).resolve()
+    try:
+        f.resolve().relative_to(expected_dir)
+    except ValueError:
+        return False
+    return True

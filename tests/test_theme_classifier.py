@@ -13,6 +13,8 @@ from scripts.obsidian.theme_classifier import (
     _classify_file_themes,
     _load_approved_themes,
     run_dry_run,
+    is_single_pj_complete,
+    collect_new_themes,
 )
 
 
@@ -234,3 +236,58 @@ class TestRunDryRun:
         result = run_dry_run("demo", ssot_root=tmp_path)
         # _INDEX.md は分類対象外
         assert result["total"] == 1
+
+
+# ============ Phase1-T1: is_single_pj_complete（spec§5 単一PJ完結判定） ============
+
+class TestIsSinglePjComplete:
+    """frontmatter project 一致 ＋ 親dir階層で単一PJ完結を保守判定（自動承認可否）."""
+
+    def test_match_project_and_dir(self, tmp_path) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        f = proj / "2026-01-01_a.md"
+        f.write_text("---\nproject: demo\n---\n本文")
+        assert is_single_pj_complete(f, "demo", ssot_root=tmp_path) is True
+
+    def test_project_mismatch(self, tmp_path) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        f = proj / "a.md"
+        f.write_text("---\nproject: other\n---\n本文")
+        assert is_single_pj_complete(f, "demo", ssot_root=tmp_path) is False
+
+    def test_no_project_frontmatter(self, tmp_path) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        f = proj / "a.md"
+        f.write_text("---\n---\n本文")
+        assert is_single_pj_complete(f, "demo", ssot_root=tmp_path) is False
+
+    def test_outside_project_dir_is_not_complete(self, tmp_path) -> None:
+        # 別PJ配下のファイルが project: demo を主張（矛盾）→完結でない
+        other = tmp_path / "01_DECISIONS" / "other"
+        other.mkdir(parents=True)
+        f = other / "a.md"
+        f.write_text("---\nproject: demo\n---\n本文")
+        assert is_single_pj_complete(f, "demo", ssot_root=tmp_path) is False
+
+
+# ============ Phase1-T2: collect_new_themes（spec§4 新規テーマ候補） ============
+
+class TestCollectNewThemes:
+    """分類結果から新規テーマ候補(new)を重複排除して抽出."""
+
+    def test_collects_unique_new_themes(self) -> None:
+        results = [{"new": ["X"]}, {"new": ["X", "Y"]}, {"new": []}]
+        assert collect_new_themes(results) == ["X", "Y"]
+
+    def test_empty_when_all_matched(self) -> None:
+        results = [{"new": []}, {"new": []}]
+        assert collect_new_themes(results) == []
+
+    def test_empty_results(self) -> None:
+        assert collect_new_themes([]) == []
+
+    def test_missing_new_key_treated_as_empty(self) -> None:
+        assert collect_new_themes([{"matched": ["A"]}]) == []
