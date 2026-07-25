@@ -34,4 +34,13 @@ LOG_FILE="$LOG_DIR/tool-usage-${TODAY}.csv"
 # レコード追記（skill_name は Skill ツール時のみ値・他は空）
 echo "$(date +%H:%M:%S),$session_id,$tool_name,$skill_name" >> "$LOG_FILE"
 
+# heartbeat: WT4(タブID)別に最終活動時刻を touch（stale🟢検知用・L98）
+# WT_SESSION は Windows Terminal がタブ生成時に設定、WSL hook 環境にも伝播
+# unkn 環境（WT_SESSION 取得不可）は何もしない（fallback: handoff mtime）
+WT4="${WT_SESSION:0:4}"
+if [ -n "${WT_SESSION:-}" ] && [ -n "$WT4" ]; then
+  mkdir -p "$HOME/.claude/state/heartbeat"
+  : > "$HOME/.claude/state/heartbeat/$WT4" 2>/dev/null
+fi
+
 exit 0

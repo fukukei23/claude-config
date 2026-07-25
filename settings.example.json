@@ -331,6 +331,14 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash /home/yn4416/.claude/scripts/obsidian/check-stale-sessions.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "/home/yn4416/.claude/scripts/obsidian/check-manifest-health.sh"
           }
         ]
