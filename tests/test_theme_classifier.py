@@ -11,6 +11,8 @@ from scripts.obsidian.theme_classifier import (
     _map_to_existing,
     compute_adoption_rate,
     _classify_file_themes,
+    _load_approved_themes,
+    run_dry_run,
 )
 
 
@@ -161,3 +163,74 @@ class TestClassifyFileThemes:
         assert result["matched"] == ["A"]
         assert result["confidence"] == 0.3
         assert result["needs_review"] is True
+
+
+# ============ T5: _load_approved_themes / run_dry_run ============
+
+class TestLoadApprovedThemes:
+    """_INDEX.md frontmatter の approved_themes（[A, B] 形式）をリスト化."""
+
+    def test_parse_bracket_list(self, tmp_path) -> None:
+        idx = tmp_path / "_INDEX.md"
+        idx.write_text("---\nproject: demo\napproved_themes: [A, B, C]\n---\n本文")
+        assert _load_approved_themes(idx) == ["A", "B", "C"]
+
+    def test_empty_when_missing(self, tmp_path) -> None:
+        idx = tmp_path / "_INDEX.md"
+        idx.write_text("---\nproject: demo\n---\n本文")
+        assert _load_approved_themes(idx) == []
+
+    def test_no_frontmatter(self, tmp_path) -> None:
+        idx = tmp_path / "_INDEX.md"
+        idx.write_text("本文のみ")
+        assert _load_approved_themes(idx) == []
+
+
+class TestRunDryRun:
+    """dry-run: フォルダ走査→全ファイル分類→採用率集計（承認せず）."""
+
+    def test_collects_adoption_rate(self, tmp_path, monkeypatch) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        (proj / "2026-01-01_a.md").write_text("内容A")
+        (proj / "2026-01-02_b.md").write_text("内容B")
+        (proj / "_INDEX.md").write_text("---\napproved_themes: [テーマA]\n---\n")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["テーマA"], "confidence": 0.9}',
+        )
+        result = run_dry_run("demo", ssot_root=tmp_path)
+        assert result["total"] == 2
+        assert result["adoption_rate"] == 1.0
+        assert result["approved"] == ["テーマA"]
+
+    def test_half_adoption(self, tmp_path, monkeypatch) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        (proj / "a.md").write_text("A")
+        (proj / "b.md").write_text("B")
+        (proj / "_INDEX.md").write_text("---\napproved_themes: [既存]\n---\n")
+        responses = iter([
+            '{"themes": ["既存"], "confidence": 0.9}',
+            '{"themes": ["新規X"], "confidence": 0.6}',
+        ])
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: next(responses),
+        )
+        result = run_dry_run("demo", ssot_root=tmp_path)
+        assert result["total"] == 2
+        assert result["adoption_rate"] == 0.5
+
+    def test_skips_index_file(self, tmp_path, monkeypatch) -> None:
+        proj = tmp_path / "01_DECISIONS" / "demo"
+        proj.mkdir(parents=True)
+        (proj / "2026-01-01_a.md").write_text("A")
+        (proj / "_INDEX.md").write_text("---\napproved_themes: [X]\n---\n")
+        monkeypatch.setattr(
+            "scripts.obsidian.theme_classifier._call_gemini",
+            lambda p: '{"themes": ["X"], "confidence": 0.9}',
+        )
+        result = run_dry_run("demo", ssot_root=tmp_path)
+        # _INDEX.md は分類対象外
+        assert result["total"] == 1

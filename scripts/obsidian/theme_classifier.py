@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.obsidian.dir_manifests import _parse_frontmatter
+
 CONFIDENCE_THRESHOLD = 0.7
 
 
@@ -143,4 +145,54 @@ def _classify_file_themes(file_path: Path | str, approved: list[str]) -> dict:
         "proposed": parsed["themes"],
         "confidence": confidence,
         "needs_review": confidence < CONFIDENCE_THRESHOLD,
+    }
+
+
+def _load_approved_themes(index_path: Path | str) -> list[str]:
+    """_INDEX.md frontmatter の approved_themes（[A, B] 形式）をリスト化する.
+
+    frontmatter 無し / approved_themes 無し / 空リストはいずれも [] を返す。
+    """
+    text = Path(index_path).read_text(encoding="utf-8")
+    fm, _, _ = _parse_frontmatter(text)
+    raw = fm.get("approved_themes", "").strip()
+    raw = raw.lstrip("[").rstrip("]")
+    if not raw:
+        return []
+    return [t.strip() for t in raw.split(",") if t.strip()]
+
+
+def run_dry_run(project: str, ssot_root: Path | str | None = None) -> dict:
+    """対象PJの全ファイルを dry-run 分類し採用率を集計する（承認せず・spec§3.1 Phase0）.
+
+    Args:
+        project: ``01_DECISIONS/<project>`` のプロジェクト名。
+        ssot_root: SSOT ルート（省略時は ``~/projects/obsidian-ssot``）。
+
+    Returns:
+        ``{"per_file", "adoption_rate", "total", "approved"}``。
+        Phase0 ゲートは adoption_rate ≥ 0.90。
+    """
+    if ssot_root is None:
+        ssot_root = Path.home() / "projects/obsidian-ssot"
+    proj_dir = Path(ssot_root) / "01_DECISIONS" / project
+    approved = _load_approved_themes(proj_dir / "_INDEX.md")
+
+    per_file: list[dict] = []
+    for f in sorted(proj_dir.glob("*.md")):
+        if f.name == "_INDEX.md":
+            continue
+        try:
+            res = _classify_file_themes(f, approved)
+        except RuntimeError as e:
+            res = {"matched": [], "new": [], "proposed": [], "confidence": 0.0, "needs_review": True}
+            res["error"] = str(e)
+        res["file"] = f.name
+        per_file.append(res)
+
+    return {
+        "per_file": per_file,
+        "adoption_rate": compute_adoption_rate(per_file),
+        "total": len(per_file),
+        "approved": approved,
     }
