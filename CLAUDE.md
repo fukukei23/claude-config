@@ -69,6 +69,11 @@ Think Before Coding / Surgical Changes / Simplicity First
 
 @rules/_shared/コーディング原則.md
 
+## LLMサボりバイアス防止（核心・厳格・2026-07-26 Phase0）
+LLM（ホスト自身含む）のサボり（省略/楽観/迎合/検証回避）を構造化出力と機械的検証で封じる。語彙検知・自己申告は無効。
+
+@rules/_shared/LLMサボりバイアス防止.md
+
 ## SSOT（共通知識ベース）
 - 場所: `//wsl.localhost/Ubuntu/home/yn4416/projects/obsidian-ssot/`
 - **SSOTを参照する時はまず `00_SYSTEM/全体マップ_MOC.md` から入ること**
