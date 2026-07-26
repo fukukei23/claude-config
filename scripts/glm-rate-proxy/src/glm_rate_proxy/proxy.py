@@ -37,7 +37,7 @@ class ProxyServer:
         )
         self._upstream = UpstreamClient(
             config.zai_base_url, config.minimax_base_url,
-            config.zai_api_key, config.minimax_api_key,
+            config.zai_api_key, config.minimax_api_keys,
             config.upstream_timeout,
         )
         self._last_actual_model: str | None = None
@@ -67,7 +67,7 @@ class ProxyServer:
         _, provider = self._router.route_model(None, self._tracker.get_usage())
         status["provider"] = provider
         status["zai_configured"] = bool(self._config.zai_api_key)
-        status["minimax_configured"] = bool(self._config.minimax_api_key)
+        status["minimax_configured"] = bool(self._config.minimax_api_keys)
         status["peak_block"] = self._router.current_mode == "peak_block"
         status["last_actual_model"] = self._last_actual_model
         # 直近リクエストの実サイズ（MB）= 32MB API上限の真の目安
@@ -145,7 +145,7 @@ class ProxyServer:
             except UpstreamError as e:
                 logger.warning(f"Error with {emergency_model}: {e}, trying MiniMax")
 
-        if self._config.minimax_api_key:
+        if self._config.minimax_api_keys:
             fb_model, _ = self._router.get_fallback()
             body = self._replace_model(orig_body, fb_model) if orig_body else orig_body
             try:
@@ -180,7 +180,7 @@ class ProxyServer:
         制限を避けるため）。MiniMax が 429 でも GLM-4.7-Flash へは逃げず、
         MiniMax の短いリトライ (1秒待ち・1回) のみを行う。
         """
-        if self._config.minimax_api_key:
+        if self._config.minimax_api_keys:
             fb_model, _ = self._router.get_fallback()
             body = self._replace_model(orig_body, fb_model) if orig_body else orig_body
             await asyncio.sleep(1.0)

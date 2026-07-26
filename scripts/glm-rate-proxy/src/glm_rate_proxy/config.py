@@ -49,6 +49,7 @@ class ProxyConfig:
     minimax_base_url: str = DEFAULTS["minimax_base_url"]
     zai_api_key: str = ""
     minimax_api_key: str = ""
+    minimax_api_key_fallback: str = ""
     listen_host: str = "127.0.0.1"
     listen_port: int = 8787
     upstream_timeout: float = 30.0
@@ -59,6 +60,13 @@ class ProxyConfig:
     fallback: dict = field(default_factory=lambda: DEFAULTS["fallback"].copy())
     peak_hours: dict = field(default_factory=lambda: DEFAULTS["peak_hours"].copy())
     thinking: dict = field(default_factory=lambda: DEFAULTS["thinking"].copy())
+
+    @property
+    def minimax_api_keys(self) -> list[str]:
+        """MiniMax APIキーの優先順リスト（Pro優先＋旧フォールバック）。
+        先頭=minimax_api_key(優先/Pro)、次=minimax_api_key_fallback(予備/旧)。
+        空文字は除外される。"""
+        return [k for k in (self.minimax_api_key, self.minimax_api_key_fallback) if k]
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -90,6 +98,7 @@ def load_config(config_path: str | None = None) -> ProxyConfig:
         minimax_base_url=merged["minimax_base_url"],
         zai_api_key=os.environ.get("ANTHROPIC_AUTH_TOKEN", ""),
         minimax_api_key=os.environ.get("MINIMAX_API_KEY", ""),
+        minimax_api_key_fallback=os.environ.get("MINIMAX_API_KEY_FALLBACK", ""),
         listen_host=merged["listen_host"],
         listen_port=int(merged["listen_port"]),
         upstream_timeout=float(merged["upstream_timeout"]),

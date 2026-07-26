@@ -1,8 +1,6 @@
 """Entry point for glm-rate-proxy."""
 
-import asyncio
 import logging
-import signal
 import sys
 
 from aiohttp import web
@@ -35,7 +33,7 @@ def main():
 
     logger.info(f"Starting proxy on {config.listen_host}:{config.listen_port}")
     logger.info(f"ZAI: {config.zai_base_url} (key={'set' if config.zai_api_key else 'MISSING'})")
-    logger.info(f"MiniMax: {config.minimax_base_url} (key={'set' if config.minimax_api_key else 'MISSING'})")
+    logger.info(f"MiniMax: {config.minimax_base_url} (keys={len(config.minimax_api_keys)})")
     logger.info(f"Thresholds: normal<{config.thresholds['normal']['max_pct']}% "
                 f"economy<{config.thresholds['economy']['max_pct']}% "
                 f"emergency<{config.thresholds['emergency']['max_pct']}%")

@@ -1,7 +1,6 @@
 """Usage rate tracker for ZAI API."""
 
 import json
-import os
 import threading
 import time
 from datetime import datetime, timezone
