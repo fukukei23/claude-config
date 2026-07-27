@@ -168,7 +168,29 @@ Gemini 思考モデル（2.5 Pro / 3.1 Pro 等）は `maxOutputTokens=8000` 設�
 
 ## JSON抽出（文字種ステートマシン・必須前提）
 
-LLMにはJSON配列のみを返すよう指示するが、markdownブロックや挨拶文を混入する。結果から **文字種ステートマシン** でJSON配列を抽出する:
+### 前処理: 各LLM応答から本文を抽出（必須・2026-07-28追記）
+
+curl/MCP の生レスポンスは **API用JSONで包まれている**（Gemini/OpenRouter）。文字種ステートマシンに渡す **前** に、各LLMの応答構造から本文（レビューJSON配列が入った `text`/`content`）を抽出すること。生レスポンスをそのまま食わせると外側JSONの `[` `]` に誤ヒットして **指摘が1件しか取れない事故** が起きる（2026-07-28 実証: Gemini 5件中1件のみ抽出 → 本文抽出後5件全取得）。
+
+| LLM | 応答構造 | 本文の取り出し方 |
+|---|---|---|
+| **Gemini**（curl REST） | `{"candidates":[{"content":{"parts":[{"text":"..."}]}}], "usageMetadata":{...}}` | `resp['candidates'][0]['content']['parts'][0]['text']` |
+| **OpenRouter**（curl REST） | `{"choices":[{"message":{"content":"..."}}]}` | `resp['choices'][0]['message']['content']` |
+| **MiniMax MCP**（`mcp__minimax__minimax_ask`） | 直接テキスト（封筒なし） | そのまま（前処理不要・MCPが本文を返す） |
+
+抽出例（python3）:
+```python
+import json
+resp = json.load(open('/tmp/res_gemini.txt'))
+text = resp['candidates'][0]['content']['parts'][0]['text']
+open('/tmp/gemini_text.txt','w').write(text)
+# → /tmp/gemini_text.txt を extract.py の stdin に渡す
+```
+
+> ※ lite スキルの OpenRouter 実装（`d['choices'][0]['message']['content']`）と同じ前処理。本スキルにも明示化（2026-07-28・これまで抜けていた）。
+> ※ 「封筒（API用JSON）に入った届く」→「封筒を開けて中身（本文）を取り出す」→「本文からJSON配列を抽出（文字種ステートマシン）」の3ステップ。
+
+LLMにはJSON配列のみを返すよう指示するが、markdownブロックや挨拶文を混入する。**本文抽出後**のテキストから **文字種ステートマシン** でJSON配列を抽出する:
 
 - 文字列リテラル（`"` で囲まれた範囲）内の `}` は**無視**して split する（`{"quote":"if(x){}"}` 破綻回避）
 - 抽出した要素のうち **必須key（`issue`/`severity`/`quote`/`suggestion`）が全て揃った指摘が ≥50%** なら成功・未満ならテキスト扱いで統合（Step1の閾値）
