@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -uo pipefail
+cd ~/projects/obsidian-ssot || exit 1
+
+echo "===HOOKS==="
+python3 -c "
+import json
+d = json.load(open('/home/yn4416/.claude/settings.json'))
+for event, hooks in d.get('hooks', {}).items():
+    for h in hooks:
+        cmd = json.dumps(h, ensure_ascii=False)
+        print(f'{event}: {cmd[:100]}')
+"
+
+echo "===GH_REPO_COUNT==="
+gh repo list fukukei23 --limit 100 --json name,visibility --jq '.[] | .name' 2>&1 | wc -l
+echo "===GH_REPO_LIST==="
+gh repo list fukukei23 --limit 100 --json name,visibility --jq '.[] | "\(.name) \(.visibility)"' 2>&1
+
+echo "===DECISIONS_PROJECTS==="
+ls 01_DECISIONS/
+
+echo "===SCHEDULED_TASKS==="
+cat ~/.claude/scheduled_tasks.json 2>&1 | head -c 4000
+
+echo "===MCP_SERVERS==="
+python3 -c "import json; print(list(json.load(open('/home/yn4416/.claude/settings.json'))['mcpServers'].keys()))"
+
+echo "===REPO_INDEX_LAST_UPDATED==="
+grep -n "last_updated\|total_repos" 00_SYSTEM/repo-index.yaml | head -5
+
+echo "===MCP_GUIDE_HEADER==="
+grep -n "有効サーバー\|有効.*個" 00_SYSTEM/MCPツール使い分けガイド.md | head -5
+
+echo "===MOC_REPO_COUNT==="
+grep -n "全[0-9]*リポジトリ" 00_SYSTEM/全体マップ_MOC.md | head -5
+
+echo "===AUTOMATION_MD_CRON_COUNT==="
+grep -c "^|" 00_SYSTEM/自動化.md
+
+echo "===DONE==="
