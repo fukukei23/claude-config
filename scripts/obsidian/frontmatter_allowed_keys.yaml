@@ -1,0 +1,15 @@
+# MOC/Index frontmatter 許可リスト（spec §6.2・変更4 許可リスト方式）
+# 許可キー以外は commit ブロック（可変情報の MOC/Index 静的書込防止）
+# 禁止対象例: created_at / updated_at / last_sync / cache_hit（システム自動生成系）
+moc:
+  files:
+    - "00_SYSTEM/全体マップ_MOC.md"
+  allowed_keys: []  # frontmatter 空のみ許可（可変情報は MOC に書かない）
+index:
+  pattern: "01_DECISIONS/.*/_INDEX\\.md$"
+  allowed_keys:
+    - project
+    - status
+    - last_verified
+    - approved_themes
+    - themes
