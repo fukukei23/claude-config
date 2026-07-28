@@ -94,7 +94,7 @@
       "Bash(kubectl delete namespace*)",
       "Bash(helm uninstall*)"
     ],
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "acceptEdits",
     "ask": [
       "Bash(git worktree add:*)"
     ]
