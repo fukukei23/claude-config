@@ -58,7 +58,8 @@
       "Bash(powershell -Command \"wsl --list\")",
       "Read(//c/Users/yn441/.claude/projects/**)",
       "Bash(rm /home/yn4416/projects/NexusCore/tests/api/archive/*)",
-      "Bash(rmdir /home/yn4416/projects/NexusCore/tests/api/archive)"
+      "Bash(rmdir /home/yn4416/projects/NexusCore/tests/api/archive)",
+      "Bash(bash /home/yn4416/.claude/scripts/session/startup-banner.sh)"
     ]
   }
 }
