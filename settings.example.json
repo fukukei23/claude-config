@@ -57,10 +57,6 @@
       "Bash(xargs cat:*)",
       "Bash(xargs ls:*)",
       "mcp__plugin_discord_discord__download_attachment",
-      "Bash(T***MASKED***",
-      "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/users/@me/guilds\")",
-      "Bash(GUILD=\"1479832235044769872\")",
-      "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/guilds/$GUILD/channels\")",
       "Bash(sudo -l)",
       "WebFetch(domain:fxtwitter.com)",
       "WebFetch(domain:vxtwitter.com)",
@@ -92,9 +88,22 @@
       "Bash(rm -R*)",
       "Bash(terraform destroy*)",
       "Bash(kubectl delete namespace*)",
-      "Bash(helm uninstall*)"
+      "Bash(helm uninstall*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fd*)",
+      "Bash(git clean -fdx*)",
+      "Bash(chmod -R 777*)",
+      "Bash(curl * | sh*)",
+      "Bash(curl * | bash*)",
+      "Bash(wget * | sh*)",
+      "Bash(wget * | bash*)",
+      "Bash(shutdown*)",
+      "Bash(reboot*)",
+      "Bash(poweroff*)",
+      "Bash(systemctl poweroff*)",
+      "Bash(init 0*)"
     ],
-    "defaultMode": "acceptEdits",
+    "defaultMode": "bypassPermissions",
     "ask": [
       "Bash(git worktree add:*)"
     ]
