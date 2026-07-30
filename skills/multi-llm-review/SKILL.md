@@ -320,6 +320,46 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 - **指摘件数 > 50** または **統合入力 > 100K トークン（推定）** の場合、「統合スキップ・並列出力を束ねるだけ」をユーザーに提案（統合負荷がホストに集中するため）
 - review_log.md は LLM別グルーピングで出力
 
+## impact モード（影響範囲分析）
+
+> 自動起動はしない（手動発動・例外: 静的危険操作カタログ一致時のみ層aが限定自動発動を推奨）。
+> LLMの「想像力の欠如」（変更の副作用を未来投影で想像できない）を、複数LLMペルソナで補完する。
+
+### トリガー
+- 「impact」「影響範囲分析」「未来の副作用」「取りこぼしチェック」
+
+### 層a（自動・PostToolUse）
+- `git diff --unified=0` 走査 → trigger_keywords 正規化マッチ → category enum 判定
+- additionalContext に 3択（「起動 / 無視 / 何もしない」）を軽量注入
+- 検知失敗は silent skip + 検知失敗カウンタ（spec §5.1）
+
+### 層b（手動発動・本モードの本体）
+- 入力: 変更内容（git diff）+ antipatterns.md 抜粋 + dangerous-ops 一致情報
+- ペルソナ分割（spec §3.2）: 2機時 = P1+P2 / triple時 = P1+P2+P3
+  - P1 ドメイン専門家 / P2 破壊的変更検知 / P3 時系列変化
+- 暫定コスト上限: P1=8k/30s/$0.10・P2=6k/20s/$0.08・P3=4k/15s/$0.05・合算$0.30/60s
+- Future Logic Check（再設計）: シナリオ現実性を相互検証（正典照合でなく）
+- 統合: 指摘LLM数 × severity マトリクスで並び替え
+
+### 静的危険操作カタログ（M7=A'）
+- ファイル変更で副作用が起きる系のみ（DBマイグレーション/本番シークレット変更/BLACKLIST追加/閾値変更/権限スコープ）
+- 一致時: 層aが「限定自動発動候補」を追加注入
+- コマンド実行系（`git push --force`等）は Phase2 送り
+
+### ゴールデンセット（精度評価用）
+- #7 BLACKLIST副作用 / #8 キーワードトリガー早合点 / #9 未来シナリオ想像の欠如
+- 想定2件（実装時に合成データ追加）
+
+### 既存 multi-llm-review との関係
+- 層bは既存の「8ステップ統合ロジック」（§266 以降）を再利用して impact モードで起動
+- ペルソナ以外の Step1〜8 は変更なし（破壊的変更は最小化）
+- 既存 opt-out フラグ `--no-impact` で layer-b 影響を回避可能
+
+### 詳細参照
+- spec: `docs/superpowers/specs/2026-07-30-multi-llm-review-impact-mode-design.md` v0.2
+- antipatterns: `00_SYSTEM/impact-antipatterns.md`
+- dangerous-ops: `00_SYSTEM/dangerous-ops.yaml`
+
 ## YAGNI（切り捨て）
 
 - 反復ラウンド（1ラウンド固定）・第4のパーティ判定役・採用率の数値ルール・自動LLM選択（利用可能LLM全部を呼ぶ）・自発発動（手動のみ）
