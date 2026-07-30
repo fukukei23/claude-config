@@ -30,6 +30,7 @@ session-env/
 ide/
 vercel-plugin-device-id
 vercel-plugin-telemetry-preference
+.tmp-ext-skills-stage/
 
 # ===== バックアップ =====
 backups/
