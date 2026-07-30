@@ -68,8 +68,15 @@ echo "SESSION_ID=$SESSION_ID"
 echo "WT_SESSION=$WT_SESSION"
 echo "END_TS=$END_TS"
 
-# WT4取得（自セッション識別子・spec 2026-07-09 セッション識別子改善）
-WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}; echo "WT4=$WT4"
+# EFFECTIVE_WT算出（2026-07-30改修）: WT_SESSIONはWSL CLI版のみ払い出される変数のため、
+# Windows Desktopアプリ版では常にunknownになり全handoffが「unknown」に潰れてグルーピング不能だった。
+# WT_SESSIONがunknownの時はCLAUDE_CODE_SESSION_ID（両環境で必ず取得できる）にフォールバックする。
+EFFECTIVE_WT="$WT_SESSION"
+if [ "$WT_SESSION" = "unknown" ] && [ "$SESSION_ID" != "unknown" ]; then
+  EFFECTIVE_WT="$SESSION_ID"
+fi
+# WT4取得（自セッション識別子・spec 2026-07-09 セッション識別子改善・2026-07-30フォールバック追加）
+WT4=${EFFECTIVE_WT:0:4}; echo "WT4=$WT4"
 # 8. active-sessions.md の自分の🟢行（wt4でピンポイント・Step5で✅化する前）
 # /clear跨ぎ残存行も同一wt4で拾う・他セッション🟢行はsoft警告参照用に別途grep
 grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null
@@ -127,15 +134,15 @@ handoff を生成する**直前**に、以下をユーザーへ1問だけ確認�
 - 現在の環境状態（シンボリックリンク、secrets等）を要約
 - **自動化機構（auto-sync/auto-push等）の記述は `00_SYSTEM/自動化.md` の記述を正典とし、憶測で修飾（「常駐」「常時」等）しないこと**。実態: claude-config の push は SessionStop hook 発火時のみ（常駐ではない）・obsidian-ssot は `*/30` cron。不明なら書かず「`00_SYSTEM/自動化.md` 参照」とすること
 - **「次のタスク」には候補を列挙せず、バックログ.md への参照のみを記載すること**（コピペ連鎖で完了済みタスクが残り続けるのを防ぐため・spec 2026-06-26）。現セッションの占有タスクは「前回占有タスク（継続可・参考）」欄に記載すること
-- **`## メタ情報` ブロックは必ず先頭（`# 引き継ぎ` の直後・`## 環境` の前）に配置すること**（spec 2026-07-06・resume-session が wt_session でグループ化するため必須）。Step1 の #7 で取得した SESSION_ID / WT_SESSION / END_TS と #8 の🟢行セッション名をそのまま埋める（推測・省略しない）。環境変数が unknown でも `unknown` のまま書く（空欄禁止・resume-session のグループ化判定に使うため）。**開始時刻は記録しない**（spec 2026-07-06 修正・JSONL ctime が真の開始時刻を取れないため廃止）
+- **`## メタ情報` ブロックは必ず先頭（`# 引き継ぎ` の直後・`## 環境` の前）に配置すること**（spec 2026-07-06・resume-session が wt_session でグループ化するため必須）。Step1 の #7 で取得した SESSION_ID / EFFECTIVE_WT / END_TS と #8 の🟢行セッション名をそのまま埋める（推測・省略しない）。**wt_session 欄には EFFECTIVE_WT を書く**（WT_SESSION優先・unknownならSESSION_IDで代替・2026-07-30改修。Windows Desktopアプリ版はWT_SESSIONが常にunknownのため代替しないと全handoffが「unknown」に潰れグルーピング不能になるため）。SESSION_ID自体もunknownの極めて稀なケースのみ `unknown` のまま書く（空欄禁止）。**開始時刻は記録しない**（spec 2026-07-06 修正・JSONL ctime が真の開始時刻を取れないため廃止）
 
 フォーマット:
 ====== 新セッション用プロンプト（ここからコピー）======
 # 引き継ぎ
 
 ## メタ情報
-- session_id: <SESSION_ID（CLAUDE_CODE_SESSION_ID・CLI版で取得・unknownならフォールバック）>
-- wt_session: <WT_SESSION（ターミナルタブ単位・CLI版で取得・unknownならフォールバック）>
+- session_id: <SESSION_ID（CLAUDE_CODE_SESSION_ID・両環境で取得可・unknownなら真にフォールバック）>
+- wt_session: <EFFECTIVE_WT（WT_SESSION優先・ターミナルタブ単位。WT_SESSION未設定＝Windows Desktop等はSESSION_IDで代替・2026-07-30改修）>
 - セッション名: <active-sessions.md の自分の🟢行の「セッション」列と同じ値（🟢行が無ければ「unknown」）>
 - 終了: <END_TS>
 
@@ -178,7 +185,10 @@ import os, datetime
 save_dir = '/home/yn4416/projects/obsidian-ssot/00_SYSTEM/handoff'
 os.makedirs(save_dir, exist_ok=True)
 wt = os.environ.get('WT_SESSION', 'unknown')
-wt4 = wt[:4] if wt and wt != 'unknown' else 'unknown'
+sid = os.environ.get('CLAUDE_CODE_SESSION_ID', 'unknown')
+# 2026-07-30改修: WT_SESSION未設定(Windows Desktop等)はSESSION_IDにフォールバック
+effective_wt = wt if wt and wt != 'unknown' else sid
+wt4 = effective_wt[:4] if effective_wt and effective_wt != 'unknown' else 'unknown'
 filename = datetime.datetime.now().strftime('%Y-%m-%d_%H%M') + f'_{wt4}.md'
 save_path = os.path.join(save_dir, filename)
 with open(save_path, 'w') as f:
@@ -234,7 +244,12 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 セッションを新セッションに移行する＝現セッション終了。ボードの自分エントリを処理する。
 
 手順:
-1. WT4取得: `WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}`
+1. WT4取得（2026-07-30改修・WT_SESSION未設定時はSESSION_IDにフォールバック）:
+   ```bash
+   WT_SESSION="${WT_SESSION:-unknown}"; SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+   EFFECTIVE_WT="$WT_SESSION"; [ "$WT_SESSION" = "unknown" ] && EFFECTIVE_WT="$SESSION_ID"
+   WT4=${EFFECTIVE_WT:0:4}
+   ```
 2. active-sessions.md で **wt4 を含む🟢行を特定し状態列を `🟢` → `✅` に変更**（自分行・/clear跨ぎ残存行も同一wt4で拾う・spec 2026-07-09・行は残す・行移動しない）
    `grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md | grep '| 🟢 |'`
    ※ 複数ヒット時（同タブ残存行）は全て✅化で占有解放

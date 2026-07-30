@@ -59,8 +59,12 @@ cat ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | head -40
 grep -nE '^- \[ \]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
 # 📝WIP構想メモ一覧（未spec化の構想・バックログ.md該当タスク直下・C層機械スキャン）
 grep -nE '^[[:space:]]*- 📝 構想' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
-# WT4取得（自セッション識別子・spec 2026-07-09 セッション識別子改善）
-WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}
+# WT4取得（自セッション識別子・spec 2026-07-09 セッション識別子改善・2026-07-30フォールバック追加）
+# WT_SESSIONはWSL CLI版のみ払い出される変数。Windows Desktopアプリ版では常にunknownになるため、
+# その場合はCLAUDE_CODE_SESSION_ID（両環境で必ず取得できる）にフォールバックする。
+WT_SESSION="${WT_SESSION:-unknown}"; SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+EFFECTIVE_WT="$WT_SESSION"; [ "$WT_SESSION" = "unknown" ] && EFFECTIVE_WT="$SESSION_ID"
+WT4=${EFFECTIVE_WT:0:4}
 # 自分の🟢行（wt4でピンポイント特定・/clear跨ぎ残存行も拾う）
 grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null
 # 他セッションの🟢行（soft警告用・自分行除外）
@@ -176,8 +180,10 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 - 状態: 🟢
 
 ```bash
-# WT4取得（Step1と同一・🟢行のID列に記載）
-WT_SESSION="${WT_SESSION:-unknown}"; WT4=${WT_SESSION:0:4}; echo "WT4=$WT4"
+# WT4取得（Step1と同一・🟢行のID列に記載・2026-07-30フォールバック追加）
+WT_SESSION="${WT_SESSION:-unknown}"; SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+EFFECTIVE_WT="$WT_SESSION"; [ "$WT_SESSION" = "unknown" ] && EFFECTIVE_WT="$SESSION_ID"
+WT4=${EFFECTIVE_WT:0:4}; echo "WT4=$WT4"
 ```
 
 ```markdown
