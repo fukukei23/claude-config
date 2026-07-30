@@ -71,6 +71,26 @@ grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/nul
 grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | grep -v "| $WT4 |"
 # 🎯要望(Why)層の一覧（W1,W2...=動機の束・タスク選択の軸・各タスク行末の←Wx逆参照と突合）
 grep -nE '^- W[0-9]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
+# 週次リフレクション検知（spec §4.4 Phase1手動動線・2026-07-30追加）
+# resume-session発動時に「今週のリフレクション未生成」を検知して提案する動線。
+# REF_DETECT: で始まる出力を Step3 の「📝 リフレクション検知」に反映。
+REF_WEEKLY=~/projects/obsidian-ssot/40_CAREER/リフレクション/weekly
+CUR_W=$(date +%V); CUR_WEEK_ISO=$(date +%Y-W%V)
+LATEST_REF=$(ls "$REF_WEEKLY"/[0-9]*-W*.md 2>/dev/null | sort -r | head -1)
+if [ -z "$LATEST_REF" ]; then
+  echo "REF_DETECT: 週次ファイル無し・Phase1運用中なら生成推奨（spec §4.4）"
+else
+  LATEST_WEEK=$(basename "$LATEST_REF" .md)
+  LATEST_W=$(echo "$LATEST_WEEK" | sed 's/.*-W//')
+  DIFF=$(( 10#$CUR_W - 10#$LATEST_W ))
+  if [ "$DIFF" -le 1 ]; then
+    echo "REF_DETECT: OK 最新週次=$LATEST_WEEK（現在$CUR_WEEK_ISO・正常・サマリーには出さなくてよい）"
+  elif [ "$DIFF" -eq 2 ]; then
+    echo "REF_DETECT: ⚠️ 今週($CUR_WEEK_ISO)未生成・先週分も未生成の可能性（最新=$LATEST_WEEK）→2週分まとめ生成推奨（spec §4.4フォールバック・最大2週まで）"
+  else
+    echo "REF_DETECT: ⚠️ 最新週次=$LATEST_WEEK が${DIFF}週前→3週超はスキップ推奨（spec §4.4）"
+  fi
+fi
 ```
 
 ---
@@ -120,6 +140,7 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 🔁 前回継続: <直近handoffの「前回占有タスク（継続可・参考）」欄・未完了のもののみ>
 ℹ️ 他候補: バックログ.md 参照（P1: N件 / P2: M件）
 📝 WIP構想: <直近handoffの「WIP構想一覧」欄・バックログ.md実体と突合>
+📝 リフレクション検知: <Step1 の REF_DETECT 出力・⚠️ の場合のみ表示して「週次生成」を選択肢に含める・OK の場合は表示しない（alert fatigue回避）>
 
 > ⚠️ 候補は handoff ではなく**バックログ.md が正典**。handoffの「次タスク候補」は廃止済み（完了済みが混入するため）。
 
