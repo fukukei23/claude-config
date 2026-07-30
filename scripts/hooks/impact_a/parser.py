@@ -36,6 +36,15 @@ def parse_antipatterns_md(text: str) -> list[dict[str, Any]]:
 
 
 def parse_dangerous_ops_yaml(text: str) -> list[dict[str, Any]]:
-    """dangerous-ops.yaml をパースして dangerous_ops リストを返す。"""
-    data = yaml.safe_load(text) or {}
-    return list(data.get("dangerous_ops", []))
+    """dangerous-ops.yaml をパースして dangerous_ops リストを返す。
+
+    frontmatter(1st YAML doc) + body(2nd YAML doc) の二段構成を許容。
+    `dangerous_ops` キーを含むdoc を全走査して結合して返す。
+    """
+    found: list[dict[str, Any]] = []
+    for doc in yaml.safe_load_all(text) or []:
+        if not isinstance(doc, dict):
+            continue
+        if "dangerous_ops" in doc:
+            found.extend(list(doc.get("dangerous_ops") or []))
+    return found
