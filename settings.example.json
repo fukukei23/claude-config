@@ -57,6 +57,10 @@
       "Bash(xargs cat:*)",
       "Bash(xargs ls:*)",
       "mcp__plugin_discord_discord__download_attachment",
+      "Bash(T***MASKED***",
+      "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/users/@me/guilds\")",
+      "Bash(GUILD=\"1479832235044769872\")",
+      "Bash(curl -s -H \"Authorization: Bot $TOKEN\" \"https://discord.com/api/v10/guilds/$GUILD/channels\")",
       "Bash(sudo -l)",
       "WebFetch(domain:fxtwitter.com)",
       "WebFetch(domain:vxtwitter.com)",
@@ -84,29 +88,9 @@
       "Bash(git push --force*)",
       "Bash(git push -f*)",
       "Bash(sudo *)",
-      "Bash(rm -rf *)",
-      "Bash(rm -R*)",
-      "Bash(terraform destroy*)",
-      "Bash(kubectl delete namespace*)",
-      "Bash(helm uninstall*)",
-      "Bash(git reset --hard*)",
-      "Bash(git clean -fd*)",
-      "Bash(git clean -fdx*)",
-      "Bash(chmod -R 777*)",
-      "Bash(curl * | sh*)",
-      "Bash(curl * | bash*)",
-      "Bash(wget * | sh*)",
-      "Bash(wget * | bash*)",
-      "Bash(shutdown*)",
-      "Bash(reboot*)",
-      "Bash(poweroff*)",
-      "Bash(systemctl poweroff*)",
-      "Bash(init 0*)"
+      "Bash(rm -rf *)"
     ],
-    "defaultMode": "bypassPermissions",
-    "ask": [
-      "Bash(git worktree add:*)"
-    ]
+    "defaultMode": "bypassPermissions"
   },
   "model": "opus",
   "hooks": {
@@ -147,7 +131,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); p=$(echo \"$input\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); [[ \"$p\" == *バックログ* ]] && { if [ \"$(uname -s)\" = \"Linux\" ]; then python3 /home/yn4416/bin/archive-backlog-done.py; else wsl bash -c \"python3 /home/yn4416/bin/archive-backlog-done.py\"; fi; }",
+            "command": "input=$(cat); p=$(echo \"$input\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); [[ \"$p\" == *バックログ* ]] && python3 /home/yn4416/bin/archive-backlog-done.py",
             "timeout": 5000
           }
         ]
@@ -169,6 +153,19 @@
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/skills/mirror-to-custom.sh",
             "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/verify-post-tool-use.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/impact-a-wrapper.sh"
           }
         ]
       }
@@ -335,22 +332,6 @@
             "command": "bash /home/yn4416/projects/obsidian-ssot/00_SYSTEM/claude-config/scripts/sync-claude-md.sh --push"
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /home/yn4416/.claude/scripts/obsidian/check-stale-sessions.sh"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/yn4416/.claude/scripts/obsidian/check-manifest-health.sh"
-          }
-        ]
       }
     ],
     "Stop": [
@@ -466,8 +447,7 @@
       ],
       "env": {
         "MINIMAX_API_KEY": "sk-c***MASKED***"
-      },
-      "timeout": 600
+      }
     },
     "glm": {
       "env": {
