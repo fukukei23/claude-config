@@ -20,6 +20,12 @@ for dir in "$DECISIONS_DIR"/*/; do
         continue
     fi
 
+    # dataview ブロックで全件表示なら参照数チェック不要（spec §4.5 KPI-2）
+    # generate側は既に has_dataview 判定で追記スキップするが、check側だけ未対応だった乖離を解消
+    if grep -q "FROM \"01_DECISIONS/$dir_name\"" "$INDEX"; then
+        continue
+    fi
+
     # index_count: 純粋なファイル名参照のみ（パス区切り/Win/チルダの外部参照は除外）
     # バッククォート形式 `file.md` と リンク形式 [text](file.md) の両方を集計
     # md_count(直下のみ)と口径を一致させることで偽陽性を防止
