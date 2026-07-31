@@ -2,22 +2,28 @@
 
 spec: docs/superpowers/specs/2026-07-30-guard-settings-write-post-detection-design.md
 """
+import glob
 import hashlib
 import json
 import os
 import re
 import shutil
+import time
 
 # 層1: 既知プロバイダ prefix 辞書（spec§4層ルール・層1）
 # gitleaks 厳選ルールは Task 6 で拡張。まず基本辞書。
 PREFIX_PATTERNS = [
     re.compile(r"^sk-"),                 # OpenAI
+    re.compile(r"^sk_live_"),            # Stripe (gitleaks厳選)
     re.compile(r"^xox[abp]-"),           # Slack
-    re.compile(r"^gh[pousr]_"),          # GitHub PAT/secret
-    re.compile(r"^AKIA"),                # AWS access key
-    re.compile(r"^AIza"),                # Google API key
+    re.compile(r"^gh[pousr]_"),          # GitHub
+    re.compile(r"^AKIA"),                # AWS
+    re.compile(r"^AIza"),                # Google
     re.compile(r"^glpat-"),              # GitLab
     re.compile(r"^claude-"),             # Anthropic
+    re.compile(r"^hf_"),                 # HuggingFace (gitleaks厳選)
+    re.compile(r"^pplx-"),               # Perplexity (gitleaks厳選)
+    re.compile(r"^vercel_token_"),       # Vercel (gitleaks厳選)
 ]
 
 # 層2: 除外パターン（誤検知抑制）
@@ -246,3 +252,31 @@ def restore_snapshot(backup_path: str, target_path: str) -> str:
         return "FALLBACK_CHMOD400"
 
     return "RESTORED"
+
+
+def is_bypass_active(bypass_dir: str, ttl_seconds: int = 300) -> bool:
+    """TTL付き bypass: ~/.claude/guard-bypass-<ts> が存在し期限内か
+
+    期限切れファイルは削除（自動復帰）。bypass ファイルは空運用（TOKEN絶対書かない）。
+    ※有効期限は**ファイル名埋め込みts**基準（mtime でなく）→ touch での期限延長攻撃無効
+    ※bypass ファイルは作成時に chmod 0444 運用（書換防止・本関数は判定のみ）
+    """
+    now = int(time.time())
+    active = False
+    for path in glob.glob(os.path.join(bypass_dir, "guard-bypass-*")):
+        try:
+            ts = int(os.path.basename(path).rsplit("-", 1)[1])
+        except (ValueError, IndexError):
+            continue
+        if now - ts <= ttl_seconds:
+            active = True
+            try:
+                os.chmod(path, 0o444)  # 念のため読取専用化（内容書換防止）
+            except OSError:
+                pass
+        else:
+            try:
+                os.remove(path)  # 期限切れは自動削除（ファイル名ts基準・mtime無関係）
+            except OSError:
+                pass
+    return active

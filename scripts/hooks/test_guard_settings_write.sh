@@ -133,6 +133,37 @@ mode = oct(_os5.stat(broken_current).st_mode)[-3:]
 check("restore_not_000", mode != "000", True)
 check("restore_is_400ish", mode == "400", True)
 
+# === TTL bypass（fresh/stale 別ディレクトリで正しく検証）===
+import tempfile as _tf6, os as _os6, time as _time6
+freshdir = _tf6.mkdtemp()
+fresh = _os6.path.join(freshdir, f"guard-bypass-{int(_time6.time()) - 60}")
+open(fresh, "w").close()
+check("bypass_active_fresh", core.is_bypass_active(freshdir, ttl_seconds=300), True)
+
+staledir = _tf6.mkdtemp()
+stale = _os6.path.join(staledir, f"guard-bypass-{int(_time6.time()) - 600}")
+open(stale, "w").close()
+check("bypass_expired", core.is_bypass_active(staledir, ttl_seconds=300), False)
+check("bypass_stale_removed", _os6.path.exists(stale), False)
+
+emptydir = _tf6.mkdtemp()
+check("bypass_none", core.is_bypass_active(emptydir, ttl_seconds=300), False)
+
+# === touch延長攻撃対策（有効期限はファイル名ts基準・mtime操作無効）===
+attackdir = _tf6.mkdtemp()
+stale_ts = int(_time6.time()) - 600
+attack_path = _os6.path.join(attackdir, f"guard-bypass-{stale_ts}")
+open(attack_path, "w").close()
+_os6.utime(attack_path, (_time6.time(), _time6.time()))  # mtime を現在に改ざん
+check("bypass_touch_attack_fails", core.is_bypass_active(attackdir, ttl_seconds=300), False)
+check("bypass_touch_attack_removed", _os6.path.exists(attack_path), False)
+
+# === gitleaks厳選ルール（層1拡張）===
+check("gitleaks_stripe", core.layer1_prefix("sk_live_" + "0"*24), True)        # Stripe
+check("gitleaks_huggingface", core.layer1_prefix("hf_" + "x"*36), True)        # HuggingFace
+check("gitleaks_perplexity", core.layer1_prefix("pplx-" + "x"*40), True)      # Perplexity
+check("gitleaks_vercel", core.layer1_prefix("vercel_token_" + "x"*30), True)  # Vercel
+
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")
 sys.exit(1 if failed else 0)
 PYEOF
