@@ -1,0 +1,54 @@
+id: F2b
+incident_ref: "#8 キーワードトリガー早合点・改善後KPI側"
+category: safety-net-change
+axis: layer_b_only
+role: 層aの偽陽性を層bが是正（『安全』と判定）する価値の証明・改善後KPI
+
+# --- 面1: 層a入力用 git diff（unified=0 形式）---
+diff: |-
+  --- a/config.py
+  +++ b/config.py
+  @@ -3,3 +3,5 @@
+   class Settings:
+       debug = False
+  +    verbose = True
+  +    if base.enabled and not base.skip_validation:
+
+# --- 面2: 層a検証用期待値（改善後目標・現状はTrueを返すのでギャップ記録）---
+layer_a_expected:
+  matched: false   # ★改善後の目標値。現状detectorは 'enabled'/'skip' 部分一致で True を返す → ステップ2でギャップを記録しtrigger_keywords見直しのKPI
+  category: null
+  dangerous_op_match: null   # DOP-003 (enabled[:=]false/skip[:=]true) は 'enabled and' 'not skip_validation' に非マッチ（:=がない）
+  antipattern_id: null
+  matched_keywords: []
+  note: "【改善後KPI】現状は 'enabled'(settings.enabled) と 'skip'(skip_validation) に部分一致して matched=True。trigger_keywords から汎用語を除去/文脈判定追加で False を目指す。層bが layer_b_only で『安全』と判定"
+
+# --- 面3: 層bコンテキスト ---
+layer_b_context:
+  diff: "設定フラグの読み取り分岐を追加（base.enabled and not base.skip_validation）"
+  intent: "有効化時かつ検証スキップでない場合に詳細モードを出す、単なる設定読み取り"
+  domain_context: "設定モジュール。機能の無効化/除外とは無関係・フラグの読み取りのみ"
+  non_public: "なし"
+
+# --- 面4: 層b検証用期待値 ---
+layer_b_expected:
+  future_keywords:
+    required:
+      - "安全"
+      - "偽陽性"
+    permitted:
+      - "設定読み取り"
+      - "無害"
+      - "機能無効化ではない"
+  future_scenarios:
+    - "When: 常に / Who: 開発者 / What: 単なる設定フラグの読み取りで機能無効化やデータ除外を伴わない / 影響対象: なし / 規模: なし（層aが偽陽性で鳴らしても層bが『安全』と是正）"
+  persona_coverage:
+    P1_domain:
+      required_count: 0
+      rationale: "ドメイン知識不要"
+    P2_destructive:
+      required_count: 0
+      rationale: "破壊的変更でない"
+    P3_temporal:
+      required_count: 2
+      rationale: "メタ認知で『偽陽性を見抜く』ため必須（モード崩壊反証の是正軸・M7）"

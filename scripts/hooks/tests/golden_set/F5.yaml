@@ -1,0 +1,57 @@
+id: F5
+incident_ref: "想定ケース・副作用連鎖(DELETE文・復元手段と依存テーブル連鎖)"
+category: data-mutation
+axis: serial
+role: 層a得意（DOP-004）・副作用連鎖の未来投影。依存テーブル一覧必須（M9）
+
+# --- 面1: 層a入力用 git diff（unified=0 形式）---
+diff: |-
+  --- a/cleanup.py
+  +++ b/cleanup.py
+  @@ -20,3 +20,5 @@
+   def archive_old(rows):
+       pass
+  +    sql = "DELETE FROM expired_sessions WHERE last_seen < %s"
+  +    cursor.execute(sql, (cutoff,))
+
+# --- 面2: 層a検証用期待値 ---
+layer_a_expected:
+  matched: true   # DOP-004 "DELETE\\s+FROM" マッチ
+  category: data-mutation
+  dangerous_op_match: DOP-004
+  antipattern_id: null   # AP-001 は safety-net-change 系・trigger_keywords 非マッチ（DELETE文に BLACKLIST/filter 等なし）
+  matched_keywords: []
+  note: "DOP-004 が 'DELETE FROM expired_sessions' にマッチ。trigger_keywords は非マッチ（AP-001 は対象外）"
+
+# --- 面3: 層bコンテキスト（M9・依存テーブル一覧必須）---
+layer_b_context:
+  diff: "期限切れセッションを DELETE する cleanup 処理を追加"
+  intent: "ストレージ節約のため古いセッション行を物理削除"
+  domain_context: "セッション管理。audit_log テーブルが expired_sessions の id を外部参照する可能性あり"
+  non_public: "依存テーブル一覧: expired_sessions / audit_log(外部参照) / user_activity(セッションID参照)。バックアップ/リストア手順・ポイントインタイムリカバリ可否"
+
+# --- 面4: 層b検証用期待値 ---
+layer_b_expected:
+  future_keywords:
+    required:
+      - "復元手段"
+      - "依存テーブル"
+    permitted:
+      - "外部キー"
+      - "監査ログ"
+      - "物理削除"
+      - "論理削除"
+      - "バックアップ"
+  future_scenarios:
+    - "When: 実行後 / Who: 監査/コンプラ / What: audit_log が外部参照する expired_sessions.id が消滅し JOIN が崩れる / 影響対象: 監査証跡 / 規模: 監査データ全体"
+    - "When: 誤実行（cutoffバグ） / Who: 運用 / What: 活性セッションまで削除・復元手段（バックUP/PITR）が未設定なら不可逆 / 影響対象: 全ユーザーセッション / 規模: 全体"
+  persona_coverage:
+    P1_domain:
+      required_count: 1
+      rationale: "セッション/監査ドメインの参照関係を想像"
+    P2_destructive:
+      required_count: 2
+      rationale: "データ削除の不可逆性と連鎖。P2主軸"
+    P3_temporal:
+      required_count: 1
+      rationale: "誤実行/リストアの時系列リスク"

@@ -1,0 +1,54 @@
+id: F1
+incident_ref: "#7 Battle Festa BLACKLIST(2026-07-29 Livepocket)"
+category: safety-net-change
+axis: serial
+role: 層a得意・真陽性の正例
+
+# --- 面1: 層a入力用 git diff（unified=0 形式）---
+diff: |-
+  --- a/scraper.py
+  +++ b/scraper.py
+  @@ -12,3 +12,4 @@
+   WHITELIST = ["公式", "限定"]
+   BLACKLIST = ["オリパ", "中古"]
+  +BLACKLIST = ["オリパ", "中古", "バトル", "大会", "フェス"]
+
+# --- 面2: 層a検証用期待値 ---
+layer_a_expected:
+  matched: true
+  category: safety-net-change
+  dangerous_op_match: DOP-001
+  antipattern_id: AP-001
+  matched_keywords: ["BLACKLIST"]
+  note: "DOP-001 (BLACKLIST\\s*=) + AP-001 trigger_keyword 'BLACKLIST' が共にマッチ。真陽性の正例（F2aの偽陽性とは対照）"
+
+# --- 面3: 層bコンテキスト（M9・必須4フィールド）---
+layer_b_context:
+  diff: "BLACKLIST に バトル/大会/フェス を追加（ノイズ語拡張）"
+  intent: "転売色の強い抽選販売形態（バトル/大会/フェス系）を弾くためBLACKLIST拡張"
+  domain_context: "ポケモンカード抽選販売スクレパ。公式/限定はWHITELIST・転売目的ぽい販売形態名をBLACKLISTで除外"
+  non_public: "依存元APIの販売形態名網羅リスト（チーム内限定・非公開）"
+
+# --- 面4: 層b検証用期待値（論点D・M5反映）---
+layer_b_expected:
+  future_keywords:
+    required:   # 重み1.0・概念一致が必須
+      - "バトルフェスタ"        # 将来の新弾名（公式商品名）
+      - "取りこぼし"            # 副作用の種類
+    permitted:  # 重み0.5・部分点
+      - "新弾"
+      - "限定販売"
+      - "公式商品名"
+      - "除外語の被り"
+  future_scenarios:
+    - "When: 来シーズン新弾『バトルフェスタ2026』が抽選販売 / Who: 抽選利用者 / What: BLACKLISTの『バトル』に部分一致し除外 / 影響対象: 正規商品の取りこぼし / 規模: 単一弾の販売機会損失"
+  persona_coverage:
+    P1_domain:
+      required_count: 2
+      rationale: "ポケモン新弾名体系（アニメ/映画/ゲーム由来）のドメイン知識で将来商品名を想起するため必須"
+    P2_destructive:
+      required_count: 0
+      rationale: "本件は破壊的変更でなく過度な除外が副作用・P2は主軸でない"
+    P3_temporal:
+      required_count: 2
+      rationale: "将来シーズンの時系列展開を想像するため必須"

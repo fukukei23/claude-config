@@ -1,0 +1,63 @@
+id: F3
+incident_ref: "#9 未来シナリオ想像欠如・候補c(移植コード環境差/前提崩壊)"
+category: null   # 層aカタログ外・情報理論的に層a永遠不可能
+axis: layer_b_only
+role: ★モード崩壊反証（層a不得意・情報理論的不可能性）専用。候補cは git diff 内に環境情報が含まれないため層aは原理的に検知不能
+
+# --- 面1: 層a入力用 git diff（unified=0 形式）---
+# ※ trigger_keywords 10語(BLACKLIST/blocklist/denylist/exclude/excluded/threshold/disabled/skip/enabled/filter)
+#   および DOP-001〜005 の全パターンのいずれの部分文字列も含まないことを厳格に回避済
+diff: |-
+  --- a/app/settings.py
+  +++ b/app/settings.py
+  @@ -8,3 +8,5 @@
+   APP_NAME = "lottery"
+  +CACHE_DIR = "/var/tmp/app_cache"
+  +SESSION_TTL = 3600
+
+# --- 面2: 層a検証用期待値（情報理論的に層a永遠不可能）---
+layer_a_expected:
+  matched: false   # trigger_keywords・DOP 全パターン非マッチ
+  category: null
+  dangerous_op_match: null
+  antipattern_id: null
+  matched_keywords: []
+  note: "【層a不得意・情報理論的限界】git diff に環境前提（OS/パス/本番構成）が載らないため、いくら trigger_keywords を拡張しても層aは検知不能。LLM未来投影の独壇場"
+
+# 感度分析（M7・将来 antipatterns.md 拡張で層aが拾えるようにならないか監視）
+sensitivity_watch:
+  - "将来 'CACHE_DIR'/'SESSION_TTL' を trigger_keywords に追加すれば層aでも拾えるか？ → 拾えるが『環境差の前提崩壊』という本質でなく『語彙』を拾うだけ・核心は字面に現れない"
+
+# --- 面3: 層bコンテキスト ---
+layer_b_context:
+  diff: "ハードコードされたキャッシュディレクトリパスとセッションTTLを追加"
+  intent: "ローカル/単一環境向けにキャッシュ先とTTLを固定"
+  domain_context: "開発元はLinux WSL環境。本番はコンテナ/別OSの可能性。パスとTTLは環境前提"
+  non_public: "本番インフラ構成（OS・マウントポイント・共有ストレージ有無）・キャッシュバックエンド仕様"
+
+# --- 面4: 層b検証用期待値 ---
+layer_b_expected:
+  future_keywords:
+    required:
+      - "環境差"
+      - "前提崩壊"
+    permitted:
+      - "移植"
+      - "本番"
+      - "パスが存在しない"
+      - "パーミッション"
+      - "Windows"
+      - "コンテナ"
+  future_scenarios:
+    - "When: 本番/別環境へ移植時 / Who: インフラ/運用者 / What: /var/tmp が存在しない（Windows・読み取り専用FS） or パーミッション違反でキャッシュ書込失敗 / 影響対象: アプリ起動失敗 or サイレントなキャッシュ無効化 / 規模: 本番全体の障害"
+    - "When: 本番でSESSION_TTL=3600が長すぎる（または短すぎる） / Who: 運用 / What: 本番のセッション要件（セキュリティ/UX）とズレて不正ログインや再認証頻発 / 影響対象: 全ユーザーのセッション / 規模: 全体"
+  persona_coverage:
+    P1_domain:
+      required_count: 0
+      rationale: "ドメイン知識でなくインフラ知識"
+    P2_destructive:
+      required_count: 2
+      rationale: "移植時の前提崩壊＝破壊的変更の未来投影。P2が主軸"
+    P3_temporal:
+      required_count: 1
+      rationale: "将来の本番移行タイミングを想像する補助"

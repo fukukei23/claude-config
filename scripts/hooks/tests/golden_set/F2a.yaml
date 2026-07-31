@@ -1,0 +1,54 @@
+id: F2a
+incident_ref: "#8 キーワードトリガー早合点(2026-07-29)・再現側"
+category: safety-net-change
+axis: serial
+role: 層aの偽陽性を再現（現状detectorのTrueをgolden化）→ trigger_keywords チューニングの材料
+
+# --- 面1: 層a入力用 git diff（unified=0 形式）---
+diff: |-
+  --- a/service.py
+  +++ b/service.py
+  @@ -5,3 +5,5 @@
+   def list_products(items):
+       return [i for i in items if i.active]
+  +    results = list(filter(lambda x: x.price > 0, items))
+  +    return results
+
+# --- 面2: 層a検証用期待値（現状detectorの挙動=偽陽性）---
+layer_a_expected:
+  matched: true   # ★現状detectorは True を返す（trigger_keyword 'filter' が 'filter(lambda...' に部分一致）
+  category: safety-net-change
+  dangerous_op_match: null   # DOP-001〜005 いずれも非マッチ（filter= ではない）
+  antipattern_id: AP-001
+  matched_keywords: ["filter"]
+  note: "【偽陽性の再現】trigger_keyword 'filter' が汎用語で無害なリスト処理にマッチ。AP-001 の過剰検知。F2b(改善後)で matched=False を目標とする"
+
+# --- 面3: 層bコンテキスト ---
+layer_b_context:
+  diff: "filter(lambda...) で price>0 の商品を抽出する処理を追加"
+  intent: "価格0（無料/非売）の商品を一覧から除外するだけの無害なリスト処理"
+  domain_context: "商品一覧サービス。BLACKLIST/除外リスト類は触っていない・純粋な関数型フィルタ"
+  non_public: "なし（純粋なアプリロジック）"
+
+# --- 面4: 層b検証用期待値 ---
+layer_b_expected:
+  future_keywords:
+    required:
+      - "安全"
+      - "偽陽性"
+    permitted:
+      - "無害"
+      - "副作用なし"
+      - "リスト処理"
+  future_scenarios:
+    - "When: 常に / Who: 開発者 / What: この変更は純粋な関数型リスト処理で状態を変えない / 影響対象: なし / 規模: なし（層aの偽陽性・層bが『安全』と判定しアラート疲労を防ぐ価値）"
+  persona_coverage:
+    P1_domain:
+      required_count: 0
+      rationale: "ドメイン知識不要・純粋なコード読解"
+    P2_destructive:
+      required_count: 0
+      rationale: "破壊的変更でない"
+    P3_temporal:
+      required_count: 2
+      rationale: "メタ認知・導線検証（#8の核心）で『これは本当に安全か』を確認するため必須"

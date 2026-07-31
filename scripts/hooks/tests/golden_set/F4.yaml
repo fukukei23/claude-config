@@ -1,0 +1,60 @@
+id: F4
+incident_ref: "想定ケース・語彙拡張(schema-change・DBカラム追加・NOT NULL)"
+category: schema-change
+axis: serial
+role: category偏り解消（論点C・M10）。schema-change 軸の追加。将来カタログ拡張(ALTER等)で層aでも拾える可能性あり（F3ほど強固でない・感度分析監視）
+
+# --- 面1: 層a入力用 git diff（unified=0 形式）---
+# ※ trigger_keywords 10語の部分文字列を回避。"refund_category" 等は trigger_keywords に非含有
+diff: |-
+  --- a/migrations/005_add_refund_category.py
+  +++ b/migrations/005_add_refund_category.py
+  @@ -0,0 +1,2 @@
+  +ALTER TABLE orders ADD COLUMN refund_category VARCHAR(32) NOT NULL DEFAULT 'none';
+  +ALTER TABLE orders ADD COLUMN refunded_at TIMESTAMP NULL;
+
+# --- 面2: 層a検証用期待値（現状層aカタログにALTERなし）---
+layer_a_expected:
+  matched: false   # trigger_keywords 非マッチ・DOP-001〜005 に ALTER なし（DROP/DELETE/TRUNCATE のみ）
+  category: null
+  dangerous_op_match: null
+  antipattern_id: null
+  matched_keywords: []
+  note: "【層a不得意・カタログギャップ】ALTER/ADD COLUMN は dangerous-ops.yaml に未収録。将来 DOP-006(schema-change) を追加すれば層aでも拾える（F3と違い情報理論的限界でなくカタログ拡張で解決可能）"
+
+# 感度分析（将来カタログ拡張で層aが拾えるか）
+sensitivity_watch:
+  - "dangerous-ops.yaml に 'ALTER\\s+TABLE.*ADD\\s+COLUMN' を追加すれば層aで検知可能になる。F3（情報理論的不可能）とは異なり『まだカタログにないだけ』"
+
+# --- 面3: 層bコンテキスト ---
+layer_b_context:
+  diff: "orders テーブルに refund_category(NOT NULL DEFAULT 'none') と refunded_at(NULL) を追加"
+  intent: "返金種別と返金日時を記録するためカラム追加"
+  domain_context: "受注管理DB。既存の返金処理は別テーブル/フラグ前提。下流のBI/集計クエリが SELECT * で列依存"
+  non_public: "DBスキーマ全体・既存の返金処理ロジック（旧 refund テーブル等）・下流ETL/BIのクエリ一覧"
+
+# --- 面4: 層b検証用期待値 ---
+layer_b_expected:
+  future_keywords:
+    required:
+      - "NOT NULL"
+      - "既存データ"
+    permitted:
+      - "デフォルト嵌入"
+      - "SELECT *"
+      - "契約前提"
+      - "下流クエリ"
+      - "袈裟崩し"
+  future_scenarios:
+    - "When: マイグレーション実行時 / Who: DB/運用 / What: 既存行に DEFAULT 'none' が強制嵌入・既存の返金フロー（旧 refund テーブル前提）と二重管理 / 影響対象: 過去データの整合性・下流集計 / 規模: 全既存行"
+    - "When: リリース後 / Who: BI/ETL利用者 / What: SELECT * の列順が変わり依存コードや帳票が崩れる / 影響対象: 帳票/集計 / 規模: 全下流システム"
+  persona_coverage:
+    P1_domain:
+      required_count: 2
+      rationale: "返金ドメインの既存契約（旧フロー）との整合を想像するため必須"
+    P2_destructive:
+      required_count: 2
+      rationale: "NOT NULL制約・既存データ破壊の未来投影。P2主軸"
+    P3_temporal:
+      required_count: 1
+      rationale: "マイグレーション順序のタイミングリスク"
