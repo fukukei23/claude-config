@@ -100,6 +100,39 @@ _write(os.path.join(tmpdir4, "after_same.json"), safe)
 check("post_detect_same", core.detect_token_write(
     os.path.join(tmpdir4, "before.json"), os.path.join(tmpdir4, "after_same.json")), "CLEAN")
 
+# === 復元 + フォールバック ===
+import tempfile as _tf5, os as _os5, json as _json5, hashlib
+tmpdir5 = _tf5.mkdtemp()
+backup_path = _os5.path.join(tmpdir5, "backup.json")
+current_path = _os5.path.join(tmpdir5, "current.json")
+backup_obj = {"permissions": {"allow": ["Bash(npm:*)"]}}
+with open(backup_path, "w") as f:
+    _json5.dump(backup_obj, f)
+_os5.chmod(backup_path, 0o644)
+
+# 復元成功
+with open(current_path, "w") as f:
+    _json5.dump({"env": {"EVIL": "x"}}, f)
+result = core.restore_snapshot(backup_path, current_path)
+check("restore_ok", result, "RESTORED")
+with open(current_path) as f:
+    check("restore_content", _json5.load(f), backup_obj)
+
+# バックアップ破損（壊れたJSON）→ 復元失敗 → chmod 400 フォールバック
+broken_backup = _os5.path.join(tmpdir5, "broken_backup.json")
+with open(broken_backup, "w") as f:
+    f.write("{ this is not json")
+broken_current = _os5.path.join(tmpdir5, "broken_current.json")
+with open(broken_current, "w") as f:
+    _json5.dump({"a": 1}, f)
+_os5.chmod(broken_current, 0o644)
+result2 = core.restore_snapshot(broken_backup, broken_current)
+check("restore_fallback", result2, "FALLBACK_CHMOD400")
+# chmod 000 でないこと
+mode = oct(_os5.stat(broken_current).st_mode)[-3:]
+check("restore_not_000", mode != "000", True)
+check("restore_is_400ish", mode == "400", True)
+
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")
 sys.exit(1 if failed else 0)
 PYEOF

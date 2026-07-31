@@ -2,8 +2,11 @@
 
 spec: docs/superpowers/specs/2026-07-30-guard-settings-write-post-detection-design.md
 """
+import hashlib
 import json
+import os
 import re
+import shutil
 
 # 層1: 既知プロバイダ prefix 辞書（spec§4層ルール・層1）
 # gitleaks 厳選ルールは Task 6 で拡張。まず基本辞書。
@@ -191,3 +194,55 @@ def detect_token_write(before_path: str, after_path: str) -> str:
         return "TOKEN_DETECTED"
 
     return "CLEAN"
+
+
+def _sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _is_valid_json(path: str) -> bool:
+    try:
+        with open(path) as f:
+            json.load(f)
+        return True
+    except Exception:
+        return False
+
+
+def restore_snapshot(backup_path: str, target_path: str) -> str:
+    """復元 + フォールバック。成功条件: cp戻り値0 + サイズ一致 + JSON parse + sha256 AND
+
+    戻り値: "RESTORED" / "FALLBACK_CHMOD400"
+    ※ chmod 000 は使わない（CC本体DoS回避）→ chmod 400
+    """
+    backup_size = os.path.getsize(backup_path)
+    backup_hash = _sha256(backup_path)
+    backup_valid = _is_valid_json(backup_path)
+
+    if not backup_valid:
+        # バックアップが壊れている→復元不能→読取専用化で被害拡大防止
+        os.chmod(target_path, 0o400)
+        return "FALLBACK_CHMOD400"
+
+    try:
+        shutil.copy2(backup_path, target_path)  # cp -p 相当
+    except Exception:
+        os.chmod(target_path, 0o400)
+        return "FALLBACK_CHMOD400"
+
+    # 検証: サイズ + JSON parse + sha256
+    if os.path.getsize(target_path) != backup_size:
+        os.chmod(target_path, 0o400)
+        return "FALLBACK_CHMOD400"
+    if not _is_valid_json(target_path):
+        os.chmod(target_path, 0o400)
+        return "FALLBACK_CHMOD400"
+    if _sha256(target_path) != backup_hash:
+        os.chmod(target_path, 0o400)
+        return "FALLBACK_CHMOD400"
+
+    return "RESTORED"
