@@ -309,12 +309,7 @@ def write_log(log_path: str, event: str, detail: str, suspect_value: str = "") -
         pass
 
 
-# Pre: 書込操作（読取-only の cat/jq/grep は含めない・Gemini G3/MiniMax M3 採用）
-WRITE_OP_RE = re.compile(
-    r"(>\s|>>|sed\s+[^|;&]*-i|tee\s+-a|dd\s+of=|cp\s+/dev/stdin|cat\s*>|awk.*>|"
-    r"sponge\b|mv\s+\S+\s+\S*settings|python3\s+-c.*open\s*\([^)]*['\"][wa])",
-    re.IGNORECASE,
-)
+# Pre: ネットワーク送信検知
 NET_SEND_RE = re.compile(
     r"(curl|wget|nc\s+-|base64\s*\|.*(?:curl|wget)|https?://[a-z0-9.-]+\.[a-z]{2,})",
     re.IGNORECASE,
@@ -324,15 +319,15 @@ SETTINGS_REF_RE = re.compile(r"settings\.json|settings\.local\.json", re.IGNOREC
 
 
 def pre_detect_exfil_chain(cmd: str) -> bool:
-    """Pre: 同一チェイン内に「settings.json 書込」+「ネットワーク送信」が両方存在でブロック
+    """Pre: 同一チェイン内に「settings.json 言及」+「ネットワーク送信」が両方存在でブロック
 
-    ベストエフォート（動的生成・変数展開は完全網羅不可・spec既知限界）。
-    読取-only（cat/jq/grep）は書込動詞WRITE_OP_REに含まない→誤ブロック防止。
-    has_write は「書込動詞あり AND settings.json言及あり」。
+    spec L162準拠: settings.json 触る(読取/書込問わず) + 送信 = ブロック(安全側)。
+    読取-only(jq/cat 単体)は送信なければ通す。
+    ベストエフォート(動的生成・変数展開は完全網羅不可・spec既知限界)。
+    ※plan の has_write(WRITE_OP_RE)実装は spec L162「jq...&&curl=ブロック」と矛盾のため廃止。
     """
     if not cmd:
         return False
     has_settings_ref = bool(SETTINGS_REF_RE.search(cmd))
-    has_write = bool(WRITE_OP_RE.search(cmd)) and has_settings_ref
     has_send = bool(NET_SEND_RE.search(cmd))
-    return has_write and has_send
+    return has_settings_ref and has_send
