@@ -95,3 +95,64 @@ def scan_object(obj) -> bool:
             elif scan_object(item):
                 return True
     return False
+
+
+# 監視対象 JSON パス（spec§監視対象・ホワイトリスト除外方式）
+PERMISSIONS_SUBKEYS = ("allow", "deny", "ask", "default")
+MCP_SUBKEYS = ("env", "headers", "args", "command", "url")
+HOOKS_SUBKEYS = ("env", "command")
+
+
+def _collect_str_values(node) -> list:
+    """任意のJSONノードから文字列値を再帰収集"""
+    out = []
+    if isinstance(node, str):
+        out.append(node)
+    elif isinstance(node, dict):
+        for v in node.values():
+            out.extend(_collect_str_values(v))
+    elif isinstance(node, list):
+        for item in node:
+            out.extend(_collect_str_values(item))
+    return out
+
+
+def extract_monitored_values(settings: dict) -> list:
+    """監視対象パス配下の文字列値を全て抽出（未知フィールドも含む・ホワイトリスト除外）"""
+    vals = []
+    perms = settings.get("permissions", {})
+    if isinstance(perms, dict):
+        for sk in PERMISSIONS_SUBKEYS:
+            if sk in perms:
+                vals.extend(_collect_str_values(perms[sk]))
+    if "env" in settings:
+        vals.extend(_collect_str_values(settings["env"]))
+    for mcp_name, mcp_cfg in settings.get("mcpServers", {}).items():
+        if isinstance(mcp_cfg, dict):
+            for sk in MCP_SUBKEYS:
+                if sk in mcp_cfg:
+                    vals.extend(_collect_str_values(mcp_cfg[sk]))
+            # mcpCfg 内の未知 secret 系キーも層3/4で拾えるよう全値収集は scan_object に任せる
+    for hook_event, hook_list in settings.get("hooks", {}).items():
+        if isinstance(hook_list, list):
+            for h in hook_list:
+                if isinstance(h, dict):
+                    for hh in h.get("hooks", []):
+                        if isinstance(hh, dict):
+                            for sk in HOOKS_SUBKEYS:
+                                if sk in hh:
+                                    vals.extend(_collect_str_values(hh[sk]))
+    return vals
+
+
+def has_new_token_value(old_vals: set, new_vals: set) -> bool:
+    """意味的差分: 新規に出現した値が ${ENV}参照以外の実値か"""
+    added = set(new_vals) - set(old_vals)
+    for v in added:
+        if not v:
+            continue
+        if STRICT_ENV_RE.match(v):  # ${ENV} 追加は許可
+            continue
+        # 新規実値の出現 = 発火条件（4層判定は extract→scan で別途適用）
+        return True
+    return False

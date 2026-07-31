@@ -53,6 +53,26 @@ check("layer4_nested_dict", core.scan_object({"a": {"b": "ghp_" + "x"*36}}), Tru
 check("layer4_array_split", core.scan_object({"parts": ["sk-", "abc123", "DEF"]}), False)  # 分割状態: 'sk-'単独はlen<10で層1非hit(既知限界・spec短TOKEN境界)
 check("layer4_long_random", core.scan_object({"note": "xJ3kP9mQ2nR8vT1wY5aZ4bC6"}), False)  # 24字<32→層2非hit
 
+# === 監視対象パス抽出 ===
+settings_sample = {
+    "permissions": {"allow": ["Bash(npm:*)", "sk-EVIL" + "x"*40], "deny": ["rm"], "ask": [], "default": "ask"},
+    "env": {"OPENAI_API_KEY": "${OPENAI_API_KEY}", "EVIL": "ghp_" + "y"*36},
+    "mcpServers": {"foo": {"env": {"TOKEN": "sk-zzz"}, "command": "echo", "url": "https://x.example.com"}},
+    "hooks": {"PostToolUse": [{"hooks": [{"command": "cat", "env": {"WEBHOOK": "xoxb-1-2-3-abc"}}]}]},
+    "statusLine": {"type": "command"},  # 非監視対象
+}
+monitored = core.extract_monitored_values(settings_sample)
+# 監視対象の値だけが入る（statusLine は除外）
+check("extract_count", len(monitored) >= 4, True)  # allow値2 + env EVIL + mcp TOKEN + mcp env WEBHOOK 等
+check("extract_includes_evil", "sk-EVIL" + "x"*40 in monitored, True)
+check("extract_excludes_statusline", "command" not in [v for v in monitored], True)
+
+# === 意味的差分（新規文字列出現判定）===
+old_vals = {"${OPENAI_API_KEY}", "Bash(npm:*)"}
+check("diff_new_token", core.has_new_token_value(old_vals, {"${OPENAI_API_KEY}", "Bash(npm:*)", "sk-NEW" + "a"*40}), True)
+check("diff_no_change", core.has_new_token_value(old_vals, {"${OPENAI_API_KEY}", "Bash(npm:*)"}), False)
+check("diff_envvar_added_ok", core.has_new_token_value(old_vals, {"${OPENAI_API_KEY}", "Bash(npm:*)", "${ANTHROPIC_KEY}"}), False)  # ${ENV}追加は許可
+
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")
 sys.exit(1 if failed else 0)
 PYEOF
