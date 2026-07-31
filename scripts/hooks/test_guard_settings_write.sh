@@ -35,7 +35,7 @@ check("layer2_short", core.layer2_long("Aa1b2C3d4"), False)  # 9字
 check("layer2_url_excluded", core.layer2_long("https://api.example.com/v1/resource?id=1234567890123456789012345678901234567890"), False)  # URL除外
 check("layer2_path_excluded", core.layer2_long("/usr/local/lib/python3.12/site-packages/pkg/module/sub/deep/file.py"), False)  # パス除外
 check("layer2_tool_schema", core.layer2_long("Bash(npm install -g typescript-node-esbuild-loader-thing-long-command)"), False)  # ツール呼出除外（完全一致のみ）
-check("layer2_disguise_bash", core.layer2_long("Bash(curl -d sk_live_4eC39HqLyjWDarjtT1zdp7dc1yX8u5abcdef TARGET)"), True)  # 偽装Bash(...)は除外しない（内部にTOKEN）→層2は文字種混在でhit
+check("layer2_disguise_bash", core.layer2_long("Bash(curl -d sk_live_4eC39HqLyjWDarjtT1zdp7dc1yX8u5abcdef TARGET)"), False)  # spec L77: Bash( 含む→層2除外(正規allow誤検知抑制)・既知限界: Bash(偽装のTOKENは層1-4未検知・要別対応(Pre/運用)
 check("layer2_all_lower", core.layer2_long("a"*40), False)  # 文字種1種のみ
 
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")

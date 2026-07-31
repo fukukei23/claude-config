@@ -33,10 +33,14 @@ def layer1_prefix(value: str) -> bool:
 def _char_class_count(value: str) -> int:
     """英大文字・英小文字・数字・記号のうち何種類含むか"""
     classes = 0
-    if re.search(r"[A-Z]", value): classes += 1
-    if re.search(r"[a-z]", value): classes += 1
-    if re.search(r"[0-9]", value): classes += 1
-    if re.search(r"[^A-Za-z0-9\s]", value): classes += 1
+    if re.search(r"[A-Z]", value):
+        classes += 1
+    if re.search(r"[a-z]", value):
+        classes += 1
+    if re.search(r"[0-9]", value):
+        classes += 1
+    if re.search(r"[^A-Za-z0-9\s]", value):
+        classes += 1
     return classes
 
 
