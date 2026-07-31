@@ -73,6 +73,33 @@ check("diff_new_token", core.has_new_token_value(old_vals, {"${OPENAI_API_KEY}",
 check("diff_no_change", core.has_new_token_value(old_vals, {"${OPENAI_API_KEY}", "Bash(npm:*)"}), False)
 check("diff_envvar_added_ok", core.has_new_token_value(old_vals, {"${OPENAI_API_KEY}", "Bash(npm:*)", "${ANTHROPIC_KEY}"}), False)  # ${ENV}追加は許可
 
+# === Post 検知メイン（スナップショット比較）===
+import tempfile, os, json as _json4
+def _write(path, obj):
+    with open(path, "w") as f:
+        _json4.dump(obj, f, sort_keys=True, indent=2)
+
+tmpdir4 = tempfile.mkdtemp()
+safe = {"permissions": {"allow": ["Bash(npm:*)"]}, "env": {"K": "${K}"}}
+_write(os.path.join(tmpdir4, "before.json"), safe)
+
+# 攻撃: TOKEN 追加
+attack = {"permissions": {"allow": ["Bash(npm:*)", "sk-EVIL" + "x"*40]}, "env": {"K": "${K}"}}
+_write(os.path.join(tmpdir4, "after_attack.json"), attack)
+check("post_detect_attack", core.detect_token_write(
+    os.path.join(tmpdir4, "before.json"), os.path.join(tmpdir4, "after_attack.json")), "TOKEN_DETECTED")
+
+# 正規: ${ENV} 追加
+legit = {"permissions": {"allow": ["Bash(npm:*)"]}, "env": {"K": "${K}", "NEW": "${NEW_KEY}"}}
+_write(os.path.join(tmpdir4, "after_legit.json"), legit)
+check("post_detect_legit", core.detect_token_write(
+    os.path.join(tmpdir4, "before.json"), os.path.join(tmpdir4, "after_legit.json")), "CLEAN")
+
+# 正規: 値不変
+_write(os.path.join(tmpdir4, "after_same.json"), safe)
+check("post_detect_same", core.detect_token_write(
+    os.path.join(tmpdir4, "before.json"), os.path.join(tmpdir4, "after_same.json")), "CLEAN")
+
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")
 sys.exit(1 if failed else 0)
 PYEOF

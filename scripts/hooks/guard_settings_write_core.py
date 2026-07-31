@@ -2,6 +2,7 @@
 
 spec: docs/superpowers/specs/2026-07-30-guard-settings-write-post-detection-design.md
 """
+import json
 import re
 
 # 層1: 既知プロバイダ prefix 辞書（spec§4層ルール・層1）
@@ -156,3 +157,37 @@ def has_new_token_value(old_vals: set, new_vals: set) -> bool:
         # 新規実値の出現 = 発火条件（4層判定は extract→scan で別途適用）
         return True
     return False
+
+
+def detect_token_write(before_path: str, after_path: str) -> str:
+    """Post 検知メイン: before/after の settings.json を意味的差分 + 4層判定
+
+    戻り値: "TOKEN_DETECTED" / "CLEAN" / "PARSE_ERROR"
+    """
+    try:
+        with open(before_path) as f:
+            before = json.load(f)
+        with open(after_path) as f:
+            after = json.load(f)
+    except Exception:
+        return "PARSE_ERROR"
+
+    old_vals = set(extract_monitored_values(before))
+    new_vals = set(extract_monitored_values(after))
+
+    # 1. 意味的差分: 新規実値が出現したか
+    if not has_new_token_value(old_vals, new_vals):
+        return "CLEAN"
+
+    # 2. 新規値に対して4層判定（層4 ブロードスキャンで after 全体を走査）
+    if scan_object(after.get("permissions", {})) or \
+       scan_object(after.get("env", {})) or \
+       scan_object(after.get("mcpServers", {})) or \
+       scan_object(after.get("hooks", {})):
+        return "TOKEN_DETECTED"
+
+    # 3. settings.local.json モード: 全値走査（spec§監視対象）
+    if scan_object(after):
+        return "TOKEN_DETECTED"
+
+    return "CLEAN"
