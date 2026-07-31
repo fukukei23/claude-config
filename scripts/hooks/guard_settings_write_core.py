@@ -82,10 +82,23 @@ def layer3_keyname(key: str, value: str) -> bool:
 
 
 def scan_value_for_token(key: str, value: str) -> bool:
-    """層4(単値): キー名無関係に層1+層2 を適用（キー名偽装対策の最終網）"""
+    """層4(単値): キー名無関係に層1+層2 を適用（キー名偽装対策の最終網）
+
+    ツール呼出形式(Bash(curl -d TOKEN)等)の偽装TOKENは layer2_long が
+    TOOL_SCHEMA_RE で全体を除外してしまうため、inner引数を分割再走査して捕捉(限界1是正)。
+    ※残限界: inner引数が10字未満の短TOKEN偽装は layer1 len<10ガードで捕捉不可。
+    """
     if not isinstance(value, str):
         return False
-    return layer1_prefix(value) or layer2_long(value)
+    if layer1_prefix(value) or layer2_long(value):
+        return True
+    # 層4 最終網(偽装Bash捕捉): ツール呼出形式の場合、引数を個別に走査
+    if TOOL_SCHEMA_RE.match(value):
+        inner = value[value.find("(") + 1 : value.rfind(")")]
+        for arg in inner.split():
+            if layer1_prefix(arg) or layer2_long(arg):
+                return True
+    return False
 
 
 def scan_object(obj) -> bool:
