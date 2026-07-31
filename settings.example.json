@@ -184,6 +184,15 @@
             "command": "~/.claude/scripts/hooks/impact-a-wrapper.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/guard-settings-write.sh"
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [
@@ -247,6 +256,15 @@
           {
             "type": "command",
             "command": "~/.claude/scripts/hooks/guard-config-secrets.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/guard-settings-write.sh"
           }
         ]
       }
@@ -362,6 +380,15 @@
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/obsidian/check-manifest-health.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/guard-settings-snapshot-init.sh"
           }
         ]
       }
