@@ -164,6 +164,22 @@ check("gitleaks_huggingface", core.layer1_prefix("hf_" + "x"*36), True)        #
 check("gitleaks_perplexity", core.layer1_prefix("pplx-" + "x"*40), True)      # Perplexity
 check("gitleaks_vercel", core.layer1_prefix("vercel_token_" + "x"*30), True)  # Vercel
 
+# === ロギング（TOKEN原値非混入）===
+import tempfile as _tf7, os as _os7, json as _json7
+tmpdir7 = _tf7.mkdtemp()
+log_path = _os7.path.join(tmpdir7, "guard-settings-write.log")
+secret = "sk-supersecretVALUE1234567890abcdefghijklmnop"
+core.write_log(log_path, event="TOKEN_DETECTED", detail="allow配下にTOKEN追加", suspect_value=secret)
+with open(log_path) as f:
+    log_content = f.read()
+check("log_no_plaintext", secret not in log_content, True)         # 原値絶対書かない
+check("log_has_redacted", "[REDACTED:hk:" in log_content, True)     # ハッシュ化マーカー
+check("log_no_prefix8", "sk-supe" not in log_content, True)         # 先頭8字も書かない
+# JSON Lines 形式
+for line in log_content.strip().splitlines():
+    parsed = _json7.loads(line)  # 各行が valid JSON
+    check("log_jsonl", "event" in parsed and "detail" in parsed, True)
+
 print(f"\n{'='*40}\npassed: {passed} / failed: {failed}")
 sys.exit(1 if failed else 0)
 PYEOF

@@ -280,3 +280,30 @@ def is_bypass_active(bypass_dir: str, ttl_seconds: int = 300) -> bool:
             except OSError:
                 pass
     return active
+
+
+def write_log(log_path: str, event: str, detail: str, suspect_value: str = "") -> None:
+    """JSON Lines ログ。TOKEN原値は絶対書かない・[REDACTED:hk:<sha256-prefix>] ハッシュ化
+
+    100MB×10世代 gzip ローテーションは運用 logrotate に委譲（本関数は追記のみ）。
+    ※spec 0444 乖離(2026-07-31 MiniMax M4採用): 追記型ログで 0444 にすると2回目以降書けない
+      → 0600(所有者のみrw) で運用・spec意図(hook外改ざん防止・原値非混入)は 0600 で達成。
+    """
+    redacted = ""
+    if suspect_value:
+        h = hashlib.sha256(suspect_value.encode()).hexdigest()
+        redacted = f"[REDACTED:hk:{h[:12]}]"  # sha256先頭12字のみ（原値復元不可）
+
+    entry = {
+        "ts": int(time.time()),
+        "event": event,
+        "detail": detail,
+        "suspect": redacted,  # 原値は絶対入れない
+    }
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    with open(log_path, "a") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    try:
+        os.chmod(log_path, 0o600)  # 所有者のみrw・spec 0444→0600 乖離(上記docstring参照)
+    except OSError:
+        pass
