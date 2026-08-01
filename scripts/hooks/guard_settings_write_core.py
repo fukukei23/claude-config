@@ -5,6 +5,7 @@ spec: docs/superpowers/specs/2026-07-30-guard-settings-write-post-detection-desi
 import glob
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -24,6 +25,7 @@ PREFIX_PATTERNS = [
     re.compile(r"^hf_"),                 # HuggingFace (gitleaks厳選)
     re.compile(r"^pplx-"),               # Perplexity (gitleaks厳選)
     re.compile(r"^vercel_token_"),       # Vercel (gitleaks厳選)
+    re.compile(r"^eyJ"),                 # JWT (JSON Web Token)
 ]
 
 # 層2: 除外パターン（誤検知抑制）
@@ -56,6 +58,17 @@ def _char_class_count(value: str) -> int:
     if re.search(r"[^A-Za-z0-9\s]", value):
         classes += 1
     return classes
+
+
+def _shannon_entropy(value: str) -> float:
+    """Shannon entropy (bits/char) — 有限サンプルの観測頻度から計算"""
+    if not value:
+        return 0.0
+    freq = {}
+    for ch in value:
+        freq[ch] = freq[ch] + 1
+    n = len(value)
+    return -sum((c / n) * math.log2(c / n) for c in freq.values())
 
 
 def layer2_long(value: str) -> bool:
