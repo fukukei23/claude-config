@@ -60,7 +60,8 @@
       "Bash(rm /home/yn4416/projects/NexusCore/tests/api/archive/*)",
       "Bash(rmdir /home/yn4416/projects/NexusCore/tests/api/archive)",
       "Bash(bash /home/yn4416/.claude/scripts/session/startup-banner.sh)",
-      "mcp__minimax__minimax_ask"
+      "mcp__minimax__minimax_ask",
+      "mcp__gemini__review_with_gemini"
     ]
   }
 }
