@@ -66,7 +66,7 @@ def _shannon_entropy(value: str) -> float:
         return 0.0
     freq = {}
     for ch in value:
-        freq[ch] = freq[ch] + 1
+        freq[ch] = freq.get(ch, 0) + 1
     n = len(value)
     return -sum((c / n) * math.log2(c / n) for c in freq.values())
 
@@ -94,6 +94,39 @@ def layer3_keyname(key: str, value: str) -> bool:
     return not STRICT_ENV_RE.match(value)
 
 
+# 層2.5: Shannon entropy 補完層（hex/base64-only TOKEN・案A: キー名AND）
+HEX_ONLY_RE = re.compile(r"^[0-9a-fA-F]+$")
+BASE64_ONLY_RE = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
+ENTROPY_MIN_LEN = 32
+HEX_ENTROPY_THRESHOLD = 3.0    # truffleHog HEX_CHARS 標準
+B64_ENTROPY_THRESHOLD = 4.5    # truffleHog BASE64_CHARS 標準
+
+
+def layer25_entropy(key: str, value: str) -> bool:
+    """層2.5: Shannon entropy による hex/base64-only TOKEN 補捉（案A: キー名AND）
+
+    層2の文字種3種要件を満たさない hex-only TOKEN（文字種2種: 小文字+数字）を補完。
+    entropy 単体では hex TOKEN(3.93) と git SHA(3.94) が不可分離のため、
+    SECRET_KEY_RE(token|secret|api_key|webhook|password|auth) に一致するキー名の下の
+    値に限定し「settings.json に secret 系キーで正当な hex を置く用法は存在しない」
+    文脈的排除で誤報ゼロを達成。層3は独立経路（本層は scan_value_for_token 内で層1/2 とOR）。
+
+    評価順序（性能・早期return）: len → キー名 → ${ENV} → entropy計算(O(n))。
+    ※本関数は settings.json 走査専用。他hook再利用時は誤報を再評価すること。
+    """
+    if not value or len(value) < ENTROPY_MIN_LEN:
+        return False
+    if not SECRET_KEY_RE.search(key or ""):
+        return False
+    if STRICT_ENV_RE.match(value):      # ${ENV} 参照は許可
+        return False
+    if HEX_ONLY_RE.match(value) and _shannon_entropy(value) >= HEX_ENTROPY_THRESHOLD:
+        return True
+    if BASE64_ONLY_RE.match(value) and _shannon_entropy(value) >= B64_ENTROPY_THRESHOLD:
+        return True
+    return False
+
+
 def scan_value_for_token(key: str, value: str) -> bool:
     """層4(単値): キー名無関係に層1+層2 を適用（キー名偽装対策の最終網）
 
@@ -103,13 +136,13 @@ def scan_value_for_token(key: str, value: str) -> bool:
     """
     if not isinstance(value, str):
         return False
-    if layer1_prefix(value) or layer2_long(value):
+    if layer1_prefix(value) or layer2_long(value) or layer25_entropy(key, value):
         return True
     # 層4 最終網(偽装Bash捕捉): ツール呼出形式の場合、引数を個別に走査
     if TOOL_SCHEMA_RE.match(value):
         inner = value[value.find("(") + 1 : value.rfind(")")]
         for arg in inner.split():
-            if layer1_prefix(arg) or layer2_long(arg):
+            if layer1_prefix(arg) or layer2_long(arg) or layer25_entropy(key, arg):
                 return True
     return False
 
