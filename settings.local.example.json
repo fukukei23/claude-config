@@ -60,10 +60,11 @@
       "Bash(rm /home/yn4416/projects/NexusCore/tests/api/archive/*)",
       "Bash(rmdir /home/yn4416/projects/NexusCore/tests/api/archive)",
       "Bash(bash /home/yn4416/.claude/scripts/session/startup-banner.sh)",
+      "Bash(wsl bash *)",
       "Bash(command -v wsl.exe)",
-      "Bash(wsl.exe -- bash -lc 'echo HOME=$HOME; uname -a; whoami')",
-      "Bash(wsl.exe -- bash -lc 'ls -la $HOME/.claude/scripts/auto-dev/daily-triage.sh 2>&1; echo \"---\"; find $HOME/.claude/scripts -iname \"*triage*\" 2>&1')",
-      "Bash(wsl.exe -- bash -lc 'bash $HOME/.claude/scripts/auto-dev/daily-triage.sh --notify-discord')"
+      "Bash(wsl.exe -- pwd)",
+      "Bash(wsl.exe -- ls -la)",
+      "Bash(wsl.exe bash *)"
     ]
   }
 }
