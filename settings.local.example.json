@@ -64,7 +64,9 @@
       "Bash(command -v wsl.exe)",
       "Bash(wsl.exe -- pwd)",
       "Bash(wsl.exe -- ls -la)",
-      "Bash(wsl.exe bash *)"
+      "Bash(wsl.exe bash *)",
+      "Skill(loop)",
+      "Skill(loop:*)"
     ]
   }
 }
