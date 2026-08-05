@@ -43,30 +43,45 @@ def detect_new_decision_files(diff_output: str) -> list[tuple[str, str]]:
 
 def run_observation(
     project: str,
+    trigger_file: str,
     ssot_root: Path | str | None = None,
-    dry_run_fn: Callable[..., dict] | None = None,
+    classify_fn: Callable[..., dict] | None = None,
+    load_approved_fn: Callable[..., list[str]] | None = None,
 ) -> dict:
-    """新規ファイル追加PJで dry-run 発火 → 新規テーマ候補抽出.
+    """新規ファイル(trigger_file)単体を分類 → 新規テーマ候補抽出.
+
+    A‴′は「新規ファイル追加時だけ dry-run 発火」が目的。PJ全ファイル分類
+    (run_dry_run)は大PJでGemini大量呼出→timeoutするため、trigger_file 1件のみ
+    分類する(軽量・Gemini 1回呼出)。採用率集計は Phase0 の別用途。
 
     Args:
         project: ``01_DECISIONS/<project>`` のプロジェクト名。
-        ssot_root: SSOT ルート(省略時は dry_run_fn デフォルト)。
-        dry_run_fn: dry-run 関数(依存注入・テスト用。デフォルト ``run_dry_run``)。
+        trigger_file: 新規追加ファイル名(``01_DECISIONS/<project>/`` 配下)。
+        ssot_root: SSOT ルート(省略時は ``~/projects/obsidian-ssot``)。
+        classify_fn: 1ファイル分類関数(依存注入・テスト用。デフォルト ``_classify_file_themes``)。
+        load_approved_fn: approved_themes 読込関数(依存注入・テスト用)。
 
     Returns:
-        ``{"project", "new_themes", "file_count", "adoption_rate", "timestamp"}``。
+        ``{"project", "trigger_file", "new_themes", "matched", "confidence",
+        "needs_review", "timestamp"}``。
     """
-    if dry_run_fn is None:
-        from scripts.obsidian.theme_classifier import run_dry_run as dry_run_fn
-    from scripts.obsidian.theme_classifier import collect_new_themes
+    if classify_fn is None:
+        from scripts.obsidian.theme_classifier import _classify_file_themes as classify_fn
+    if load_approved_fn is None:
+        from scripts.obsidian.theme_classifier import _load_approved_themes as load_approved_fn
 
-    result = dry_run_fn(project, ssot_root=ssot_root)
-    new_themes = collect_new_themes(result["per_file"])
+    if ssot_root is None:
+        ssot_root = Path.home() / "projects/obsidian-ssot"
+    proj_dir = Path(ssot_root) / "01_DECISIONS" / project
+    approved = load_approved_fn(proj_dir / "_INDEX.md")
+    result = classify_fn(proj_dir / trigger_file, approved)
     return {
         "project": project,
-        "new_themes": new_themes,
-        "file_count": result["total"],
-        "adoption_rate": result["adoption_rate"],
+        "trigger_file": trigger_file,
+        "new_themes": result.get("new", []),
+        "matched": result.get("matched", []),
+        "confidence": result.get("confidence", 0.0),
+        "needs_review": result.get("needs_review", False),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

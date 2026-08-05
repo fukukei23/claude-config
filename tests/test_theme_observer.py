@@ -54,54 +54,53 @@ class TestDetectNewDecisionFiles:
 # ============ T2: run_observation ============
 
 class TestRunObservation:
-    """dry-run 発火 → 新規テーマ候補抽出(依存注入でGeminiをモック)."""
+    """trigger_file 単体分類 → 新規テーマ候補抽出(依存注入でGeminiをモック)."""
+
+    @staticmethod
+    def _mock_load(index_path) -> list[str]:  # type: ignore[no-untyped-def]
+        return ["既存テーマ"]
 
     def test_extracts_new_themes(self) -> None:
-        def mock_dry(project: str, ssot_root=None) -> dict:
-            return {
-                "per_file": [
-                    {"file": "a.md", "new": ["新テーマ1"], "matched": []},
-                    {"file": "b.md", "new": [], "matched": ["既存テーマ"]},
-                ],
-                "adoption_rate": 0.5,
-                "total": 2,
-                "approved": [],
-            }
+        def mock_classify(file_path, approved) -> dict:  # type: ignore[no-untyped-def]
+            return {"matched": ["既存テーマ"], "new": ["新テーマ1"], "proposed": [],
+                    "confidence": 0.85, "needs_review": False}
 
-        result = run_observation("test-pj", dry_run_fn=mock_dry)
+        result = run_observation("test-pj", "2026-08-06_x.md",
+                                 classify_fn=mock_classify, load_approved_fn=self._mock_load)
         assert result["new_themes"] == ["新テーマ1"]
-        assert result["file_count"] == 2
-        assert result["adoption_rate"] == 0.5
+        assert result["matched"] == ["既存テーマ"]
+        assert result["trigger_file"] == "2026-08-06_x.md"
         assert result["project"] == "test-pj"
+        assert result["confidence"] == 0.85
         assert "timestamp" in result
 
     def test_no_new_themes(self) -> None:
-        def mock_dry(project: str, ssot_root=None) -> dict:
-            return {
-                "per_file": [{"file": "a.md", "new": [], "matched": ["既存"]}],
-                "adoption_rate": 1.0,
-                "total": 1,
-                "approved": ["既存"],
-            }
+        def mock_classify(file_path, approved) -> dict:  # type: ignore[no-untyped-def]
+            return {"matched": ["既存"], "new": [], "proposed": [],
+                    "confidence": 0.9, "needs_review": False}
 
-        result = run_observation("pj", dry_run_fn=mock_dry)
+        result = run_observation("pj", "a.md",
+                                 classify_fn=mock_classify, load_approved_fn=self._mock_load)
         assert result["new_themes"] == []
-        assert result["adoption_rate"] == 1.0
+        assert result["matched"] == ["既存"]
 
-    def test_dedup_new_themes(self) -> None:
-        def mock_dry(project: str, ssot_root=None) -> dict:
-            return {
-                "per_file": [
-                    {"file": "a.md", "new": ["X", "Y"], "matched": []},
-                    {"file": "b.md", "new": ["Y", "Z"], "matched": []},
-                ],
-                "adoption_rate": 0.0,
-                "total": 2,
-                "approved": [],
-            }
+    def test_multiple_new_themes_in_single_file(self) -> None:
+        def mock_classify(file_path, approved) -> dict:  # type: ignore[no-untyped-def]
+            return {"matched": [], "new": ["X", "Y", "Z"], "proposed": [],
+                    "confidence": 0.6, "needs_review": True}
 
-        result = run_observation("pj", dry_run_fn=mock_dry)
+        result = run_observation("pj", "a.md",
+                                 classify_fn=mock_classify, load_approved_fn=self._mock_load)
         assert result["new_themes"] == ["X", "Y", "Z"]
+        assert result["needs_review"] is True
+
+    def test_missing_new_key_handled(self) -> None:
+        def mock_classify(file_path, approved) -> dict:  # type: ignore[no-untyped-def]
+            return {"matched": ["既存"], "proposed": [], "confidence": 0.9}
+
+        result = run_observation("pj", "a.md",
+                                 classify_fn=mock_classify, load_approved_fn=self._mock_load)
+        assert result["new_themes"] == []
 
 
 # ============ T3: log_observation ============
