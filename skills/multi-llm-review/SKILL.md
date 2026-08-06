@@ -1,7 +1,6 @@
 ---
 name: multi-llm-review
-description: 設計・コード・文章を複数の異なるLLMに並列独立レビューさせ、ホストLLMが当初目的を基準に取捨統合して改訂案を作る。手動発動のみ。デフォルト2機（WSL CLI版: MiniMax+Gemini）・triple指定で3機（MiniMax+Gemini+OpenRouter無料枠1機）。ユーザーが「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「3つのLLMで」「3機でしっかり」「panel review」「jury review」「クロスLLMレビュー」などと依頼した時に使う。改訂案が欲しい時は本スキル（ツッコミ箇条書きで良い時は multi-llm-review-lite）。
-disable-model-invocation: true
+description: 設計・コード・文章を複数の異なるLLMに並列独立レビューさせ、ホストLLMが当初目的を基準に取捨統合して改訂案を作る。デフォルト2機（WSL CLI版: MiniMax+Gemini）・triple指定で3機（MiniMax+Gemini+OpenRouter無料枠1機）。ユーザーが「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「3つのLLMで」「3機でしっかり」「panel review」「jury review」「クロスLLMレビュー」などと依頼した時に使う。改訂案が欲しい時は本スキル（ツッコミ箇条書きで良い時は multi-llm-review-lite）。
 ---
 
 # multi-llm-review
@@ -12,7 +11,7 @@ disable-model-invocation: true
 
 **核心価値: モデル多様性**。既存の `doubt-driven-development`（同LLM adversarial）/ `sentaku` L3（同LLM弁証）/ `superpowers:dispatching-parallel-agents`（同LLM並列）は全て **context 多様性**（同一LLM内での視点切り替え）。本スキルは **異なるLLMの死角を補完する** ことで直交する価値を提供する（**直交**＝観点パックは共通でも、異なるLLMが独立に発見する指摘の非重複度。3ラウンド実例で両LLMが同じ致命点を独立指摘した際に価値が実証される）。
 
-## トリガーワード（手動発動のみ）
+## トリガーワード（自然言語・スラッシュコマンド両方可）
 
 - 「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「各LLMでレビューして」
 - 「3つのLLMで」「3機でしっかり」「しっかりレビューして」→ **triple モード**（3機・後述）
