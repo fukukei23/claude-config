@@ -513,6 +513,9 @@
       "env": {
         "GLM_API_KEY": "97c1***MASKED***"
       }
+    },
+    "minimax-official": {
+      "timeout": 900
     }
   },
   "autoDream": {
