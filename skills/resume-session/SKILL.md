@@ -195,7 +195,7 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 `obsidian-ssot/00_SYSTEM/active-sessions.md` の「## セッション状態」テーブルの**先頭行**（ヘッダ直後）に挿入:
 - **ID: `WT4`（WT_SESSION先頭4桁・spec 2026-07-09 セッション識別子改善）** — /clear跨ぎでも同一・handoffファイル名と統一・自分行特定の照合キー
 - セッション: 環境(WSL-CLI/Win)+トピック短縮名（**＝タスク名で統一**）
-- 触る共通ファイル: 当該トピックで触りそうな共通ファイル（無ければ「—」）
+- 触る共通ファイル: 当該トピックで触りそうな共通ファイル（無ければ「—」）・**実パスは `~/.claude/state/active-sessions-paths.json` に書き、🟢行には件数+「→paths.json」のみ記載（層2b・2026-08-11・フルパス直書き避ける・循環参照回避）**
 - 方針: 1行で（「調査」「修正方向」「削除検討」等）
 - 開始: `MM-DD HH:MM`（日付必須・GC判定と24hチェックの基準）
 - 状態: 🟢
@@ -210,6 +210,25 @@ WT4=${EFFECTIVE_WT:0:4}; echo "WT4=$WT4"
 ```markdown
 | <WT4> | <環境-トピック(=タスク名)> | <触る共通ファイル> | <1行の方針> | <MM-DD HH:MM> | 🟢 |
 ```
+
+### 4b-2. paths.json に宣言path書込（層2b・spec §2.1・ID照合ガード §4.4）
+
+🟢行追加後、触るファイル実パスを `~/.claude/state/active-sessions-paths.json` に書込。auto-sync（*/30 cron）がこのpathを**除外宣言**として参照し、🟢活動中ファイルの巻き込みを防ぐ（post-push監査層 `audit-auto-sync-commits.py` もこのpathで🟢宣言を把握）。
+
+```bash
+# ID照合ガード: 現セッションWT4 = 🟢行ID 確認（不一致は書込拒否・spec §4.4）
+WT4=${EFFECTIVE_WT:0:4}
+# paths.json に WT4 エントリ追記（python非接触編集・既存entries保持・git pathspec互換）
+python3 -c "
+import json
+p='$HOME/.claude/state/active-sessions-paths.json'
+d=json.load(open(p))
+d.setdefault('entries',{})['$WT4']=['<触るファイル実パス1>','<触るファイル実パス2>']  # 文脈/ユーザーから特定・obsidian-ssot repo相対
+json.dump(d,open(p,'w'),indent=2,ensure_ascii=False)
+"
+```
+
+⚠️ **ID照合ガード（spec §4.4）**: `$WT4` が🟢行IDと一致すること必須（不一致は paths.json 書込拒否）。**🟢行→paths.json の順で必ず両方書く**（paths.jsonだけ書いて🟢行が無いと、監査が🟢宣言を拾えず誤検出になる）。
 
 **重複確認（soft警告）**: 追加前に同表に状態🟢の同名セッションがあれば:
 > ⚠️「<セッション名>」は <HH:MM>〜進行中です。重複着手しますか？（ユーザー判断・ブロックしない）
