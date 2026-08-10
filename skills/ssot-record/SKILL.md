@@ -715,6 +715,25 @@ tags: [tag1, tag2]
 
 **注意**: 共通ファイルを触る**前**にボードで被り確認（逆方向ならユーザー判断）。本ステップは事後の宣言更新。
 
+**paths.json 同期（層2b・2026-08-11・spec §2.1/§4.4）**: 共通ファイルを触った場合、active-sessions.md の更新と**同時に** `~/.claude/state/active-sessions-paths.json` の自セッションWT4エントリに触ったファイルpathを追記する（auto-sync が宣言除外参照・post-push監査層 `audit-auto-sync-commits.py` もこのpathで🟢宣言を把握）。**🟢行とpaths.jsonは常に同期**（片方だけだと監査が誤検出になる）。
+
+```bash
+# WT4取得（resume-session Step1と同一・2026-07-30フォールバック）
+WT_SESSION="${WT_SESSION:-unknown}"; SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+EFFECTIVE_WT="$WT_SESSION"; [ "$WT_SESSION" = "unknown" ] && EFFECTIVE_WT="$SESSION_ID"
+WT4=${EFFECTIVE_WT:0:4}
+# paths.json の自WT4エントリに触ったファイルを追加（既存保持・重複回避・git pathspec互換）
+python3 -c "
+import json
+p='$HOME/.claude/state/active-sessions-paths.json'
+d=json.load(open(p))
+paths=d.setdefault('entries',{}).setdefault('$WT4',[])
+for f in ['<触ったファイル実パス>']:  # 文脈から特定・obsidian-ssot repo相対
+    if f not in paths: paths.append(f)
+json.dump(d,open(p,'w'),indent=2,ensure_ascii=False)
+"
+```
+
 ### 3-8. 00_SYSTEM ハブ更新（ハブマッピング.md検出時・フェーズ0.5）
 
 フェーズ0.5の `ハブマッピング.md` 検出結果に従い、00_SYSTEMの該当ハブへ追記。
