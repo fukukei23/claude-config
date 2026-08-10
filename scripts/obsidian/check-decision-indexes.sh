@@ -20,9 +20,10 @@ for dir in "$DECISIONS_DIR"/*/; do
         continue
     fi
 
-    # dataview ブロックで全件表示なら参照数チェック不要（spec §4.5 KPI-2）
-    # generate側は既に has_dataview 判定で追記スキップするが、check側だけ未対応だった乖離を解消
-    if grep -q "FROM \"01_DECISIONS/$dir_name\"" "$INDEX"; then
+    # dataview ブロック または no-dataviewマーカー(案W・CLI前提・全件は実ファイル直参照)があれば参照数チェック不要
+    # - dataview: 人間用Obsidianで全件表示（spec §4.5 KPI-2）
+    # - no-dataviewマーカー: 案W採用PJ（dataview廃止・CLI前提・2026-08-11 Zernio知見分断RCA）
+    if grep -q "FROM \"01_DECISIONS/$dir_name\"" "$INDEX" || grep -q "<!-- no-dataview" "$INDEX"; then
         continue
     fi
 
