@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     dry_run = "--dry-run" in args
 
     # aiwatch ユニット遅延import(テストの分離維持)
-    from aiwatch import collector, cost, env_profiler, guide_generator, lifecycle, rule_scorer, safety
+    from aiwatch import collector, cost, env_profiler, guide_generator, lifecycle, rule_scorer, safety, translator
     from aiwatch.models import RepoStats
 
     try:
@@ -189,6 +189,12 @@ def main(argv: list[str] | None = None) -> int:
         ]
         evaluated_repos = rule_scorer.score_repos(repos_stats, profile)
 
+        # 6.5 description日本語翻訳(Phase2先取り・MiniMax直接API・失敗時は英語フォールバック)
+        desc_map, trans_stats = translator.translate_descriptions(
+            [e.repo for e in evaluated_repos]
+        )
+        _log(f"TRANSLATE: ok={trans_stats['ok']} {len(desc_map)}件 in={trans_stats['tokens_in']} out={trans_stats['tokens_out']}")
+
         # 7. lifecycle収束チェック(dry_run_stats)
         conv_ok, steady = lifecycle.convergence_check(
             weekly_inflow=len(entries), archive_after_weeks=4
@@ -203,12 +209,14 @@ def main(argv: list[str] | None = None) -> int:
             "declined": sum(1 for r in loaded if r.get("tag") == "declined"),
         }
         cost_rec = cost.record_usage(
-            tokens_in=0, tokens_out=0, count=len(evaluated_repos),
+            tokens_in=trans_stats["tokens_in"], tokens_out=trans_stats["tokens_out"],
+            count=len(evaluated_repos),
             eval_methods={"rule_fallback": len(evaluated_repos)},
             week_label=today,
         )
         md = guide_generator.render_source_md(
-            evaluated_repos, metrics, cost_rec, week_label=f" ({today})"
+            evaluated_repos, metrics, cost_rec, week_label=f" ({today})",
+            desc_map=desc_map,
         )
         guide_generator.write_source(md, source_file=guide_generator.SOURCE_FILE)
 
