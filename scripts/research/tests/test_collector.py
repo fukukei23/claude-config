@@ -57,3 +57,15 @@ def test_gh_auth_ok_handles_exception(monkeypatch):
         "subprocess.run", lambda *a, **k: (_ for _ in ()).throw(Exception("x"))
     )
     assert collector.gh_auth_ok() is False
+
+
+def test_validate_url_rejects_ssrf():
+    """SSRF対策: 不正スキーマ/ホストを拒否。"""
+    import pytest
+
+    with pytest.raises(ValueError):
+        collector.fetch_trending_html(url="http://github.com/trending")  # http不許可
+    with pytest.raises(ValueError):
+        collector.fetch_trending_html(url="https://evil.example.com/trending")  # 外部ホスト
+    with pytest.raises(ValueError):
+        collector.fetch_trending_html(url="https://169.254.169.254/latest")  # メタデータIP

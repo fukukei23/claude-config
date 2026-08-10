@@ -1,16 +1,28 @@
 """collector — GitHub Trending 取得 + gh CLI 累計★取得。"""
 import re
 import subprocess
+from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
 
 TRENDING_URL = "https://github.com/trending"
 TRENDING_LIMIT = 25
+ALLOWED_HOSTS = {"github.com", "www.github.com"}
+
+
+def _validate_url(url: str) -> None:
+    """SSRF防止: httpsスキーム+github.comホストのみ許可。"""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"不正スキーマ: {parsed.scheme}(https必須)")
+    if parsed.hostname not in ALLOWED_HOSTS:
+        raise ValueError(f"不正ホスト: {parsed.hostname}(github.comのみ許可)")
 
 
 def fetch_trending_html(url: str = TRENDING_URL, timeout: int = 15) -> str:
-    """GitHub Trending ページのHTMLを取得する。"""
+    """GitHub Trending ページのHTMLを取得する(SSRF対策済:github.comのみ)。"""
+    _validate_url(url)
     response = requests.get(url, timeout=timeout)
     response.raise_for_status()
     return response.text
