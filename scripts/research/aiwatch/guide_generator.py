@@ -21,6 +21,13 @@ def _star_icon(star: int) -> str:
     return "★" * star + "☆" * (5 - star)
 
 
+def _format_eval_methods(methods) -> str:
+    """eval_methods dict を 'llm:25/rule_fallback:5' 形式に整形。"""
+    if not methods or not isinstance(methods, dict):
+        return "?"
+    return "/".join(f"{k}:{v}" for k, v in methods.items())
+
+
 def _eval_icon(method: str) -> str:
     if method == "llm":
         return "🤖"
@@ -96,7 +103,7 @@ def render_source_md(
         "## 🤖 今週の評価コスト",
         "",
         f"- **${cost.get('usd', 0):.4f}** / {cost.get('count', '?')}件評価",
-        f"- 評価方法: {cost.get('eval_method_breakdown', '?')}",
+        f"- 評価方法: {_format_eval_methods(cost.get('eval_methods'))}",
         f"- 週$20キャップ対比: {((cost.get('usd', 0) / 20) * 100):.2f}%",
         "",
     ])
