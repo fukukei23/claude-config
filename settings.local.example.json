@@ -60,16 +60,30 @@
       "Bash(rm /home/yn4416/projects/NexusCore/tests/api/archive/*)",
       "Bash(rmdir /home/yn4416/projects/NexusCore/tests/api/archive)",
       "Bash(bash /home/yn4416/.claude/scripts/session/startup-banner.sh)",
-      "Bash(wsl bash *)",
       "Bash(command -v wsl.exe)",
       "Bash(wsl.exe -- pwd)",
       "Bash(wsl.exe -- ls -la)",
-      "Bash(wsl.exe bash *)",
       "Skill(loop)",
       "Skill(loop:*)",
       "Bash(bash ~/bin/apply-crons.sh check)",
       "Bash(bash /home/yn4416/bin/apply-crons.sh check)",
       "Bash(ls -la /home/yn4416/ 2>&1 | head -20; echo \"---\"; ls -la ~/bin 2>&1; echo \"---\"; find / -maxdepth 3 -iname \"apply-crons.sh\" 2>/dev/null)"
+    ],
+    "deny": [
+      "Bash(wsl * bash -c *)",
+      "Bash(wsl.exe * bash -c *)",
+      "Bash(wsl bash -c *)",
+      "Bash(wsl.exe bash -c *)",
+      "Bash(wsl * sh *)",
+      "Bash(wsl * zsh *)",
+      "Bash(wsl * --login *)",
+      "Bash(wsl * -i *)",
+      "Bash(wsl * --exec *)",
+      "Bash(wsl * -e *)",
+      "Bash(wsl.exe * sh *)",
+      "Bash(wsl.exe * zsh *)",
+      "Bash(/usr/bin/wsl *)",
+      "Bash(C:\\\\Windows\\\\System32\\\\wsl.exe *)"
     ]
   }
 }
