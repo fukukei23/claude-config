@@ -26,9 +26,10 @@ def build_prompt(items: list[tuple[str, str]]) -> str:
     body = "\n".join(f"- {name}: {desc}" for name, desc in items)
     return (
         "以下のGitHubリポジトリの英語説明文を基に、各リポについて3つの日本語説明を作成してください。\n"
-        "1. summary: 概要の1行（30字程度）\n"
+        "1. summary: 日本語の概要1行（30字程度・英語を日本語に翻訳・要約・英語のまま出力しない）\n"
         "2. detail: 技術者向けの詳しい説明（何ができるか2-3文・技術用語は残してOK）\n"
         "3. plain: 素人向けの平易な説明（日常語・身近な例えを含む2文程度・技術用語は避ける）\n\n"
+        "すべての項目を必ず日本語で出力してください。英語のままの出力は禁止です。\n"
         'JSONオブジェクト {"owner/repo": {"summary":"...", "detail":"...", "plain":"..."}} のみを出力してください。\n\n'
         f"{body}"
     )
