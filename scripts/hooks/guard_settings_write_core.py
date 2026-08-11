@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+import shlex
 import shutil
 import time
 
@@ -127,6 +128,28 @@ def layer25_entropy(key: str, value: str) -> bool:
     return False
 
 
+_QUOTE_CHARS = "\"'‘’“”`"
+
+
+def normalize_arg(value: str) -> str:
+    """inner引数1個のクォート除去（shlex失敗時フォールバック用）"""
+    return value.strip(_QUOTE_CHARS)
+
+
+def split_inner_args(inner: str) -> list:
+    """inner文字列をshell引数として正規分割（クォート/エスケープ/連結を正規化）。
+
+    shlex.split 優先。ValueError（不平衡クォート等）時は
+    空白split + normalize_arg フォールバック。
+    H恒久対策(2026-08-12): クォート付きURL/PATHがURL_RE/PATH_REを
+    くぐり抜ける偽陽性を解消。
+    """
+    try:
+        return shlex.split(inner, posix=True)
+    except ValueError:
+        return [normalize_arg(a) for a in inner.split()]
+
+
 def scan_value_for_token(key: str, value: str) -> bool:
     """層4(単値): キー名無関係に層1+層2 を適用（キー名偽装対策の最終網）
 
@@ -141,7 +164,7 @@ def scan_value_for_token(key: str, value: str) -> bool:
     # 層4 最終網(偽装Bash捕捉): ツール呼出形式の場合、引数を個別に走査
     if TOOL_SCHEMA_RE.match(value):
         inner = value[value.find("(") + 1 : value.rfind(")")]
-        for arg in inner.split():
+        for arg in split_inner_args(inner):
             if layer1_prefix(arg) or layer2_long(arg) or layer25_entropy(key, arg):
                 return True
     return False

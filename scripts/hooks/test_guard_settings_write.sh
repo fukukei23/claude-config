@@ -205,6 +205,20 @@ check("gitleaks_huggingface", core.layer1_prefix("hf_" + "x"*36), True)        #
 check("gitleaks_perplexity", core.layer1_prefix("pplx-" + "x"*40), True)      # Perplexity
 check("gitleaks_vercel", core.layer1_prefix("vercel_token_" + "x"*30), True)  # Vercel
 
+# === H恒久対策: クォート付きURL/PATHの除外正規化（2026-08-12）===
+# 真因: inner引数の "https://..."(前後クォート)がURL_RE ^https? をくぐり抜けlayer2_long発火→復元ループ
+# 修正: split_inner_args(shlex優先+フォールバック)でクォート正規化
+quote_url_cmd = 'Bash(curl -s -H "Authorization: Bot $TOKEN" "https://discord.com/api/v9/channels/x/messages" -d \'{"content":"test"}\')'
+check("H_quote_url_not_token", core.scan_value_for_token("cmd", quote_url_cmd), False)
+check("H_quote_path_not_token", core.scan_value_for_token("cmd", 'Bash(cp "/home/user/.config/app/deep/deep/nested/file.json" /tmp/dest)'), False)
+# クォート付き真TOKENは捕捉維持（shlexでクォート除去→layer1/2で捕捉・回帰確認）
+check("H_quote_real_token_caught", core.scan_value_for_token("cmd", 'Bash(curl -H "Authorization: sk-' + 'x'*40 + '" "https://example.com")'), True)
+# shlexフォールバック: 不平衡クォート（閉じなし）でも捕捉
+check("H_unbalanced_quote_caught", core.scan_value_for_token("cmd", 'Bash(curl -d "sk-' + 'y'*40 + ' target)'), True)
+# split_inner_args 直接テスト（クォート除去でURL_REにマッチするargが生まれる）
+_url_args = core.split_inner_args('-H "Authorization: Bot $TOKEN" "https://example.com/api/x/messages"')
+check("H_split_strips_url_quotes", any(core.URL_RE.match(a) for a in _url_args), True)
+
 # === ロギング（TOKEN原値非混入）===
 import tempfile as _tf7, os as _os7, json as _json7
 tmpdir7 = _tf7.mkdtemp()
