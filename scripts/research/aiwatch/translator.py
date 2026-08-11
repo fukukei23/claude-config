@@ -69,7 +69,7 @@ def translate_descriptions(
     api_key: str | None = None,
     url: str = MINIMAX_URL,
     model: str = MINIMAX_MODEL,
-    timeout: int = 60,
+    timeout: int = 120,
     requester=None,
 ) -> tuple[dict[str, str], dict]:
     """description を日本語翻訳する。
