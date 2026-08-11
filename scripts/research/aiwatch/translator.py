@@ -21,18 +21,25 @@ def build_prompt(items: list[tuple[str, str]]) -> str:
     """翻訳プロンプトを構築する。
 
     items: [(name, english_desc), ...]
+    各リポについて summary(1行) / detail(技術者向け詳説) / plain(素人向け平易) の3フィールドを生成。
     """
     body = "\n".join(f"- {name}: {desc}" for name, desc in items)
     return (
-        "以下のGitHubリポジトリの英語説明文を、それぞれ日本語の1行（30字程度）に翻訳・要約してください。\n"
-        "技術用語（API/MCP/agent/RAG 等）はそのまま残して構いません。\n"
-        'JSONオブジェクト {"owner/repo": "日本語説明"} のみを出力してください。\n\n'
+        "以下のGitHubリポジトリの英語説明文を基に、各リポについて3つの日本語説明を作成してください。\n"
+        "1. summary: 概要の1行（30字程度）\n"
+        "2. detail: 技術者向けの詳しい説明（何ができるか2-3文・技術用語は残してOK）\n"
+        "3. plain: 素人向けの平易な説明（日常語・身近な例えを含む2文程度・技術用語は避ける）\n\n"
+        'JSONオブジェクト {"owner/repo": {"summary":"...", "detail":"...", "plain":"..."}} のみを出力してください。\n\n'
         f"{body}"
     )
 
 
-def parse_translation_json(text: str) -> dict[str, str]:
-    """LLM応答テキストから JSON を抽出して返す（前後の文言/コードブロック許容）。"""
+def parse_translation_json(text: str) -> dict[str, dict]:
+    """LLM応答テキストから JSON を抽出して返す（前後の文言/コードブロック許容）。
+
+    戻り値: {name: {"summary":..., "detail":..., "plain":...}}
+    旧形式（値が文字列）は summary のみ設定（後方互換）。
+    """
     start = text.find("{")
     end = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -41,9 +48,19 @@ def parse_translation_json(text: str) -> dict[str, str]:
         parsed = json.loads(text[start:end + 1])
         if not isinstance(parsed, dict):
             return {}
-        return {str(k): str(v) for k, v in parsed.items()}
     except (json.JSONDecodeError, ValueError):
         return {}
+    result: dict[str, dict] = {}
+    for k, v in parsed.items():
+        if isinstance(v, dict):
+            result[str(k)] = {
+                "summary": str(v.get("summary", "")),
+                "detail": str(v.get("detail", "")),
+                "plain": str(v.get("plain", "")),
+            }
+        elif isinstance(v, str):
+            result[str(k)] = {"summary": v, "detail": "", "plain": ""}
+    return result
 
 
 def translate_descriptions(

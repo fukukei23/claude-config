@@ -32,12 +32,23 @@ def _repo(name="a/b", desc="A tool"):
 
 
 def test_parse_translation_json_pure():
-    assert parse_translation_json('{"a/b": "ほげ"}') == {"a/b": "ほげ"}
+    assert parse_translation_json('{"a/b": "ほげ"}') == {
+        "a/b": {"summary": "ほげ", "detail": "", "plain": ""}
+    }
+
+
+def test_parse_translation_json_three_fields():
+    text = '{"a/b": {"summary": "概要", "detail": "詳説", "plain": "平易"}}'
+    assert parse_translation_json(text) == {
+        "a/b": {"summary": "概要", "detail": "詳説", "plain": "平易"}
+    }
 
 
 def test_parse_translation_json_with_prose():
     text = '結果です。\n```json\n{"a/b": "ほげ"}\n```\nよろしく'
-    assert parse_translation_json(text) == {"a/b": "ほげ"}
+    assert parse_translation_json(text) == {
+        "a/b": {"summary": "ほげ", "detail": "", "plain": ""}
+    }
 
 
 def test_parse_translation_json_invalid():
@@ -54,12 +65,12 @@ def test_build_prompt_contains_all_items():
 def test_translate_descriptions_success():
     def fake_post(url, headers=None, json=None, timeout=None):
         return _FakeResp({
-            "content": [{"type": "text", "text": '{"a/b": "ツールA"}'}],
+            "content": [{"type": "text", "text": '{"a/b": {"summary": "ツールA", "detail": "詳しい", "plain": "やさしい"}}'}],
             "usage": {"input_tokens": 50, "output_tokens": 10},
         })
 
     mapping, stats = translate_descriptions([_repo()], api_key="k", requester=fake_post)
-    assert mapping == {"a/b": "ツールA"}
+    assert mapping == {"a/b": {"summary": "ツールA", "detail": "詳しい", "plain": "やさしい"}}
     assert stats["ok"] is True
     assert stats["tokens_in"] == 50
     assert stats["tokens_out"] == 10

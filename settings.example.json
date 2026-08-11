@@ -1,4 +1,5 @@
 {
+  "cleanupPeriodDays": 60,
   "env": {
     "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-air",
     "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-5.2[1m]",
@@ -103,10 +104,10 @@
       "Bash(systemctl poweroff*)",
       "Bash(init 0*)"
     ],
-    "defaultMode": "bypassPermissions",
     "ask": [
       "Bash(git worktree add:*)"
-    ]
+    ],
+    "defaultMode": "bypassPermissions"
   },
   "model": "opus",
   "hooks": {
@@ -483,7 +484,8 @@
     "skill-creator@claude-plugins-official": false,
     "superpowers@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "agent-skills@addy-agent-skills": true
+    "agent-skills@addy-agent-skills": true,
+    "zernio@zernio": true
   },
   "extraKnownMarketplaces": {
     "addy-agent-skills": {
@@ -530,6 +532,5 @@
   "autoDream": {
     "enabled": true,
     "intervalHours": 24
-  },
-  "cleanupPeriodDays": 60
+  }
 }

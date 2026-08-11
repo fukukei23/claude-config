@@ -37,19 +37,32 @@ def _eval_icon(method: str) -> str:
 
 
 def render_repo_card(e: EvaluatedRepo, desc_map: dict | None = None) -> str:
-    """1リポのカードMDを生成。desc_map に日本語訳があれば優先(Phase2翻訳)。"""
+    """1リポのカードMDを生成。desc_map に日本語訳があれば優先(Phase2翻訳・summary/detail/plain 3段階)。"""
     r = e.repo
     growth_pct = f"{r.growth_rate * 100:.1f}%" if r.growth_rate > 0 else "N/A"
     total_str = f"{r.stars_total:,}" if r.stars_total >= 0 else "N/A"
-    desc = (desc_map or {}).get(r.name) or r.description
-    return (
+    info = (desc_map or {}).get(r.name)
+    if isinstance(info, dict):
+        summary = info.get("summary") or r.description
+        detail = info.get("detail", "")
+        plain = info.get("plain", "")
+    else:
+        summary = info or r.description
+        detail = ""
+        plain = ""
+    card = (
         f"### {_eval_icon(e.eval_method)} [{r.name}]({r.url})\n"
         f"\n{_star_icon(e.fit_star)}  "
         f"**今日★{r.stars_today}** / 累計★{total_str} / 成長率{growth_pct}  "
         f"`{r.tag}`\n"
-        f"\n{desc}\n"
-        f"\n> {e.eval_text}\n"
+        f"\n{summary}\n"
     )
+    if detail:
+        card += f"\n📖 詳説: {detail}\n"
+    if plain:
+        card += f"\n💡 かみ砕くと: {plain}\n"
+    card += f"\n> {e.eval_text}\n"
+    return card
 
 
 def render_source_md(
