@@ -14,8 +14,10 @@
 set -uo pipefail
 
 # ~/.secrets.env を source（値は環境変数に展開・echo しない）
+set +u  # .secrets.env 内の未定義変数参照で set -u が exit するのを回避
 # shellcheck disable=SC1091
 source ~/.secrets.env 2>/dev/null
+set -u
 
 # --- APIキー存在確認（毎タスク） ---
 for key in GEMINI_API_KEY MINIMAX_API_KEY; do
