@@ -124,5 +124,79 @@ test_staged_empty
 test_stderr_structure
 test_execution_time
 
+# === 観測ロガー(F案・spec §1.6) ===
+# Case 7: WARN時ログ追記
+test_warn_log() {
+  setup
+  export GIT_COMMIT_DIFF_CHECK_LOG="$TMP_REPO/test.log"
+  seq 1 15 > med.txt
+  git add med.txt
+  send_hook "git commit -m test" >/dev/null 2>&1
+  if [ ! -s "$GIT_COMMIT_DIFF_CHECK_LOG" ]; then
+    echo "FAIL Case7: log not written on WARN"
+    FAILS=$((FAILS+1))
+  fi
+  unset GIT_COMMIT_DIFF_CHECK_LOG
+  teardown
+}
+
+# Case 8: ログ書込失敗時fallback（hookはexit 0維持・doubt-driven #4）
+test_log_fallback() {
+  setup
+  export GIT_COMMIT_DIFF_CHECK_LOG="/nonexistent_dir_xyz/cannot/write.log"
+  seq 1 15 > med.txt
+  git add med.txt
+  send_hook "git commit -m test" 2>/dev/null
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case8: expected exit 0 on log write failure got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  unset GIT_COMMIT_DIFF_CHECK_LOG
+  teardown
+}
+
+# Case 9: rotation（1MB超で切捨め・doubt-driven #10 容量枯渇対策）
+test_log_rotation() {
+  setup
+  export GIT_COMMIT_DIFF_CHECK_LOG="$TMP_REPO/test.log"
+  mkdir -p "$(dirname "$GIT_COMMIT_DIFF_CHECK_LOG")"
+  head -c 1572864 /dev/zero | tr '\0' 'x' > "$GIT_COMMIT_DIFF_CHECK_LOG"
+  seq 1 15 > med.txt
+  git add med.txt
+  send_hook "git commit -m test" >/dev/null 2>&1
+  local sz
+  sz=$(stat -c%s "$GIT_COMMIT_DIFF_CHECK_LOG" 2>/dev/null || echo 0)
+  if [ "$sz" -gt 1048576 ]; then
+    echo "FAIL Case9: log not rotated, size=$sz"
+    FAILS=$((FAILS+1))
+  fi
+  unset GIT_COMMIT_DIFF_CHECK_LOG
+  teardown
+}
+
+# Case 10: status(A/M)記録（doubt-driven #7 正規/非正規タグ基盤）
+test_log_status() {
+  setup
+  export GIT_COMMIT_DIFF_CHECK_LOG="$TMP_REPO/test.log"
+  echo "original" > exist.txt
+  git add exist.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 15 >> exist.txt
+  git add exist.txt
+  send_hook "git commit -m test" >/dev/null 2>&1
+  if ! grep -q "status=M" "$GIT_COMMIT_DIFF_CHECK_LOG" 2>/dev/null; then
+    echo "FAIL Case10: status=M not logged"
+    FAILS=$((FAILS+1))
+  fi
+  unset GIT_COMMIT_DIFF_CHECK_LOG
+  teardown
+}
+
+test_warn_log
+test_log_fallback
+test_log_rotation
+test_log_status
+
 echo "All cases done. FAILS=$FAILS"
 [ "$FAILS" -eq 0 ] || exit 1

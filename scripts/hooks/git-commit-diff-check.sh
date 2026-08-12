@@ -4,6 +4,23 @@
 # 8/4型(他タブ48行巻き込み)事故の再発防止・spec §1
 set -uo pipefail
 
+# 観測ロガー(F案・spec §1.6) — flock排他・|| true fallback・1MB rotation
+# 書込失敗はhook本体に影響させない（doubt-driven #4 fallback）
+LOG_FILE="${GIT_COMMIT_DIFF_CHECK_LOG:-$HOME/.claude/state/git-commit-diff-check.log}"
+log_append() {
+  local entry="$1"
+  (
+    mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
+    flock -w 1 200 2>/dev/null || true
+    printf '[%s] %s\n' "$(date '+%F %T')" "$entry" >> "$LOG_FILE" 2>/dev/null || true
+    local sz
+    sz=$(stat -c%s "$LOG_FILE" 2>/dev/null || echo 0)
+    if [ "$sz" -gt 1048576 ]; then
+      tail -c 524288 "$LOG_FILE" > "${LOG_FILE}.tmp" 2>/dev/null && mv "${LOG_FILE}.tmp" "$LOG_FILE" 2>/dev/null || true
+    fi
+  ) 200>"${LOG_FILE}.lock" 2>/dev/null || true
+}
+
 INPUT=$(cat)
 
 # tool_name 抽出（純bash）
@@ -45,6 +62,13 @@ while IFS=$'\t' read -r ins del file; do
   fi
 done <<< "$numstat"
 
+# max_file の status 判定（A=新規/M=修正/R=リネーム・doubt-driven #7 正規/非正規タグ基盤）
+file_status="?"
+if [ -n "$max_file" ]; then
+  ns_line=$(git diff --cached --name-status -- "$max_file" 2>/dev/null | head -1 | cut -f1)
+  [ -n "$ns_line" ] && file_status="${ns_line:0:1}"
+fi
+
 WARN_THRESHOLD=10
 BLOCK_THRESHOLD=20
 # dry-run mode: block無効化（Phase 0運用・spec §3）
@@ -62,6 +86,7 @@ FILE=${max_file}
 REQUIRED_ACTION=git diff --cached --stat で内容確認後にcommit再実行 または git restore --staged ${max_file} で巻き込みファイル除外
 ---
 EOF
+  log_append "BLOCK delta=${max_delta} file=${max_file} status=${file_status} exit=2"
   exit 2
 fi
 
@@ -75,6 +100,7 @@ FILE=${max_file}
 REQUIRED_ACTION=git diff --cached --stat で内容確認推奨（block無・commit継続）
 ---
 EOF
+  log_append "WARN delta=${max_delta} file=${max_file} status=${file_status} exit=0"
 fi
 
 exit 0
