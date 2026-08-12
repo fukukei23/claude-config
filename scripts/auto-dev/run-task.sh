@@ -92,8 +92,18 @@ KPI: ${KPI_JSON:-なし}
 "$CLAUDE" --print "$PLAN_PROMPT" > "$TASK_DIR/plan.md" 2>"$TASK_DIR/logs/plan.stderr.log"
 echo "[$(date '+%F %T')] plan saved ($(wc -l < "$TASK_DIR/plan.md" 2>/dev/null || echo 0)行)" >> "$LOG"
 
-# Phase 2/5: スキップ（v1 は LLM 呼出なし・将来タスク）
-echo "Phase 2/5 スキップ (v1)" > "$TASK_DIR/logs/review_skipped.txt"
+# Phase 2: 計画レビュー（別ベンダーLLM・backend_kind必須・目的ホールド・2026-08-12有効化）
+echo "[$(date '+%F %T')] Phase 2: 計画レビュー（別LLM・Gemini+MiniMax）" >> "$LOG"
+python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/plan.md" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/plan_review.json" >> "$LOG" 2>&1
+PLAN_REVIEW_RC=$?
+echo "[$(date '+%F %T')] plan_review rc=$PLAN_REVIEW_RC (0=ok/1=ng/2=abort)" >> "$LOG"
+# ②で abort(2) は多様性保証不能・即停止（plan改訂ループはTask4品質ゲート拡張で別途）
+if [ "$PLAN_REVIEW_RC" -eq 2 ]; then
+  echo "NG" > "$VERIFY"
+  echo "②計画レビュー abort: 多様性保証不能（ベンダー数<2）" >> "$VERIFY"
+  echo "[$(date '+%F %T')] ②abort・停止" >> "$LOG"
+  exit 1
+fi
 
 # run-task 実行中フラグ再設定（実装/検証 claude の Stop hook 発火を next_issue.py で無視させる）
 python3 "$SS" set-running "$$"
@@ -148,8 +158,47 @@ KPI: ${KPI_JSON:-なし}
 "$CLAUDE" --print "$VERIFY_PROMPT" > "$VERIFY" 2>&1
 VERIFY_RC=$?
 
+# Phase 5: 実装後レビュー（別ベンダーLLM・git diff対象・⑤拒否権・2026-08-12有効化）
+echo "[$(date '+%F %T')] Phase 5: 実装後レビュー（別LLM・git diff）" >> "$LOG"
+git diff "$HEAD_BEFORE"..HEAD > "$TASK_DIR/impl_diff.txt" 2>/dev/null || git diff >> "$TASK_DIR/impl_diff.txt"
+python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/impl_diff.txt" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/impl_review.json" >> "$LOG" 2>&1
+IMPL_REVIEW_RC=$?
+echo "[$(date '+%F %T')] impl_review rc=$IMPL_REVIEW_RC (0=ok/1=ng/2=abort)" >> "$LOG"
+# ⑤ verdict で VERIFY に追記（G3追記式・④結果を上書きしない・次ループ実装AIが修正可能）
+# ng(1) は指摘追記のみ・abort(2) は先頭OKをNG化（多様性保証不能は強制停止）
+if [ "$IMPL_REVIEW_RC" -ne 0 ]; then
+  python3 -c "
+import json
+d = json.load(open('$TASK_DIR/impl_review.json'))
+verdict = d.get('verdict','?')
+crits = d.get('by_severity',{}).get('critical',[])
+with open('$VERIFY','a') as f:
+    f.write(f'\n--- ⑤別LLMレビュー verdict={verdict} ---\n')
+    for c in crits[:5]:
+        f.write(f'[critical] {c.get(\"issue\",\"\")[:300]}\n')
+        sug = c.get('suggestion','')
+        if sug:
+            f.write(f'  -> {sug[:300]}\n')
+"
+  if [ "$IMPL_REVIEW_RC" -eq 2 ]; then
+    # abort: 先頭OKをNG化
+    python3 -c "
+lines = open('$VERIFY').read().splitlines()
+if lines and lines[0].strip().upper().startswith('OK'):
+    lines[0] = 'NG'
+try:
+    reason = json.load(open('$TASK_DIR/impl_review.json')).get('abort_reason','')
+except Exception:
+    reason = ''
+lines.insert(1, f'[5phase-abort] {reason}')
+open('$VERIFY','w').write('\n'.join(lines) + '\n')
+"
+  fi
+  echo "[$(date '+%F %T')] ⑤review ng/abort -> VERIFY追記済み" >> "$LOG"
+fi
+
 HEAD=$(head -1 "$VERIFY" | tr '[:lower:]' '[:upper:]')
-echo "[$(date '+%F %T')] 検証結果 rc=$VERIFY_RC head=$HEAD" >> "$LOG"
+echo "[$(date '+%F %T')] 検証結果 rc=$VERIFY_RC head=$HEAD (⑤反映後)" >> "$LOG"
 
 # ====== auto-loop 拡張（Phase 6/7 追加） ======
 # Phase 6: ズレ検知（verify-result.txt → drift-result.json）
@@ -182,17 +231,23 @@ import sys, json
 from pathlib import Path
 sys.path.insert(0, '$SS_PYSPATH')
 from task_logger import write_task_log
+# Phase5 impl_review.json の by_severity を読込（⑤未実行/失敗時は空dict）
+try:
+    _ir = json.load(open(sys.argv[8]))
+    review_result = _ir.get('by_severity', {'critical':[], 'high':[], 'med':[], 'low':[]})
+except Exception:
+    review_result = {'critical':[], 'high':[], 'med':[], 'low':[]}
 write_task_log(
     task_id=sys.argv[1],
     task_dir=Path(sys.argv[2]),
     objective=open(sys.argv[3]).read().strip(),
     kpi=json.loads(sys.argv[4]) if sys.argv[4] else None,
     plan_summary=json.loads(sys.argv[5]),
-    review_result={'critical':[], 'high':[], 'med':[], 'low':[]},
+    review_result=review_result,
     drift_result=json.load(open(sys.argv[6])),
     verdict=sys.argv[7],
 )
-" "$TASK_ID" "$TASK_DIR" "$TASK_DIR/objective.txt" "$KPI_ESCAPED" "$PLAN_PY" "$TASK_DIR/drift-result.json" "$VERDICT" >> "$LOG" 2>&1
+" "$TASK_ID" "$TASK_DIR" "$TASK_DIR/objective.txt" "$KPI_ESCAPED" "$PLAN_PY" "$TASK_DIR/drift-result.json" "$VERDICT" "$TASK_DIR/impl_review.json" >> "$LOG" 2>&1
 echo "[$(date '+%F %T')] task-log saved" >> "$LOG"
 
 if [[ "$HEAD" == OK* ]]; then
