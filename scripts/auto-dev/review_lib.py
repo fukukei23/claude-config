@@ -4,12 +4,23 @@
 
 auto-dev/run-task.sh から呼び出して、レビュアー LLM の出力テキストを
 構造化データ（dict）へ正規化する役割を担う。
+
+Phase 2/5 有効化（2026-08-12）:
+- run_multi_llm_review() — Gemini + MiniMax の別ベンダー並列レビュー
+- backend_kind 必須引数で「どの経路でどのベンダーを呼んだか」を判別
+- 判定 3 値（両critical/片側critical+片側silent/両側critical未満）
+- ベンダー数 < 2 は即 abort（多様性保証不能）
+- API キー値のログ漏洩をマスク
 """
 from __future__ import annotations
 
 import json
+import os
 import re
-from typing import Any
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable
 
 SEVERITY_MAP: dict[str, str] = {
     "critical": "critical",
