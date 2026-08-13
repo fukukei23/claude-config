@@ -308,7 +308,7 @@
           },
           {
             "type": "command",
-            "command": "/home/yn4416/.claude/scripts/session/check-ssot-sync-staleness.sh"
+            "command": "/home/yn4416/.claude/scripts/session/check-ssot-check-staleness.sh"
           },
           {
             "type": "command",
