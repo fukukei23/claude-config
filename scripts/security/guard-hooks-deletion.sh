@@ -13,7 +13,7 @@ PROTECTED=(
   "load-secrets.sh"
   "sync-secrets-to-settings.sh"
   "check-mcp-guide-sync.sh"
-  "check-ssot-sync-staleness.sh"
+  "check-ssot-check-staleness.sh"
   "check-decision-indexes.sh"
   "check-secrets-leak.sh"
   "check-submodule-sync.sh"

@@ -28,7 +28,7 @@ SSOT（`~/projects/obsidian-ssot/`）内のファイルと実態（設定ファ�
 
 ### auto 時のstate更新（2段階・重複発火抑制）
 state は2ファイルに分離（2026-06-26 の 04:39/41/42/43 の4連鎖発火事故対策）:
-- `ssot-check-triggered`: **SessionStart hook（check-ssot-sync-staleness.sh）が発火指示時に先行マーク**する。本スキルでは触らない。後続セッションの同時発火を弾く。
+- `ssot-check-triggered`: **SessionStart hook（check-ssot-check-staleness.sh）が発火指示時に先行マーク**する。本スキルでは触らない。後続セッションの同時発火を弾く。
 - `ssot-check-last-run`: **本スキルが auto 実行完了時に更新**する（実行成功日・翌日以降の参照用）。
 
 ```bash
