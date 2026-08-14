@@ -533,5 +533,13 @@
     "enabled": true,
     "intervalHours": 24
   },
-  "claudeInChromeDefaultEnabled": false
+  "claudeInChromeDefaultEnabled": false,
+  "skillOverrides": {
+    "record-decision": "off"
+  },
+  "disabledMcpServers": [
+    "minimax-official",
+    "minimax-video",
+    "mermaid"
+  ]
 }
