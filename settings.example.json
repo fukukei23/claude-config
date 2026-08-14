@@ -536,10 +536,5 @@
   "claudeInChromeDefaultEnabled": false,
   "skillOverrides": {
     "record-decision": "off"
-  },
-  "disabledMcpServers": [
-    "minimax-official",
-    "minimax-video",
-    "mermaid"
-  ]
+  }
 }
