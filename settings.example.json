@@ -139,7 +139,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "atuin hook claude-code"
+            "command": "/home/yn4416/bin/atuin-hook-capped.sh"
           }
         ]
       },
@@ -202,7 +202,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "atuin hook claude-code"
+            "command": "/home/yn4416/bin/atuin-hook-capped.sh"
           }
         ]
       }
@@ -233,7 +233,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "atuin hook claude-code"
+            "command": "/home/yn4416/bin/atuin-hook-capped.sh"
           }
         ]
       },
