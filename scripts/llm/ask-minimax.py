@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MiniMax Token Plan wrapper - M2.7テキスト生成（Starter plan）
+"""MiniMax Token Plan wrapper - M3テキスト生成（Starter plan）
 Anthropic互換エンドポイントを使用（Token Planサブスク用）
 """
 import sys
@@ -15,12 +15,12 @@ def main():
 
     if len(sys.argv) < 2:
         print("Usage: ask-minimax.py <query> [--model MODEL]")
-        print("  --model   Model name (default: MiniMax-M2.7)")
+        print("  --model   Model name (default: MiniMax-M3)")
         sys.exit(1)
 
     args = sys.argv[1:]
     query_parts = []
-    model_name = "MiniMax-M2.7"
+    model_name = "MiniMax-M3"
 
     i = 0
     while i < len(args):

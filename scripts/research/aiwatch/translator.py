@@ -14,7 +14,7 @@ import os
 from aiwatch.models import RepoStats
 
 MINIMAX_URL = "https://api.minimax.io/anthropic/v1/messages"
-MINIMAX_MODEL = "MiniMax-M2.7"
+MINIMAX_MODEL = "MiniMax-M3"
 
 
 def build_prompt(items: list[tuple[str, str]]) -> str:

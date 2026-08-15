@@ -15,7 +15,7 @@ MINIMAX_KEY = os.environ.get('MINIMAX_API_KEY', '')
 
 def call_minimax(prompt, max_tokens=2000):
     data = json.dumps({
-        'model': 'MiniMax-M2.7',
+        'model': 'MiniMax-M3',
         'max_tokens': max_tokens,
         'messages': [{'role': 'user', 'content': prompt}]
     }).encode('utf-8')

@@ -86,7 +86,7 @@ class ProxyHandler(BaseHTTPRequestHandler):
         if minimax_key:
             status, response = forward_request(body, MINIMAX_URL, minimax_key)
             if 200 <= status < 300:
-                self._write_status("MiniMax-M2.7")
+                self._write_status("MiniMax-M3")
                 self._respond(status, response)
                 self._log("MiniMax", status, fallback=True)
                 return
