@@ -106,4 +106,27 @@ if [ -d "$SKILLS_DIR" ]; then
 fi
 
 
+# ── 層1読込検証（@取り込み実働チェック・2026-08-17）──
+# CLAUDE.mdの@参照ファイルの存在確認 + LLM引用チャレンジ（中身は表示しない=引用できれば読込証明）
+banner+=" ── 層1読込検証 ──"$'\n'
+missing=0
+while IFS= read -r rel; do
+  p="$HOME/.claude/$rel"
+  if [ -f "$p" ]; then
+    banner+="   ✅ ${rel##*/} ($(wc -c < "$p")B)"$'\n'
+  else
+    banner+="   ❌ $rel 不在（@取り込みが空読みになる）"$'\n'
+    missing=1
+  fi
+done < <(grep -oE '@rules/[^[:space:]]+\.md' "$HOME/.claude/CLAUDE.md" 2>/dev/null | sed 's/^@//')
+target="$HOME/.claude/rules/_shared/LLMサボりバイアス防止.md"
+if [ -f "$target" ]; then
+  mapfile -t head_lines < <(grep -n '^## ' "$target" | cut -d: -f1)
+  if [ "${#head_lines[@]}" -gt 0 ]; then
+    chal=${head_lines[$((RANDOM % ${#head_lines[@]}))]}
+    banner+="   ▶ 挑戦: 『LLMサボりバイアス防止.md』${chal}行目の見出し（## 始まり）を返答冒頭で引用せよ。引用できなければ層1読込不調の疑い（同期・再起動を確認）"$'\n'
+  fi
+fi
+[ "$missing" = 1 ] && banner+="   ⚠️ 不在ファイルあり: 層1が正しく読み込まれていない可能性"$'\n'
+
 printf '%s\n' "$banner"
