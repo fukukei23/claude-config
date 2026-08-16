@@ -10,7 +10,7 @@
 #
 # 出力:
 #   --json         JSON配列 1行 / stdout（Daily Triage 連携用）
-#   (デフォルト)   人間可読 / stale有りで exit 1
+#   (デフォルト)   人間可読 / stale有りで exit 0（stderr無しでstdout警告を SessionStart コンテキストとして表示・2026-08-17 hook error 誤表示対策）
 #
 # オプション:
 #   --threshold H        デフォル閾値（時間）省略時12
