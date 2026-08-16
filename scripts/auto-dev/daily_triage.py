@@ -335,6 +335,27 @@ def format_outward_reply_section(log_path: Path) -> str:
     return "\n".join(lines)
 
 
+def monthly_review_hint(today: date, state_dir: Path) -> str:
+    """月次集計の提案ヒント（月1回・1〜7日のみ・spec 2026-08-16）。
+
+    Args:
+        today: 基準日（テストで注入）
+        state_dir: doneフラグ置き場（~/.claude/state）
+
+    Returns:
+        ヒント文字列（提案時はdoneフラグを作成・条件外は ""）
+    """
+    if today.day > 7:
+        return ""
+    flag = state_dir / f"outward-reply-monthly-{today.strftime('%Y-%m')}.done"
+    if flag.exists():
+        return ""
+    state_dir.mkdir(parents=True, exist_ok=True)
+    flag.write_text("done", encoding="utf-8")
+    return ("- 💡月次集計候補: outward-replyログの月次分析を本セッションで提案"
+            "（類型別頻度・修正率・結果相関・データヘルシ度・改善提案は上位3件まで）")
+
+
 def validate_repo(repo_name: str, projects_dir: Path = PROJECTS_DIR) -> str | None:
     """repo名→実在チェック。実在するディレクトリなら絶対パス、非実在/空は None。
 
