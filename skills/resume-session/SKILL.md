@@ -71,24 +71,43 @@ grep "| $WT4 |" ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/nul
 grep '| 🟢 |' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md 2>/dev/null | grep -v "| $WT4 |"
 # 🎯要望(Why)層の一覧（W1,W2...=動機の束・タスク選択の軸・各タスク行末の←Wx逆参照と突合）
 grep -nE '^- W[0-9]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
-# 週次リフレクション検知（spec §4.4 Phase1手動動線・2026-07-30追加）
-# resume-session発動時に「今週のリフレクション未生成」を検知して提案する動線。
-# REF_DETECT: で始まる出力を Step3 の「📝 リフレクション検知」に反映。
-REF_WEEKLY=~/projects/obsidian-ssot/40_CAREER/リフレクション/weekly
-CUR_W=$(date +%V); CUR_WEEK_ISO=$(date +%Y-W%V)
-LATEST_REF=$(ls "$REF_WEEKLY"/[0-9]*-W*.md 2>/dev/null | sort -r | head -1)
-if [ -z "$LATEST_REF" ]; then
-  echo "REF_DETECT: 週次ファイル無し・Phase1運用中なら生成推奨（spec §4.4）"
+# 週次リフレクション検知（Phase2・spec 2026-08-16 §5・完了週ベース）
+# RFL_ / RFL_PENDING / RFL_STALE: で始まる出力を Step3 の「📝 リフレクション検知」に反映。
+RFL_INDEX=~/projects/obsidian-ssot/40_CAREER/リフレクション/_INDEX.md
+RFL_STOPPED=$(grep -c '^reflection_stopped: true' "$RFL_INDEX" 2>/dev/null || echo 0)
+if [ "$RFL_STOPPED" -ge 1 ]; then
+  echo "RFL: 停止宣言済み（再開は「リフレクション再開」）"
 else
-  LATEST_WEEK=$(basename "$LATEST_REF" .md)
-  LATEST_W=$(echo "$LATEST_WEEK" | sed 's/.*-W//')
-  DIFF=$(( 10#$CUR_W - 10#$LATEST_W ))
-  if [ "$DIFF" -le 1 ]; then
-    echo "REF_DETECT: OK 最新週次=$LATEST_WEEK（現在$CUR_WEEK_ISO・正常・サマリーには出さなくてよい）"
-  elif [ "$DIFF" -eq 2 ]; then
-    echo "REF_DETECT: ⚠️ 今週($CUR_WEEK_ISO)未生成・先週分も未生成の可能性（最新=$LATEST_WEEK）→2週分まとめ生成推奨（spec §4.4フォールバック・最大2週まで）"
-  else
-    echo "REF_DETECT: ⚠️ 最新週次=$LATEST_WEEK が${DIFF}週前→3週超はスキップ推奨（spec §4.4）"
+  REF_DATE=$(TZ=Asia/Tokyo date -d "last sunday" +%F)
+  W0=$(TZ=Asia/Tokyo date -d "$REF_DATE" +%G-W%V)
+  W1=$(TZ=Asia/Tokyo date -d "$REF_DATE -7 days" +%G-W%V)
+  W2=$(TZ=Asia/Tokyo date -d "$REF_DATE -14 days" +%G-W%V)
+  W4=$(TZ=Asia/Tokyo date -d "$REF_DATE -28 days" +%G-W%V)
+  ELAPSED=$(( ($(TZ=Asia/Tokyo date +%s) - $(TZ=Asia/Tokyo date -d "$REF_DATE" +%s)) / 86400 ))
+  WD=~/projects/obsidian-ssot/40_CAREER/リフレクション/weekly
+  M0=$([ -f "$WD/$W0.md" ] && echo 0 || echo 1)
+  M1=$([ -f "$WD/$W1.md" ] && echo 0 || echo 1)
+  M2=$([ -f "$WD/$W2.md" ] && echo 0 || echo 1)
+  PENDING=$(grep -oP '^pending_top3: \K[0-9]{4}-W[0-9]{2}' "$RFL_INDEX" 2>/dev/null)
+  TOP3_U=$(grep -oP '^top3_last_updated: \K[0-9]{4}-W[0-9]{2}' "$RFL_INDEX" 2>/dev/null)
+  # 未承認Top3があれば最優先
+  if [ -n "$PENDING" ]; then
+    echo "RFL_PENDING: 📌 Top3未承認($PENDING) — 承認(y/修正/見送り)を最優先で依頼すること"
+  fi
+  # 鮮度⚠️（top3_last_updatedが4週前より古い）
+  if [ -n "$TOP3_U" ] && [ "$TOP3_U" \< "$W4" ]; then
+    echo "RFL_STALE: ⚠️ 気づきTop3が4週超未更新($TOP3_U) — Top3セクション直前に⚠️表示"
+  fi
+  if [ "$M0" -eq 1 ]; then
+    if [ "$M1" -eq 1 ] && [ "$M2" -eq 1 ]; then
+      echo "RFL_ESC3: 🚨 週次リフレクション3週超未生成(未生成: $W2 $W1 $W0) — 「今すぐ生成(古い週から1週)/運用停止を宣言/このまま」の3択を強制提示"
+    elif [ "$ELAPSED" -ge 8 ]; then
+      echo "RFL_ESC2: ⚠️ 週次リフレクション未生成($W0・経過${ELAPSED}日) — サマリー冒頭で再提示"
+    elif [ "$ELAPSED" -ge 4 ]; then
+      echo "RFL_ESC1: 週次リフレクション未生成($W0・経過${ELAPSED}日) — 再開候補の選択肢先頭に提示"
+    else
+      echo "RFL_OK_NEW: 週次リフレクション未生成($W0) — サマリーに1行提案"
+    fi
   fi
 fi
 ```
@@ -140,7 +159,7 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 🔁 前回継続: <直近handoffの「前回占有タスク（継続可・参考）」欄・未完了のもののみ>
 ℹ️ 他候補: バックログ.md 参照（P1: N件 / P2: M件）
 📝 WIP構想: <直近handoffの「WIP構想一覧」欄・バックログ.md実体と突合>
-📝 リフレクション検知: <Step1 の REF_DETECT 出力・⚠️ の場合のみ表示して「週次生成」を選択肢に含める・OK の場合は表示しない（alert fatigue回避）>
+📝 リフレクション検知: <Step1 の RFL_PENDING / RFL_STALE / RFL_ESC1〜3 / RFL_OK_NEW 出力に応じて表示: RFL_PENDING=最優先で承認要求・RFL_ESC3=3択強制提示・RFL_ESC2=サマリー冒頭で再提示・RFL_ESC1=選択肢先頭・RFL_OK_NEW=1行提案・出力なしゲート通過時は表示しない（alert fatigue回避）・RFL:停止宣言済みなら「リフレクション再開」選択肢のみ>
 
 > ⚠️ 候補は handoff ではなく**バックログ.md が正典**。handoffの「次タスク候補」は廃止済み（完了済みが混入するため）。
 
