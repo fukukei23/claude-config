@@ -630,6 +630,13 @@ def main() -> int:
     )
     stale_list = json.loads(stale_json) if stale_json else []
     context = build_context(backlog, green, handoff, wants, stale_section=format_stale_section(stale_list))
+    # 外向き返信ログ表示＋月次ヒント（spec 2026-08-16）
+    orl_section = format_outward_reply_section(OUTWARD_REPLY_LOG)
+    if orl_section:
+        context += "\n\n" + orl_section
+        hint = monthly_review_hint(date.today(), STATE_DIR)
+        if hint:
+            context += "\n" + hint
     issues = collect_issues()
     if issues:
         context = context + "\n\n## OSS Issue 候補（auto-loop ラベル）\n" + "\n".join(f"- {i}" for i in issues)
