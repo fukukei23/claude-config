@@ -5,7 +5,7 @@
   "listen_port": 8787,
   "upstream_timeout": 1200,
   "log_level": "INFO",
-  "default_model": "glm-5.2",
+  "default_model": "glm-5.3",
   "status_file": "/tmp/glm-rate-proxy-status.json",
   "thresholds": {
     "normal": {

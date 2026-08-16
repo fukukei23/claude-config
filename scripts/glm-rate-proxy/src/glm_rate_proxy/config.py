@@ -13,7 +13,7 @@ DEFAULTS = {
     "listen_port": 8787,
     "upstream_timeout": 30.0,
     "log_level": "INFO",
-    "default_model": "glm-5.2",
+    "default_model": "glm-5.3",
     "status_file": "/tmp/glm-rate-proxy-status.json",
     "thresholds": {
         "normal": {"max_pct": 80, "model": None},
@@ -54,7 +54,7 @@ class ProxyConfig:
     listen_port: int = 8787
     upstream_timeout: float = 30.0
     log_level: str = "INFO"
-    default_model: str = "glm-5.2"
+    default_model: str = "glm-5.3"
     status_file: str = "/tmp/glm-rate-proxy-status.json"
     thresholds: dict = field(default_factory=lambda: DEFAULTS["thresholds"].copy())
     fallback: dict = field(default_factory=lambda: DEFAULTS["fallback"].copy())

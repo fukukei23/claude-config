@@ -83,7 +83,7 @@ except:
 # --- コンテキスト残量（窓使用量 / 動的窓サイズ）---
 # transcript_path から最新 assistant usage を読み、窓使用量を算出。
 # 窓使用量 = input + cache_creation + cache_read（cache_readも窓を占有する）。
-# 窓サイズは動的判定: exceeds_200k フラグ or 窓使用量>200k → 1M窓（Opus[1m]/GLM-5.2等）
+# 窓サイズは動的判定: exceeds_200k フラグ or 窓使用量>200k → 1M窓（Opus[1m]/GLM-5.3等）
 try:
     transcript_path = d.get('transcript_path')
     ctx_tokens = 0

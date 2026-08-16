@@ -22,14 +22,14 @@ def _load_key():
 
 GLM_KEY = _load_key()
 GLM_URL = 'https://api.z.ai/api/anthropic/v1/messages'
-MODEL = 'GLM-5.1'
+MODEL = 'GLM-5.3'
 
 
 def call_glm(prompt, max_tokens=4000):
     # ステータスファイルに記録（ステータスライン表示用）
     try:
         with open('/tmp/llm-last-used.txt', 'w') as f:
-            f.write('🟡 GLM-5.1')
+            f.write('🟡 GLM-5.3')
     except Exception:
         pass
     if not GLM_KEY:
