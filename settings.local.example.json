@@ -67,7 +67,8 @@
       "Skill(loop:*)",
       "Bash(bash ~/bin/apply-crons.sh check)",
       "Bash(bash /home/yn4416/bin/apply-crons.sh check)",
-      "Bash(ls -la /home/yn4416/ 2>&1 | head -20; echo \"---\"; ls -la ~/bin 2>&1; echo \"---\"; find / -maxdepth 3 -iname \"apply-crons.sh\" 2>/dev/null)"
+      "Bash(ls -la /home/yn4416/ 2>&1 | head -20; echo \"---\"; ls -la ~/bin 2>&1; echo \"---\"; find / -maxdepth 3 -iname \"apply-crons.sh\" 2>/dev/null)",
+      "Bash(bash ~/bin/ai-repo-watch.sh)"
     ],
     "deny": [
       "Bash(wsl * bash -c *)",
