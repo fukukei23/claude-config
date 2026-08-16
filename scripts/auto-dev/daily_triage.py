@@ -309,6 +309,30 @@ SSOT = Path("/home/yn4416/projects/obsidian-ssot")
 STATE_DIR = Path("/home/yn4416/.claude/state")
 TODAY_TASKS = STATE_DIR / "today-tasks.md"
 PROJECTS_DIR = Path("/home/yn4416/projects")
+OUTWARD_REPLY_LOG = SSOT / "00_SYSTEM" / "参考資料" / "外向き返信実績" / "log.md"
+
+
+def format_outward_reply_section(log_path: Path) -> str:
+    """外向き返信ログの件数・結果未入力数を表示セクション化（spec 2026-08-16）。
+
+    Args:
+        log_path: log.md のパス（存在しない → 空文字で出力しない）
+
+    Returns:
+        セクション文字列（未入力率>40%で分析停止ガード行つき・ログ無しは ""）
+    """
+    if not log_path.exists():
+        return ""
+    rows = [ln for ln in log_path.read_text(encoding="utf-8").splitlines()
+            if ln.startswith("| 2") and "|" in ln[1:]]
+    if not rows:
+        return ""
+    total = len(rows)
+    pending = sum(1 for r in rows if r.rstrip().endswith("未定 |") or r.rstrip().endswith("未定|"))
+    lines = [f"## 📮外向き返信ログ: {total}件（結果未入力{pending}件）"]
+    if pending / total > 0.4:
+        lines.append("- ⚠️ 結果未入力率>40% — 分析提案停止（データ品質ガード・spec）")
+    return "\n".join(lines)
 
 
 def validate_repo(repo_name: str, projects_dir: Path = PROJECTS_DIR) -> str | None:
