@@ -152,15 +152,17 @@ except:
 if work_str:
     parts.append(work_str)
 
-# タブ識別子を先頭に（WT_SESSION先頭4桁・/clearで不変・タブ単位の識別子。
-# WT_SESSION未設定時は session_id 先頭4桁でフォールバック）
+# タブ識別子を末尾に（WT_SESSION先頭4桁・/clearで不変・タブ単位の識別子。
+# WT_SESSION未設定時は session_id 先頭4桁でフォールバック。
+# 2026-08-16 並び順変更: モデル→Ctx→Req→作業量→🪟タブID（スマホ表示で末尾が見切れるため
+# 重要度順にモデル/コンテキストを先頭へ・🪟は末尾へ）
 wt = os.environ.get('WT_SESSION', '')
 if wt:
     tab_id = wt[:4]
 else:
     sid = d.get('session_id', '')
     tab_id = sid[:4] if sid else '----'
-parts.insert(0, f'\033[36m🪟{tab_id}\033[0m')
+parts.append(f'\033[36m🪟{tab_id}\033[0m')
 
 # str() で包む: 万が一 dict が混入しても TypeError を起こさない安全策
 print(' | '.join(str(p) for p in parts))
