@@ -144,8 +144,8 @@ cnt=$(echo "$out" | python3 -c "import sys,json; d=json.load(sys.stdin); print(l
 ids=$(echo "$out" | python3 -c "import sys,json; d=json.load(sys.stdin); print(sorted([r['id'] for r in d]))")
 [ "$cnt" = "1" ] && [ "$ids" = "['bbbb']" ] && pass "T8" || fail "T8: cnt=$cnt ids=$ids"
 
-# === テスト9: --json なし → 人間可読形式（stale有りで exit 1） ===
-echo "[T9] 人間可読出力 + exit 1"
+# === テスト9: --json なし → 人間可読形式（stale有りでも exit 0・stdout警告・2026-08-17 exit 1→0変更） ===
+echo "[T9] 人間可読出力 + exit 0"
 rm -f "$WORK/heartbeat/"*
 touch_hb df70 100
 make_board "$WORK/00_SYSTEM/active-sessions.md" "| df70 | テスト9 | — | 検証 | 07-25 00:00 | 🟢 |"
@@ -153,7 +153,7 @@ set +e
 out=$("$TARGET" --ssot-path "$WORK" --heartbeat-dir "$WORK/heartbeat" --handoff-dir "$WORK/handoff" 2>&1)
 rc=$?
 set -e
-[ "$rc" = "1" ] && pass "T9 exit_code" || fail "T9 exit_code: expected 1, got $rc"
+[ "$rc" = "0" ] && pass "T9 exit_code" || fail "T9 exit_code: expected 0, got $rc"
 echo "$out" | grep -q "⚠" && pass "T9 warn symbol" || fail "T9: no warn symbol in output: $out"
 
 # === テスト10: stale無し → exit 0 ===

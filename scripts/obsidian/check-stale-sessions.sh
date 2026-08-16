@@ -190,5 +190,5 @@ for r in d:
     print(f\"  - {r['id']}{long_marker} | 経過: {age_str} | 閾値: {r['threshold_hours']}h | 理由: {r['reason']}\")
     print(f\"    タスク: {r['session']}\")
 "
-  exit 1
+  exit 0  # 2026-08-17 exit 1→0: stdout 警告を SessionStart コンテキストに表示するため
 fi
