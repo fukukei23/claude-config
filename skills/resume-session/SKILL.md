@@ -74,7 +74,7 @@ grep -nE '^- W[0-9]' ~/projects/obsidian-ssot/00_SYSTEM/バックログ.md
 # 週次リフレクション検知（Phase2・spec 2026-08-16 §5・完了週ベース）
 # RFL_ / RFL_PENDING / RFL_STALE: で始まる出力を Step3 の「📝 リフレクション検知」に反映。
 RFL_INDEX=~/projects/obsidian-ssot/40_CAREER/リフレクション/_INDEX.md
-RFL_STOPPED=$(grep -c '^reflection_stopped: true' "$RFL_INDEX" 2>/dev/null || echo 0)
+RFL_STOPPED=$(grep -c '^reflection_stopped: true' "$RFL_INDEX" 2>/dev/null); RFL_STOPPED=${RFL_STOPPED:-0}
 if [ "$RFL_STOPPED" -ge 1 ]; then
   echo "RFL: 停止宣言済み（再開は「リフレクション再開」）"
 else
