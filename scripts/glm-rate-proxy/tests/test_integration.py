@@ -418,7 +418,9 @@ async def test_main起動シーケンス():
     with patch("glm_rate_proxy.__main__.web") as mock_web, \
          patch("glm_rate_proxy.__main__.ProxyServer") as MockServer:
         server = MockServer.return_value
-        server.create_app.return_value = MagicMock()
+        from aiohttp import web as _web
+        server.create_app.return_value = _web.Application()
+        server.start = AsyncMock()
         server.tracker_start = AsyncMock()
         mock_web.run_app = FakeRunApp()
         m.main()
