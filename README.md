@@ -25,7 +25,7 @@ Claude Code は Anthropic が提供するAIコーディングアシスタント�
 
 ```
 認証: APIキー（.env / settings.json に直書き）
-モデル: 自由に選択可能（GLM-5.1 など外部LLMも直接設定できる）
+モデル: 自由に選択可能（GLM-5.3 など外部LLMも直接設定できる）
 課金: APIキーに紐づく従量課金
 ```
 
@@ -52,7 +52,7 @@ Desktopアプリ版はモデルを変更できないが、**MCP（Model Context 
 ```
 Claude Desktop（Sonnet）
     └── MCP ツール呼び出し
-            ├── glm_ask  → Z.AI GLM-5.1（安価）
+            ├── glm_ask  → Z.AI GLM-5.3（安価）
             └── minimax_ask → MiniMax（安価）
 ```
 
@@ -74,7 +74,7 @@ CLI版では `glm-rate-proxy` というローカルリバースプロキシを�
 ```
 Claude Code CLI
     └── http://127.0.0.1:8787（ローカルプロキシ）
-            ├── 正常時 → Z.AI GLM-5.1
+            ├── 正常時 → Z.AI GLM-5.3
             ├── 使用率80%↑ → GLM-4.7
             ├── 使用率95%↑ → GLM-4.7-Flash（無料）
             ├── ピーク時間帯(15-19時) → MiniMax M2.7
@@ -86,7 +86,7 @@ Claude Code CLI
 
 | # | 状況 | 動作 |
 |---|---|---|
-| ① | 正常時 | ZAI（GLM-5.1）使用 |
+| ① | 正常時 | ZAI（GLM-5.3）使用 |
 | ② | 使用率 80-95% | GLM-4.7 にダウングレード |
 | ③ | 使用率 >95% | GLM-4.7-Flash（無料枠）使用 |
 | ④ | ピーク時間帯（JST 15-19時） | MiniMax M2.7 に強制ルーティング |
@@ -121,7 +121,7 @@ echo $ANTHROPIC_BASE_URL
 | 環境 | ベースモデル | 認証 | 主な設定ファイル |
 |------|------------|------|----------------|
 | Windows Desktop App | Sonnet（OAuth固定） | OAuth Pro | `claude_desktop_config.json` + `mcp-cheap-llm/` |
-| WSL2 CLI | GLM-5.1（Z.AI） | APIキー | `~/.claude/settings.json` |
+| WSL2 CLI | GLM-5.3（Z.AI） | APIキー | `~/.claude/settings.json` |
 
 ```
 claude-config/
@@ -152,7 +152,7 @@ Desktop / CLI 共通のルーティング方針。詳細は [ルーティング.
 
 | 優先度 | バッジ | モデル | 用途 |
 |--------|--------|--------|------|
-| 第一優先 | 🟡 | GLM-5.1 | 日常作業・コード生成・要約・翻訳 |
+| 第一優先 | 🟡 | GLM-5.3 | 日常作業・コード生成・要約・翻訳 |
 | 第二優先 | 🟠 | MiniMax | GLM失敗時・大量処理・ピーク時間帯 |
 | 最終手段 | 🔵 | Sonnet | Tier1・複雑設計（事前許可制） |
 
@@ -163,7 +163,7 @@ Desktop / CLI 共通のルーティング方針。詳細は [ルーティング.
 CLI版では `glm-rate-proxy` が自動でルーティングを制御。ユーザー操作不要。
 
 ```
-正常時 → ピーク時間帯(15-19時)はMiniMax / 通常はGLM-5.1
+正常時 → ピーク時間帯(15-19時)はMiniMax / 通常はGLM-5.3
 エラー時 → 429/500/502/タイムアウト → 自動でMiniMaxにフォールバック
 ```
 
@@ -186,7 +186,7 @@ Tier1 操作は `agents/tier1バリデーター.md` の Agent が事前検証す
 
 | 項目 | Desktop | CLI |
 |------|---------|-----|
-| ベース | Sonnet OAuth Pro（週次リセット） | GLM-5.1（Z.AI 従量課金） |
+| ベース | Sonnet OAuth Pro（週次リセット） | GLM-5.3（Z.AI 従量課金） |
 | MCP経由呼び出し | GLM / MiniMax API料金 | MiniMax（フォールバック時） |
 | 月額目安 | Anthropic Pro $20/月 + MCP API料金 | Z.AI 従量課金のみ |
 
@@ -274,7 +274,7 @@ Tier1 操作は `agents/tier1バリデーター.md` の Agent が事前検証す
 ### glm-rate-proxy（7層フォールバックチェーン）
 
 ```
-正常時 → ZAI（GLM-5.1）
+正常時 → ZAI（GLM-5.3）
 使用率 80-95% → GLM-4.7 にダウングレード
 使用率 >95% → GLM-4.7-Flash（無料枠）
 ピーク時間帯（JST 15-19時）→ MiniMax M2.7 に強制ルーティング
