@@ -78,7 +78,8 @@ def test_approve_themes_cli_writes_and_prints_diff(tmp_path: Path, monkeypatch) 
     idx.write_text("---\nproject: p\nstatus: active\nlast_verified: 2026-07-24\n---\n# T\n", encoding="utf-8")
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     monkeypatch.setattr("sys.argv", ["approve-themes", "p", "a,b", "--date", "2026-07-24"])
-    import io, contextlib
+    import io
+    import contextlib
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         cli.main()

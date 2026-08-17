@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 
 from scripts.obsidian.manifest_health import (
-    HealthResult,
     check_project_health,
     detect_structural_drift,
     is_freshness_stale,
