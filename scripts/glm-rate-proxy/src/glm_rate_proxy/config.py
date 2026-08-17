@@ -16,11 +16,20 @@ DEFAULTS = {
     "default_model": "glm-5.3",
     "status_file": "/tmp/glm-rate-proxy-status.json",
     "thresholds": {
-        "normal": {"max_pct": 80, "model": None},
-        # economy(usage 80-95%)は MiniMax-M3 へ（コスト0・品質向上）
-        # emergency(usage 95%+)も MiniMax-M3 へフォールバック（GLM-4.7-Flashより高性能）
-        "economy": {"max_pct": 95, "model": "MiniMax-M3", "provider": "minimax"},
+        # 2段階（2026-08-17 改訂・ユーザー確定）:
+        #   normal   (<95%)  : GLM-5.3（economy段は廃止・95%まで GLM-5.3 のまま）
+        #   emergency(>=95%) : MiniMax-M3（usage = max(5h, 週間%) で判定）
+        # ZAI 429 時の最終砦 GLM-4.7-Flash は proxy._handle_429 内の定数で管理
+        "normal": {"max_pct": 95, "model": None, "provider": "zai"},
         "emergency": {"max_pct": 95, "model": "MiniMax-M3", "provider": "minimax"},
+    },
+    # ZAI monitor API ポーリング（使用率トラッキング・2026-08-17 新設）
+    # ZAI はレスポンスヘッダに rate limit 情報を返さないため
+    # monitor API から 5h%/週間% を定期取得する
+    "monitor": {
+        "enabled": True,
+        "interval_sec": 60,
+        "timeout_sec": 10,
     },
     "fallback": {
         "provider": "minimax",
@@ -60,6 +69,9 @@ class ProxyConfig:
     fallback: dict = field(default_factory=lambda: DEFAULTS["fallback"].copy())
     peak_hours: dict = field(default_factory=lambda: DEFAULTS["peak_hours"].copy())
     thinking: dict = field(default_factory=lambda: DEFAULTS["thinking"].copy())
+    monitor_enabled: bool = True
+    monitor_interval_sec: float = 60.0
+    monitor_timeout_sec: float = 10.0
 
     @property
     def minimax_api_keys(self) -> list[str]:
@@ -109,6 +121,9 @@ def load_config(config_path: str | None = None) -> ProxyConfig:
         fallback=merged["fallback"],
         peak_hours=merged["peak_hours"],
         thinking=merged["thinking"],
+        monitor_enabled=bool(merged.get("monitor", {}).get("enabled", True)),
+        monitor_interval_sec=float(merged.get("monitor", {}).get("interval_sec", 60)),
+        monitor_timeout_sec=float(merged.get("monitor", {}).get("timeout_sec", 10)),
     )
     # GLM_PEAK_BLOCK=false でピークブロック無効化
     env_peak = os.environ.get("GLM_PEAK_BLOCK", "").lower()

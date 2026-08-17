@@ -30,7 +30,12 @@ def _extract_message_text(data: dict) -> str:
 class ProxyServer:
     def __init__(self, config: ProxyConfig):
         self._config = config
-        self._tracker = UsageTracker(config.status_file)
+        self._tracker = UsageTracker(
+            config.status_file,
+            zai_api_key=config.zai_api_key,
+            monitor_interval_sec=config.monitor_interval_sec,
+            monitor_timeout_sec=config.monitor_timeout_sec,
+        )
         self._router = ModelRouter(
             config.thresholds, config.fallback, config.default_model,
             config.peak_hours,
@@ -50,7 +55,12 @@ class ProxyServer:
         await self._upstream.start()
 
     async def stop(self) -> None:
+        await self._tracker.stop()
         await self._upstream.stop()
+
+    async def tracker_start(self) -> None:
+        """UsageTracker の monitor ポーリング開始（on_startup から呼ばれる）。"""
+        await self._tracker.start()
 
     def create_app(self) -> web.Application:
         # client_max_size: 受信リクエストボディ上限。
@@ -127,30 +137,17 @@ class ProxyServer:
         if self._router.current_mode == "peak_block":
             return await self._handle_429_peak_block(method, path, headers, orig_body)
 
-        emergency_model = self._config.thresholds["emergency"]["model"]
-        if emergency_model:
-            body = self._replace_model(orig_body, emergency_model) if orig_body else orig_body
-            try:
-                resp = await self._upstream.request_zai(method, path, headers, body)
-                logger.info(f"429 fallback to {emergency_model} succeeded")
-                self._tracker.update_from_headers(resp["headers"])
-                self._capture_model(resp["body"])
-                return web.Response(
-                    status=resp["status"],
-                    content_type="application/json",
-                    body=resp["body"],
-                )
-            except RateLimitError:
-                logger.warning(f"429 even with {emergency_model}, trying MiniMax")
-            except UpstreamError as e:
-                logger.warning(f"Error with {emergency_model}: {e}, trying MiniMax")
-
+        # 新チェーン（2026-08-17 改訂・ユーザー確定）:
+        #   ZAI 429 → ① MiniMax-M3（高性能側・keys[0]=Pro → keys[1]=旧の連鎖を内包）
+        #           → ② GLM-4.7-Flash（ZAI 無料枠・最後の砦） → ③ 503
         if self._config.minimax_api_keys:
             fb_model, _ = self._router.get_fallback()
             body = self._replace_model(orig_body, fb_model) if orig_body else orig_body
+            if body:
+                body = sanitize_for_minimax(body)
             try:
                 resp = await self._upstream.request_minimax(method, path, headers, body)
-                logger.info(f"MiniMax fallback succeeded (model={fb_model})")
+                logger.info(f"429 -> MiniMax succeeded (model={fb_model})")
                 self._tracker.update_from_headers(resp["headers"])
                 self._capture_model(resp["body"])
                 return web.Response(
@@ -159,16 +156,34 @@ class ProxyServer:
                     body=resp["body"],
                 )
             except RateLimitError:
-                logger.error("MiniMax also rate limited")
+                logger.warning("MiniMax also rate limited, trying GLM-4.7-Flash via ZAI")
             except UpstreamError as e:
-                logger.error(f"MiniMax error: {e}")
+                logger.warning(f"MiniMax error: {e}, trying GLM-4.7-Flash via ZAI")
+
+        # 最後の砦: GLM-4.7-Flash（thresholds とは独立の定数・無料枠で無制限運用）
+        last_resort_model = "GLM-4.7-Flash"
+        body = self._replace_model(orig_body, last_resort_model) if orig_body else orig_body
+        try:
+            resp = await self._upstream.request_zai(method, path, headers, body)
+            logger.info(f"429 -> ZAI last resort ({last_resort_model}) succeeded")
+            self._tracker.update_from_headers(resp["headers"])
+            self._capture_model(resp["body"])
+            return web.Response(
+                status=resp["status"],
+                content_type="application/json",
+                body=resp["body"],
+            )
+        except RateLimitError:
+            logger.error(f"Even last resort ({last_resort_model}) rate limited")
+        except UpstreamError as e:
+            logger.error(f"Last resort error: {e}")
 
         return web.Response(
             status=503,
             content_type="application/json",
             text=json.dumps({
                 "error": "all_providers_rate_limited",
-                "message": "ZAI API rate limited and MiniMax fallback also failed. Wait for reset.",
+                "message": "MiniMax and ZAI last resort both rate limited. Wait for reset.",
             }),
         )
 

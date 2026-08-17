@@ -28,12 +28,15 @@ class ModelRouter:
         self._peak_hours = peak_hours or {}
 
     def determine_mode(self, usage_pct: float) -> str:
+        """2段階判定: peak_block → normal → emergency.
+
+        economy 段は廃止（2026-08-17 改訂・95%までは GLM-5.3 のまま）。
+        呼び出し側で max(5h, 週間%) を渡すこと（router は内訳を知らない）。
+        """
         if _is_peak_hour(self._peak_hours):
             mode = "peak_block"
         elif usage_pct < self._thresholds["normal"]["max_pct"]:
             mode = "normal"
-        elif usage_pct < self._thresholds["economy"]["max_pct"]:
-            mode = "economy"
         else:
             mode = "emergency"
 
@@ -55,14 +58,11 @@ class ModelRouter:
             model = original_model or self._default_model
             return model, "zai"
 
-        override_model = self._thresholds[mode]["model"]
-        if override_model:
-            # thresholds で provider 指定があればそれに従う（既定は zai）
-            # economy=MiniMax-M3 のような別プロバイダ切り替えに使用
-            provider = self._thresholds[mode].get("provider", "zai")
-            return override_model, provider
-
-        return original_model or self._default_model, "zai"
+        # emergency: thresholds.emergency の model/provider（既定 MiniMax-M3/minimax）
+        cfg = self._thresholds["emergency"]
+        model = cfg.get("model") or self._fallback["model"]
+        provider = cfg.get("provider", self._fallback["provider"])
+        return model, provider
 
     def get_fallback(self) -> tuple[str, str]:
         """Returns (fallback_model, fallback_provider)."""
