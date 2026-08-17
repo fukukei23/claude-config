@@ -532,22 +532,27 @@ typeの例: feat, fix, docs, refactor, chore, test
     return None
 
 
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        req = json.loads(line)
-        response = handle_request(req)
-        if response:
-            sys.stdout.write(json.dumps(response) + '\n')
-            sys.stdout.flush()
-    except Exception as e:
+def run_loop():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
         try:
-            req_id = json.loads(line).get('id')
-        except Exception:
-            req_id = None
-        if req_id is not None:
-            err = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}
-            sys.stdout.write(json.dumps(err) + '\n')
-            sys.stdout.flush()
+            req = json.loads(line)
+            response = handle_request(req)
+            if response:
+                sys.stdout.write(json.dumps(response) + '\n')
+                sys.stdout.flush()
+        except Exception as e:
+            try:
+                req_id = json.loads(line).get('id')
+            except Exception:
+                req_id = None
+            if req_id is not None:
+                err = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": str(e)}}
+                sys.stdout.write(json.dumps(err) + '\n')
+                sys.stdout.flush()
+
+
+if __name__ == '__main__':
+    run_loop()
