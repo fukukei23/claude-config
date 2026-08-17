@@ -409,6 +409,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-plain-explanation.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
             "command": "/home/yn4416/.claude/scripts/session/save-session-log.sh",
             "timeout": 5000
           },
