@@ -77,13 +77,14 @@ tail -20 /tmp/glm-proxy.log
 
 ## モデルルーティング
 
+使用率は ZAI monitor API（`GET /api/monitor/usage/quota/limit`）を60秒ポーリングして取得（5h% と週間% を別保持・`max(5h, week)` で判定・2026-08-17刷新。ZAI はレスポンスヘッダに rate limit 情報を返さないため）。
+
 | モード | 使用率 | モデル | いつ |
 |---|---|---|---|
 | peak_block | peak_hours時間帯 | `fallback.model`（既定: MiniMax-M3） | 設定されたピーク時間帯 |
-| normal | <80% | GLM-5.3 | 通常時 |
-| economy | 80-95% | MiniMax-M3（コスト0・config.py準拠） | 使用量が多い時 |
-| emergency | 95%+ | GLM-4.7-Flash | 使用量限界付近 |
-| fallback | 全滅時 | MiniMax-M3 | GLMが全モデル429の時 |
+| normal | <95% | GLM-5.3 | 通常時 |
+| emergency | 95%+ | MiniMax-M3 | 5h/週間どちらかが限界付近 |
+| fallback(429時) | ZAI 429 | ①MiniMax-M3（keys連鎖）→ ②GLM-4.7-Flash（最後の砦）→ ③503 | ZAIが429を返した時 |
 
 ## ピーク時間帯（peak_hours）
 
