@@ -250,6 +250,7 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
   },
   "tags": ["タグ1", "タグ2", "タグ3"],
   "filename_hint": "ファイル名に使う日本語の短い説明",
+  "plain_summary": "この記録で何をどこに保存するかを日常言葉で1-2行（専門用語を使わず・ユーザーが『何をされるか』を1読で理解できる文。フェーズ2の判定結果表示に💡 一言でいうと として必ず掲載）",
   "reason": "判定理由（1行）",
   "root_cause": {
     "category": "code_defect or design_mismatch or requirement_change or external_dependency or operational_error or unknown",
@@ -271,6 +272,7 @@ rm -f /tmp/ssot-record-candidates-sorted-$$.txt /tmp/ssot-record-setA-$$.txt /tm
   "cc_guide_page": null,
   "tags": ["claude-code", "cron", "Windows-Desktop"],
   "filename_hint": "Windows-Desktop版cron実行状況確認問題",
+  "plain_summary": "Windows側のデスクトップアプリで定期実行の予約が正しく動いているか確認した記録を、判断の経緯フォルダに保存して、日記に1行だけ足します",
   "reason": "Windows Desktop環境固有の技術的問題解決のため",
   "root_cause": {
     "category": "design_mismatch",
@@ -364,6 +366,7 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 📖 ガイド転記: なし                           ← guide_needed: false の場合
 🏷️ タグ: #claude-code #バグ修正 #スクリプト
 💬 理由: 技術的バグ修正のため01_DECISIONSが最適
+💡 一言でいうと: <フェーズ1のplain_summaryをそのまま掲載。専門用語禁止・「今から何を保存して何が起こるか」を日常言葉で>
 
 この振り分けでよいですか？[yes/修正指示]
 ```
@@ -379,11 +382,13 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
    └ 追記内容: test_convert.py の書き方・9クラス構成・テスト保護パターン
 🏷️ タグ: #テスト #品質管理
 💬 理由: 再利用できるテスト設計のノウハウのため
+💡 一言でいうと: <plain_summary>
 
 この振り分けでよいですか？[yes/修正指示]
 ```
 
 - `📖 ガイド転記` の行に「追記先ファイル名」と「何を書くかの1行概要」を必ず記載する
+- **`💡 一言でいうと` 行は全パターン（プロジェクトdocs更新あり・ハブ更新あり・CCガイド追記あり含む）で必須**（2026-08-18追加・CLAUDE.md平易解説ルール・「判定結果を見たが何をされるか分からないままyes押下」を構造的に防止）。plain_summaryはフェーズ1のJSON出力からそのまま使う
 - 「転記内容の詳細を先に見せますか？」は**聞かない** — yes承認後に直接書く
 - ユーザーが承認したら次のフェーズへ。修正指示があれば反映してから再確認。
 
