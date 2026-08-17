@@ -48,7 +48,7 @@ content = "\n".join(parts)
 # - 値が ${ENV_VAR} 完全一致のみ許可（ENV参照）
 # - ${ENV}sk-abc 等の部分混入・生値はブロック
 pat = re.compile(
-    r"\"([A-Za-z0-9_]*(?:api[_-]?key|[_-]?token|secret|password)[A-Za-z0-9_]*)\"\s*:\s*\"([^\"]*)\"",
+    r"\"([A-Za-z0-9_-]*(?:api[_-]?key|[_-]?token|secret|password)[A-Za-z0-9_-]*)\"\s*:\s*\"([^\"]*)\"",
     re.IGNORECASE,
 )
 blocked = None
