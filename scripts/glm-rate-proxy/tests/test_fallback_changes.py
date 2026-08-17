@@ -9,16 +9,15 @@
 実行: cd scripts/glm-rate-proxy && PYTHONPATH=src python3 -m pytest tests/ -q
 """
 
-import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from glm_rate_proxy.config import load_config
 from glm_rate_proxy.model_router import ModelRouter
 from glm_rate_proxy.proxy import ProxyServer
-from glm_rate_proxy.upstream import RateLimitError, UpstreamError
+from glm_rate_proxy.upstream import RateLimitError
 from glm_rate_proxy.usage_tracker import UsageTracker
 
 
@@ -196,7 +195,7 @@ class TestHandle429Chain:
         resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
         assert resp.status == 200
         server._upstream.request_minimax.assert_awaited_once()
-        server._upstream.request_zai.assert_awaited_not_called()
+        server._upstream.request_zai.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_第2候補_minimax429時glm47flashをzaiに再試行(self):
