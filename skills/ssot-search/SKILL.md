@@ -15,54 +15,58 @@ description: obsidian-ssot（個人知識ベース）を横断検索するスキ
 
 ## 概要
 obsidian-ssot（個人知識ベース）を横断検索するスキル。
-ripgrep で全文検索し、sentence-transformers で意味的に rerank して上位5件を返す軽量 RAG。
+**主経路 = v2（ベクトル意味検索・ruri-v3-130m + ChromaDB）**。日本語意味検索が効き、語彙が違ってもヒットする（2026-08-17ベンチ: 自然文39問中29問ヒット vs 旧v1は3問・Recall@5=0.744 vs 0.026）。
+v1（ripgrep+rerank）は**ピンポイント字句検索**（型番・ファイル名・エラー文の正確コピー等）のサブ経路として残存。
 
 ## 使い方（ユーザーへの案内）
 ```
 SSOTから探して: glm-rate-proxy の設定
 SSOTから探して: MiniMaxのAPIエラー対処法
-SSOTから探して: openclaw-stack の設計方針
+SSOTから探して: 過去に並行セッションの事故を防いだ判断
 ```
 
 ## 実行手順（Claude Code が行うこと）
 
 1. ユーザーのメッセージからクエリを抽出する
-2. 以下のBashコマンドを実行する：
+2. **主経路（v2・意味検索）** を実行:
+
+```bash
+cd /home/yn4416/projects/ssot-search-v2 && .venv/bin/python3 cli.py "<クエリ>" --top 5
+```
+
+3. 出力結果をそのままユーザーに提示する（索引鮮度表示付き・🚨48h超なら差分更新の異常を報告）
+4. ヒットしたファイルの内容が必要な場合は Read ツールで該当ファイルを開いて要約する
+5. **クエリが型番・ファイル名・エラー文言の正確コピー系**（例: `ISSUE-106`・`PriceIntegrityError`）は v1 が強い:
 
 ```bash
 python3 ~/.claude/scripts/ssot/search.py "<クエリ>" --top 5
 ```
 
-3. 出力結果をそのままユーザーに提示する
-4. ヒットしたファイルの内容が必要な場合は Read ツールで該当ファイルを開いて要約する
+## 経路使い分け（2026-08-17ベンチ実測に基づく）
 
-## 補足オプション
-- 件数を増やしたい場合: `--top 10`
-- 特定ディレクトリに絞りたい場合: `--ssot-dir ~/projects/obsidian-ssot/01_DECISIONS`
-- カバレッジ表示を消す（pipe用途）: `--no-coverage`
-- カバレッジ3情報をJSONでstderr出力（計測/監査）: `--log-coverage`
+| クエリ型 | 経路 | 理由 |
+|---|---|---|
+| 自然文・概念・語彙が不定（「〜を防いだ判断」等） | **v2** | 意味検索が語彙違いを吸収（R@5=0.744） |
+| 型番・固有名・エラー文の正確コピー | v1（またはv2併用） | 字句一致が最短 |
+| 字句+意味の両方を広く拾いたい | v2の `--mode hybrid` | RRF統合（R@10はv2と同率・順位はやや下がる実測） |
 
-## カバレッジ出力の読み方（False Negative 対策・spec v3）
+## 補足オプション（v2 cli.py）
+- 件数: `--top 10`
+- RRF統合: `--mode hybrid`
+- JSON出力（機械処理用）: `--json`
 
-検索結果の末尾に、探した範囲と除外された範囲を明示するカバレッジ情報が出力されます。これは「ちゃんと探せているか」の不安を構造的に除去するためのものです。
+## v1の補足オプション
+- `--top 10` / `--ssot-dir <dir>` / `--no-coverage` / `--log-coverage`（カバレッジ3情報をJSONでstderr出力）
 
-```
-📊 カバレッジ: SSOT全体 2,482 .mdファイル中、ripgrep で19ファイル抽出 → 意味rerankで上位5件表示
-📌 次点候補: 6位〜10位にあと5件（表示を増やすなら --top 10）
-🚨 2,463ファイルはキーワード非マッチのため未確認（語彙違いの類縁判断が含まれている可能性があります）
-```
-
-- **母数・フィルタ結果・除外量**: 「N件ヒット＝全部だ」でなく「N件ヒット・でも未確認領域が残る」と気づける
-- **次点候補**: 「なぜN位で切れたか」への回答・`--top` 増量の判断材料
-- **⚠️/🚨 未確認**: ripgrep 第1段でキーワード非マッチのファイルは**意味的に近くても絶対に出てこない**（語彙違いの類縁判断が含まれている可能性）。抽出率5%未満は 🚨 強化
-- **0ヒット時**: 「母数中0ファイル抽出」とヒント表示。クエリの語彙違いを見直す合図
-
-> 「気づける + 動ける + 計測できる」が目的。検索の再現率自体を上げるものではありません（アルゴリズム変更なし）。詳細: `docs/superpowers/specs/2026-07-05-ssot-search-coverage-design.md`
+## 索引の保守（v2）
+- **差分更新が*/30で自動稼働**（auto-sync連動・`~/bin/update_rag_index.sh`）
+- 確認: `tail -2 ~/.local/share/ssot-search-v2/update.log`・48h更新なしがCLI表示で🚨警告
+- 全再構築・モデル差替手順: `~/projects/ssot-search-v2/README.md`
 
 ## スクリプト場所
-`~/.claude/scripts/ssot/search.py`（シンボリックリンク元: `~/projects/claude-config/scripts/ssot/search.py`）
+- v2: `~/projects/ssot-search-v2/cli.py`（実装repo・ローカルcommit）
+- v1: `~/.claude/scripts/ssot/search.py`（シンボリックリンク元: `~/projects/claude-config/scripts/ssot/search.py`）
 
 ## 依存
-- `ripgrep`（`sudo apt install ripgrep`）
-- `sentence-transformers`（`pip3 install sentence-transformers`）
-- モデル: `all-MiniLM-L6-v2`（初回実行時に自動ダウンロード ~80MB）
+- v2: repoの `.venv`（chromadb・sentence-transformers）・ruri-v3-130m モデル
+- v1: `ripgrep` / `sentence-transformers` / `all-MiniLM-L6-v2`
