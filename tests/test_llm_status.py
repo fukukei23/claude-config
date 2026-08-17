@@ -21,11 +21,12 @@ def run_statusline(payload: str | bytes, env_extra: dict | None = None) -> tuple
     """llm-status.sh をstdin付きで実行し (exit_code, stdout) を返す."""
     env = dict(os.environ)
     env.pop("WT_SESSION", None)
+    env.pop("CLAUDE_CODE_AUTO_COMPACT_WINDOW", None)  # 窓サイズ環境依存を排除
     env.update(env_extra or {})
     data = payload.encode() if isinstance(payload, str) else payload
     r = subprocess.run(["bash", str(SCRIPT)], input=data,
-                       capture_output=True, text=True, timeout=15, env=env)
-    return r.returncode, r.stdout.strip()
+                       capture_output=True, timeout=15, env=env)
+    return r.returncode, r.stdout.decode("utf-8", errors="replace").strip()
 
 
 def _proxy_alive() -> bool:
