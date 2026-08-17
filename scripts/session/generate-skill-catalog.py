@@ -57,7 +57,7 @@ JA_DESC = {
 
 # MCP説明辞書
 MCP_DESC = {
-    "glm": "GLM-5.2 LLM（メインモデル）",
+    "glm": "GLM-5.3 LLM（メインモデル）",
     "minimax": "MiniMax（大量処理・フォールバック）",
     "brave-search": "Web検索",
     "github": "GitHub操作（PR/Issue/コード検索）",
