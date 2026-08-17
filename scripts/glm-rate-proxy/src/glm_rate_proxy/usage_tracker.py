@@ -95,7 +95,9 @@ class UsageTracker:
         monitor ポーリングに一本化した。現状の max 値を返すだけ。"""
         with self._lock:
             self._last_update = datetime.now(timezone.utc).isoformat()
-            return max(self._usage_5h_pct, self._usage_week_pct)
+            result = max(self._usage_5h_pct, self._usage_week_pct)
+        self._write_status()
+        return result
 
     def set_usage(self, pct: float) -> None:
         """テスト/手動操作用。両軸に同じ値を設定。"""
@@ -125,6 +127,11 @@ class UsageTracker:
                 await asyncio.wait_for(self._task, timeout=5.0)
             except asyncio.TimeoutError:
                 self._task.cancel()
+                # cancel後のawaitでCancelledErrorを回収（未回収例外警告防止）
+                try:
+                    await self._task
+                except (asyncio.CancelledError, Exception):
+                    pass
             self._task = None
         if self._client is not None:
             await self._client.aclose()
@@ -169,7 +176,8 @@ class UsageTracker:
             data = resp.json()
         except Exception as e:  # noqa: BLE001
             with self._lock:
-                self._last_error = str(e)[:200]
+                # 例外型名+短縮メッセージのみ（URL等の混入防止・サニタイズ）
+                self._last_error = f"{type(e).__name__}: {str(e)[:120]}"
                 self._error_count += 1
             return
 

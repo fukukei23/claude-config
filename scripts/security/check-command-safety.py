@@ -24,7 +24,7 @@ SECRET_FILE_RE = re.compile(
     r'|settings\.local\.json'
     r'|claude_desktop_config\.json'
     r'|\.bash_history'
-    r'|\.env(?![a-zA-Z]))'  # .env は .env.example 等を除外
+    r'|\.env(?![\w.]))'  # .env は .env.example / .envrc 等を除外（2026-08-17レビューP2で修正: '.'も除外に追加）
 )
 
 

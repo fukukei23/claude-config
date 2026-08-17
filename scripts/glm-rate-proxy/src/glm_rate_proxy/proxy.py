@@ -55,8 +55,12 @@ class ProxyServer:
         await self._upstream.start()
 
     async def stop(self) -> None:
-        await self._tracker.stop()
-        await self._upstream.stop()
+        # tracker停止をここに集約（on_cleanup から直接 _tracker.stop() しない・二重stop解消）
+        # upstream.stop 失敗時も tracker は停止保証（try/finally）
+        try:
+            await self._upstream.stop()
+        finally:
+            await self._tracker.stop()
 
     async def tracker_start(self) -> None:
         """UsageTracker の monitor ポーリング開始（on_startup から呼ばれる）。"""

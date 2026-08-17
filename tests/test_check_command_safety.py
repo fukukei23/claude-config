@@ -67,11 +67,6 @@ BLOCK_CASES = [
     ("cat -v file.txt", "cat -A/-v/-E"),
     ("cat -E file.txt", "cat -A/-v/-E"),
     ("cat -nA file.txt", "cat -A/-v/-E"),
-    # ※仕様メモ: .env.example / .env.bak も現行ではブロックされる
-    #   （\.env(?![a-zA-Z]) の lookahead は直後が '.' の場合を通す＝過剰ブロック・安全側。
-    #    コメントの意図「.env.example 等を除外」と乖離 → 改善候補として記録済み）
-    ("cat .env.example", "機密ファイル"),
-    ("cat prod.env.bak", "機密ファイル"),
     # 4. 機密ファイルgrep（マスクなし）
     ("grep KEY= ~/.secrets.env", "grep"),
     ("grep -i token settings.json", "grep"),
@@ -109,8 +104,10 @@ ALLOW_CASES = [
     "git log --oneline",
     "python3 script.py",
     "echo $MY_VAR",
-    # .envrc（.env の直後に[a-zA-Z]が続くケースは除外される）
+    # .envrc / .env.example / .env.bak（\.env(?![\w.]) で除外される）
     "cat .envrc",
+    "cat .env.example",
+    "cat prod.env.bak",
     # grep -c / -l は値を表示しない
     "grep -c KEY ~/.secrets.env",
     "grep -l KEY settings.json",

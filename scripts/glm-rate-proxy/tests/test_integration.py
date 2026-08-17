@@ -454,3 +454,23 @@ def test_monitor無効時のログ分岐():
         mock_web.run_app = FakeRunApp()
         m.main()
         assert len(captured["hooks"]) == 2  # start + stop系
+
+
+@pytest.mark.asyncio
+async def test_週間が96pctで5h低くてもminimax配線に切替():
+    """max(5h, week) 両側契約: 5h=10・week=96 でも emergency 配線になる（レビューP2-5）."""
+    client, server = _ = await _make_client()
+    try:
+        server._upstream.request_minimax = AsyncMock(return_value=_ok(model="MiniMax-M3"))
+        server._upstream.request_zai = AsyncMock()
+        server._tracker._usage_5h_pct = 10.0
+        server._tracker._usage_week_pct = 96.0
+        server._tracker._last_success_ts = 1.0
+
+        resp = await client.post("/v1/messages", data=BODY,
+                                 headers={"anthropic-version": "2023-06-01"})
+        assert resp.status == 200
+        server._upstream.request_minimax.assert_awaited_once()
+        server._upstream.request_zai.assert_not_awaited()
+    finally:
+        await client.close()

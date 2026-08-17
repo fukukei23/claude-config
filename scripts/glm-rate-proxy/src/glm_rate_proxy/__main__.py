@@ -31,8 +31,7 @@ def main():
             logger.info("ZAI monitor polling DISABLED by config")
 
     async def on_cleanup(app):
-        if config.monitor_enabled:
-            await server._tracker.stop()
+        # tracker停止は server.stop() 内に集約済み（二重stop解消・2026-08-17レビューP1）
         await server.stop()
 
     app.on_startup.append(on_startup)
