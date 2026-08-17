@@ -80,10 +80,10 @@ tail -20 /tmp/glm-proxy.log
 | モード | 使用率 | モデル | いつ |
 |---|---|---|---|
 | peak_block | peak_hours時間帯 | `fallback.model`（既定: MiniMax-M3） | 設定されたピーク時間帯 |
-| normal | <80% | GLM-5.2 | 通常時 |
-| economy | 80-95% | GLM-4.7 | 使用量が多い時 |
+| normal | <80% | GLM-5.3 | 通常時 |
+| economy | 80-95% | MiniMax-M3（コスト0・config.py準拠） | 使用量が多い時 |
 | emergency | 95%+ | GLM-4.7-Flash | 使用量限界付近 |
-| fallback | 全滅時 | MiniMax-M2.7 | GLMが全モデル429の時 |
+| fallback | 全滅時 | MiniMax-M3 | GLMが全モデル429の時 |
 
 ## ピーク時間帯（peak_hours）
 
