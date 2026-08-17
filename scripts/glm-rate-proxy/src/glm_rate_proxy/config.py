@@ -18,9 +18,9 @@ DEFAULTS = {
     "thresholds": {
         "normal": {"max_pct": 80, "model": None},
         # economy(usage 80-95%)は MiniMax-M3 へ（コスト0・品質向上）
-        # 両プロバイダ月額サブスク既払い・MiniMax枠超過時は429→emergency(GLM-4.7-Flash)へ逆フォールバック
+        # emergency(usage 95%+)も MiniMax-M3 へフォールバック（GLM-4.7-Flashより高性能）
         "economy": {"max_pct": 95, "model": "MiniMax-M3", "provider": "minimax"},
-        "emergency": {"max_pct": 100, "model": "GLM-4.7-Flash"},
+        "emergency": {"max_pct": 95, "model": "MiniMax-M3", "provider": "minimax"},
     },
     "fallback": {
         "provider": "minimax",
