@@ -133,8 +133,8 @@ async def test_第1キー429で第2キーへ():
         resp = await c.request_minimax("POST", "/v1/messages", {}, BODY)
         assert resp["status"] == 200
         assert c._do_request.await_count == 2
-        # 2回目のx-api-keyが第2キー
-        second_headers = c._do_request.await_args_list[1].args[3]
+        # 2回目のx-api-keyが第2キー（_do_request(url, method, headers, body) の args[2]=headers）
+        second_headers = c._do_request.await_args_list[1].args[2]
         assert second_headers["x-api-key"] == "k2"
 
 
@@ -268,11 +268,6 @@ class TestSanitizer:
 
 # ---- proxy ユーティリティ ----
 
-class TestCaptureModel:
-    def test_json応答からmodel取得():
-        pass  # staticmethodの性質上、下の関数形で検証
-
-
 def _mk_server():
     cfg = _cfg()
     server = ProxyServer.__new__(ProxyServer)
@@ -405,3 +400,55 @@ async def test_stop時のタスクcancelパス():
     await t.start()
     await t.stop()
     assert t._task is None
+
+
+# ---- __main__ エントリポイント ----
+
+@pytest.mark.asyncio
+async def test_main起動シーケンス():
+    """web.run_appをモックし main() の起動ログ・app構築・startup配線を検証."""
+    import glm_rate_proxy.__main__ as m
+    captured = {}
+
+    class FakeRunApp:
+        def __call__(self, app, **kw):
+            captured["app"] = app
+            captured["hooks"] = list(app.on_startup)
+
+    with patch("glm_rate_proxy.__main__.web") as mock_web, \
+         patch("glm_rate_proxy.__main__.ProxyServer") as MockServer:
+        server = MockServer.return_value
+        server.create_app.return_value = MagicMock()
+        server.tracker_start = AsyncMock()
+        mock_web.run_app = FakeRunApp()
+        m.main()
+        assert "app" in captured
+        # on_startup に server.start と tracker_start が登録されている
+        assert len(captured["hooks"]) == 2
+        # on_startupフックを実際に発火（tracker_startが呼ばれる）
+        for hook in captured["hooks"]:
+            await hook(None)
+        server.start.assert_called_once()
+        server.tracker_start.assert_awaited_once()
+
+
+def test_monitor無効時のログ分岐():
+    import glm_rate_proxy.__main__ as m
+    captured = {}
+
+    class FakeRunApp:
+        def __call__(self, app, **kw):
+            captured["hooks"] = list(app.on_startup)
+
+    with patch("glm_rate_proxy.__main__.web") as mock_web, \
+         patch("glm_rate_proxy.__main__.ProxyServer") as MockServer, \
+         patch("glm_rate_proxy.__main__.load_config") as mock_load:
+        cfg = _cfg()
+        cfg.monitor_enabled = False
+        mock_load.return_value = cfg
+        server = MockServer.return_value
+        from aiohttp import web as _web
+        server.create_app.return_value = _web.Application()
+        mock_web.run_app = FakeRunApp()
+        m.main()
+        assert len(captured["hooks"]) == 2  # start + stop系
