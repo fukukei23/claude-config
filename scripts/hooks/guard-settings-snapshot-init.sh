@@ -9,3 +9,5 @@ for f in settings.json settings.local.json; do
     src="$CLAUDE_DIR/$f"
     [ -f "$src" ] && cp -p "$src" "$SNAP_DIR/$f.before"
 done
+
+exit 0
