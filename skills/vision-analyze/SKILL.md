@@ -1,7 +1,7 @@
 ---
 name: vision-analyze
 description: >
-  画像を理解（被写体・テキストOCR・構図・色・UI構造の分析）し、結果を構造化して返すスキル。CC CLI は GLM-5.2 等の vision 非対応モデルで稼働中のため画像を直接視認できず、主ルート Gemini 2.5 Flash（scripts/api/gemini_vision.py・無料枠）と副ルート 4_5v MCP（analyze_image・Readが返すCDN URL）の2経路で分析し、CCは結果の構造化・比較・保存に専任する。
+  画像を理解（被写体・テキストOCR・構図・色・UI構造の分析）し、結果を構造化して返すスキル。CC CLI は GLM-5.3 等の vision 非対応モデルで稼働中のため画像を直接視認できず、主ルート Gemini 2.5 Flash（scripts/api/gemini_vision.py・無料枠）と副ルート 4_5v MCP（analyze_image・Readが返すCDN URL）の2経路で分析し、CCは結果の構造化・比較・保存に専任する。
   ユーザーが「画像見て」「この画像何が写ってる」「画像比較して」「スクショ見て」「画像分析して」「画像理解」「vision-analyze」と言った時、または /vision-analyze を呼んだ時にトリガー。
   ※画像生成（image generation）は対象外（make-song / video-prompt-spec / demo-site-sales参照）。ピクセル修正（花鈿除去等）は remove-huadian の役割。楽曲分析は analyze-song / reverse-engineer-song。
 user-invocable: true
@@ -13,7 +13,7 @@ user-invocable: true
 「画像見て」「この画像何が写ってる」「画像比較して」「スクショ見て」「画像分析して」「画像理解」「/vision-analyze」
 
 ## 設計の核心
-- **CCは画像を視認できない**（GLM-5.2 は vision 非対応）。分析は外部APIに委任。
+- **CCは画像を視認できない**（GLM-5.3 は vision 非対応）。分析は外部APIに委任。
 - **CCの役割**: ①対象画像パス/CDN URLの特定 ②API呼び出し ③結果の構造化・比較・保存
 - **モデル陳腐化耐性**: Gemini 候補は `config/gemini-models.json` から自動選択（半年後のモデル変更も設定書換で吸収）。429=バックオフ・403/404/5xx=次候補フォールバック・paid_ok で課金事故防止。
 

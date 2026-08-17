@@ -127,7 +127,7 @@ code {
 HTMLに以下の文字列を含めない:
 - `yn4416`（Linuxユーザー名）
 - `fukukei`（GitHubアカウント名、公開URLを除く）
-- `GLM-5.2`, `GLM-5.1`, `GLM-4.7`, `GLM-4.5-Air`（モデル名）
+- `GLM-5.3`, `GLM-5.1`, `GLM-4.7`, `GLM-4.5-Air`（モデル名）
 - `00_SYSTEM/`（SSOTの内部パス）
 - `glm_ask`, `minimax_ask`（MCPツール名）
 
