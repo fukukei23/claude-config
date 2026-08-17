@@ -1,18 +1,25 @@
 """テストとソースを分離して LOC を集計する（テストが src ツリーに混在するリポジトリ用）。
 
-使い方: python3 tmp_split_tests.py <REPO> [除外dir ...]
-判定: パスに /tests/ を含む or ファイル名が test_*.py / *.test.js / *_test.go
+使い方: python3 split_tests.py <REPO> [除外dir ...（ベース名 or パス指定）]
+判定: パスに /tests/ を含む or テスト命名（test_*.py / *_test.go / *.test.tsx / *Test.java 等）
+除外・拡張子は _shared.py の単一ソースから import する（critical 2-2・個別定義禁止）。
 """
 import os
 import re
 import sys
 
-EXCLUDE_DEFAULT = {
-    ".git", "node_modules", "vendor", ".venv", "venv", "dist", "build",
-    "__pycache__", "coverage", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-}
-CODE_EXT = {".py", ".js", ".ts", ".tsx", ".jsx", ".gs", ".go", ".rs", ".sh", ".rb"}
-TEST_NAME = re.compile(r"(^test_.*|.*_test)\.(py|go|rb)$|.*\.test\.(js|ts|tsx)$|.*\.spec\.(js|ts)$")
+from _shared import CODE_EXT, RATIO_EXCLUDED_EXT, prune_dirnames
+
+# test:src 比の対象拡張子（CODE_EXT からドキュメント/マークアップ/設定形式を除いた派生・単一ソース維持）
+RATIO_CODE_EXT = set(CODE_EXT) - RATIO_EXCLUDED_EXT
+
+# high 3-1: .spec.tsx / .test.jsx / Test.java 追加
+TEST_NAME = re.compile(
+    r"(^test_.*|.*_test)\.(py|go|rb)$"
+    r"|.*\.test\.(js|ts|tsx|jsx)$"
+    r"|.*\.spec\.(js|ts|tsx|jsx)$"
+    r"|.*Test\.java$"
+)
 
 
 def is_test(path: str) -> bool:
@@ -26,12 +33,12 @@ def is_test(path: str) -> bool:
 def main() -> None:
     """テスト/ソースの LOC とファイル数を集計して出力する。"""
     root = sys.argv[1]
-    exclude = EXCLUDE_DEFAULT | set(sys.argv[2:])
+    exclude = set(sys.argv[2:])
     src_loc = test_loc = src_n = test_n = 0
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in exclude]
+        prune_dirnames(dirnames, dirpath, root, exclude)
         for f in filenames:
-            if os.path.splitext(f)[1] not in CODE_EXT:
+            if os.path.splitext(f)[1] not in RATIO_CODE_EXT:
                 continue
             p = os.path.join(dirpath, f)
             try:

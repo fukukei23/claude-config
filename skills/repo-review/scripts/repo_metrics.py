@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """リポジトリ計測スクリプト（言語非依存の骨格 + Python AST 詳細）。
 
-使い方: python3 tmp_repo_metrics.py <REPO_PATH> [追加除外dir ...]
-出力: スタック判定 / 拡張子別LOC / ディレクトリ別LOC / Python複雑度 / カバレッジ所在
+使い方: python3 repo_metrics.py <REPO_PATH> [追加除外dir ...]
+出力: スタック判定 / 拡張子別LOC / ディレクトリ別LOC / Python複雑度 / 解析失敗 / カバレッジ所在
+除外定数は _shared.py の単一ソースから import する（critical 2-2・個別定義禁止）。
 """
 from __future__ import annotations
 
@@ -12,17 +13,8 @@ import sys
 from collections import Counter
 from datetime import datetime
 
-DEFAULT_EXCLUDE = {
-    ".git", "node_modules", "vendor", ".venv", "venv", "dist", "build", "target",
-    "__pycache__", ".next", "coverage", ".mypy_cache", ".pytest_cache", ".ruff_cache",
-    "htmlcov", ".gradio", "mutants", "site-packages", ".terraform",
-}
-CODE_EXT = {
-    ".py": "Python", ".js": "JS", ".ts": "TS", ".tsx": "TS", ".jsx": "JS",
-    ".gs": "GAS", ".go": "Go", ".rs": "Rust", ".rb": "Ruby", ".java": "Java",
-    ".sh": "Shell", ".bash": "Shell", ".ps1": "PowerShell", ".sql": "SQL",
-    ".md": "Markdown", ".html": "HTML", ".css": "CSS", ".yml": "YAML", ".yaml": "YAML",
-}
+from _shared import CODE_EXT, EXCLUDE_HINT_KEYWORDS, prune_dirnames
+
 STACK_MARKERS = {
     "pyproject.toml": "Python(pyproject)", "requirements.txt": "Python(requirements)",
     "package.json": "Node/JS-TS", "go.mod": "Go", "Cargo.toml": "Rust",
@@ -37,10 +29,9 @@ BRANCH_NODES = (ast.If, ast.For, ast.While, ast.Try, ast.With, ast.BoolOp,
 
 
 def walk(root: str, extra_exclude: set[str]):
-    """除外ディレクトリを飛ばしてファイルパスを列挙する。"""
-    exclude = DEFAULT_EXCLUDE | extra_exclude
+    """除外ディレクトリを飛ばしてファイルパスを列挙する（パス指定除外も有効）。"""
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in exclude]
+        prune_dirnames(dirnames, dirpath, root, extra_exclude)
         for f in filenames:
             yield os.path.join(dirpath, f)
 
@@ -55,12 +46,14 @@ def count_lines(path: str) -> int:
 
 
 def analyze_python(files: list[str]) -> dict:
-    """Python ファイル群の複雑度・関数長・docstring率を集計する。"""
-    funcs, nodoc, total = [], 0, 0
+    """Python ファイル群の複雑度・関数長・docstring率・パース失敗を集計する。"""
+    funcs, nodoc, total, errors = [], 0, 0, []
     for p in files:
         try:
             tree = ast.parse(open(p, encoding="utf-8", errors="ignore").read())
-        except (SyntaxError, ValueError):
+        except (SyntaxError, ValueError) as e:
+            # 握りつぶし禁止（critical 2-1）: 件数・ファイル名を集計して呼び出し側へ返す
+            errors.append((p, type(e).__name__))
             continue
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -71,7 +64,7 @@ def analyze_python(files: list[str]) -> dict:
                 if not ast.get_docstring(node) and not node.name.startswith("_"):
                     nodoc += 1
     funcs.sort(reverse=True)
-    return {"total": total, "nodoc": nodoc, "funcs": funcs}
+    return {"total": total, "nodoc": nodoc, "funcs": funcs, "errors": errors}
 
 
 def main() -> None:
@@ -103,9 +96,18 @@ def main() -> None:
     for lang, n in by_ext.most_common():
         print(f"  {lang:12} {n:>8}")
 
-    print("\n--- トップレベルdir別LOC(上位15) ---")
-    for d, n in by_dir.most_common(15):
+    # high 3-5: 上位15に加え、除外候補キーワード一致dirは順位に関係なく出力
+    # （Phase 1-2 の機械的検出と矛盾しないよう、上位15から漏れた物も必ず見せる）
+    print("\n--- トップレベルdir別LOC(上位15 + 除外候補キーワード一致dir) ---")
+    top15 = by_dir.most_common(15)
+    for d, n in top15:
         print(f"  {d:28} {n:>8}")
+    shown = {d for d, _ in top15}
+    extras = [(d, n) for d, n in by_dir.most_common()
+              if d not in shown
+              and any(k in d.lower() for k in EXCLUDE_HINT_KEYWORDS)]
+    for d, n in extras:
+        print(f"  {d:28} {n:>8}  ← 除外候補キーワード一致（Phase 1-2で確認）")
 
     print("\n--- カバレッジレポートの所在と鮮度 ---")
     found = False
@@ -128,6 +130,15 @@ def main() -> None:
         for cc, ln, s in r["funcs"][:8]:
             print(f"   CC={cc:3} len={ln:3}  {os.path.relpath(s.split(':')[0], root)}"
                   f":{':'.join(s.split(':')[1:])}")
+        if r["errors"]:
+            # critical 2-1: パース失敗を黙って握りつぶさず必ず出力する
+            print(f"\n--- ⚠️ 解析失敗: {len(r['errors'])}件"
+                  f"（構文エラー・Pythonバージョン差の可能性） ---")
+            for p, kind in r["errors"][:20]:
+                print(f"  {os.path.relpath(p, root)}  ({kind})")
+            if len(r["errors"]) > 20:
+                print(f"  ... ほか {len(r['errors']) - 20}件")
+            print("  → 未検証事項に記載すること（大原則1: 黙って間違った数値を出さない）")
 
 
 if __name__ == "__main__":
