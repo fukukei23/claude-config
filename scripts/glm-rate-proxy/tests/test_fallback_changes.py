@@ -10,14 +10,14 @@
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from glm_rate_proxy.config import load_config
 from glm_rate_proxy.model_router import ModelRouter
 from glm_rate_proxy.proxy import ProxyServer
-from glm_rate_proxy.upstream import RateLimitError
+from glm_rate_proxy.upstream import RateLimitError, UpstreamError
 from glm_rate_proxy.usage_tracker import UsageTracker
 
 
@@ -232,3 +232,193 @@ class TestHandle429Chain:
         await server._handle_429("POST", "/v1/messages", {}, BODY)
         sent_body = json.loads(server._upstream.request_minimax.await_args.args[3])
         assert sent_body["model"] == "MiniMax-M3"
+
+
+# ---- _handle_429 追加エッジケース ----
+
+class TestHandle429EdgeCases:
+    @pytest.mark.asyncio
+    async def test_minimaxが5xxエラー時もglm47flashへ(self):
+        """MiniMaxのUpstreamError(429以外)→GLM-4.7-Flashへフォールバック."""
+        server = _make_server()
+        server._upstream.request_minimax = AsyncMock(
+            side_effect=UpstreamError(500, "minimax down"))
+        server._upstream.request_zai = AsyncMock(
+            return_value=_ok_resp(model="GLM-4.7-Flash"))
+        resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
+        assert resp.status == 200
+        server._upstream.request_zai.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_minimaxキー未設定時はglm47flash直行(self):
+        """minimax_api_keys空 → MiniMax不呼でGLM-4.7-Flashへ."""
+        server = _make_server()
+        # minimax_api_keys は property（minimax_api_key + fallback から生成）のため元キーを空に
+        server._config.minimax_api_key = ""
+        server._config.minimax_api_key_fallback = ""
+        server._upstream.request_minimax = AsyncMock()
+        server._upstream.request_zai = AsyncMock(
+            return_value=_ok_resp(model="GLM-4.7-Flash"))
+        resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
+        assert resp.status == 200
+        server._upstream.request_minimax.assert_not_awaited()
+        server._upstream.request_zai.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_ボディなしリクエストでもクラッシュしない(self):
+        server = _make_server()
+        server._upstream.request_minimax = AsyncMock(return_value=_ok_resp())
+        resp = await server._handle_429("GET", "/v1/models", {}, b"")
+        assert resp.status == 200
+
+    @pytest.mark.asyncio
+    async def test_429時もminimax向けsanitizeが適用される(self):
+        """429フォールバックのMiniMax分岐で tool_use 正規化が入るか（thinking除去）."""
+        server = _make_server()
+        server._upstream.request_minimax = AsyncMock(return_value=_ok_resp())
+        body_with_thinking = json.dumps({
+            "model": "glm-5.3", "thinking": {"type": "enabled", "budget_tokens": 8000},
+            "messages": [{"role": "user", "content": "hi"}]}).encode()
+        await server._handle_429("POST", "/v1/messages", {}, body_with_thinking)
+        sent = json.loads(server._upstream.request_minimax.await_args.args[3])
+        assert "thinking" not in sent  # MiniMax非対応のthinkingが除去される
+
+
+# ---- _handle_429_peak_block（ピーク時間帯） ----
+
+def _make_peak_server():
+    server = _make_server()
+    server._router._current_mode = "peak_block"
+    return server
+
+
+class TestHandle429PeakBlock:
+    @pytest.mark.asyncio
+    async def test_ピーク中minimax成功(self):
+        server = _make_peak_server()
+        server._upstream.request_minimax = AsyncMock(return_value=_ok_resp())
+        resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
+        assert resp.status == 200
+
+    @pytest.mark.asyncio
+    async def test_ピーク中minimax429なら503_glmは不呼(self):
+        """ピーク時間帯の設計: MiniMaxが429でもGLMには逃げない."""
+        server = _make_peak_server()
+        server._upstream.request_minimax = AsyncMock(
+            side_effect=RateLimitError(429, b"rate limited"))
+        server._upstream.request_zai = AsyncMock()
+        resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
+        assert resp.status == 503
+        server._upstream.request_zai.assert_not_awaited()
+
+
+# ---- _handle_upstream_error（ZAI 5xx → MiniMax） ----
+
+class TestHandleUpstreamError:
+    @pytest.mark.asyncio
+    async def test_zai5xx時minimaxへフォールバック(self):
+        server = _make_server()
+        server._upstream.request_minimax = AsyncMock(return_value=_ok_resp())
+        err = UpstreamError(502, "bad gateway")
+        resp = await server._handle_upstream_error("POST", "/v1/messages", {}, BODY, err)
+        assert resp.status == 200
+        server._upstream.request_minimax.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_元エラーステータスを維持_minimax失敗時(self):
+        server = _make_server()
+        server._upstream.request_minimax = AsyncMock(
+            side_effect=RateLimitError(429, b"rate limited"))
+        err = UpstreamError(503, "unavailable")
+        resp = await server._handle_upstream_error("POST", "/v1/messages", {}, BODY, err)
+        assert resp.status == 503
+
+
+# ---- UsageTracker ライフサイクル ----
+
+class TestTrackerLifecycle:
+    @pytest.mark.asyncio
+    async def test_start二重呼び出しガード(self):
+        t = UsageTracker("/tmp/test-status.json", zai_api_key="dummy")
+        await t.start()
+        task1 = t._task
+        await t.start()  # 2回目
+        assert t._task is task1  # 同一タスクのまま（二重起動しない）
+        await t.stop()
+
+    @pytest.mark.asyncio
+    async def test_stopは冪等(self):
+        t = UsageTracker("/tmp/test-status.json", zai_api_key="dummy")
+        await t.start()
+        await t.stop()
+        await t.stop()  # 2回目もクラッシュしない
+        assert t._task is None
+        assert t._client is None
+
+    @pytest.mark.asyncio
+    async def test_キー未設定時はエラーカウントのみ(self):
+        t = UsageTracker("/tmp/test-status.json", zai_api_key="")
+        await t._poll_once()
+        assert t.get_usage_breakdown()["error_count"] == 1
+        assert "not configured" in t.get_usage_breakdown()["last_error"]
+
+    @pytest.mark.asyncio
+    async def test_ポーリング成功で値が更新される(self):
+        t = UsageTracker("/tmp/test-status.json", zai_api_key="dummy")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json = MagicMock(return_value={"data": {"limits": [
+            {"type": "TOKENS_LIMIT", "unit": 3, "percentage": 15},
+            {"type": "TOKENS_LIMIT", "unit": 6, "percentage": 42},
+        ]}})
+        t._client = AsyncMock()
+        t._client.get = AsyncMock(return_value=mock_resp)
+        await t._poll_once()
+        assert t.get_usage() == 42.0
+        assert t.get_usage_breakdown()["poll_count"] == 1
+        assert t.get_usage_breakdown()["last_error"] is None
+
+
+# ---- _is_peak_hour 境界 ----
+
+class TestPeakHour:
+    def _peak_cfg(self, start=15, end=19):
+        return {"enabled": True, "start_hour": start, "end_hour": end, "timezone_offset": 9}
+
+    def test_境界内_15時はtrue(self):
+        with patch("glm_rate_proxy.model_router.datetime") as mock_dt:
+            from datetime import datetime as real_dt, timezone, timedelta
+            jst = timezone(timedelta(hours=9))
+            mock_dt.now.return_value = real_dt(2026, 8, 17, 15, 0, tzinfo=jst)
+            from glm_rate_proxy.model_router import _is_peak_hour
+            assert _is_peak_hour(self._peak_cfg()) is True
+
+    def test_境界外_19時はfalse(self):
+        with patch("glm_rate_proxy.model_router.datetime") as mock_dt:
+            from datetime import datetime as real_dt, timezone, timedelta
+            jst = timezone(timedelta(hours=9))
+            mock_dt.now.return_value = real_dt(2026, 8, 17, 19, 0, tzinfo=jst)
+            from glm_rate_proxy.model_router import _is_peak_hour
+            assert _is_peak_hour(self._peak_cfg()) is False
+
+    def test_無効化時は常にfalse(self):
+        from glm_rate_proxy.model_router import _is_peak_hour
+        assert _is_peak_hour({"enabled": False}) is False
+
+
+# ---- config monitor設定 ----
+
+class TestMonitorConfig:
+    def test_デフォルトは有効60秒(self):
+        cfg = load_config("/nonexistent/config.json")
+        assert cfg.monitor_enabled is True
+        assert cfg.monitor_interval_sec == 60.0
+        assert cfg.monitor_timeout_sec == 10.0
+
+    def test_config_jsonで上書き可能(self, tmp_path):
+        cfg_file = tmp_path / "config.json"
+        cfg_file.write_text(json.dumps(
+            {"monitor": {"enabled": False, "interval_sec": 30}}))
+        cfg = load_config(str(cfg_file))
+        assert cfg.monitor_enabled is False
+        assert cfg.monitor_interval_sec == 30.0
