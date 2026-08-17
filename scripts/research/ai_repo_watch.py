@@ -152,14 +152,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         today = date.today().isoformat()
 
-        # 1. gh認証チェック(失敗しても★N/Aで継続)
-        gh_ok, gh_msg = safety.ensure_gh_auth()
+        # 1. gh APIチェック(失敗しても★N/Aで継続)
+        _, gh_msg = safety.ensure_gh_auth()
         _log(gh_msg)
 
         # 2. Trending収集 + gh CLI累計★
         html = collector.fetch_trending_html()
         entries = [collector.enrich_stars(e) for e in collector.parse_trending_html(html)]
         _log(f"TRENDING: {len(entries)}件収集")
+        _log(f"GH_STARS: {safety.gh_na_summary(entries)}")
 
         # 3. history更新(既存)
         history = save_trend_history(TREND_HISTORY_FILE, entries, observed_date=today)
@@ -230,8 +231,8 @@ def main(argv: list[str] | None = None) -> int:
         html_ok, html_msg = safety.verify_pages_html(html_text)
         _log(html_msg)
 
-        # 10. commit判定(dry_run時はpushしない)
-        do_commit, commit_msg = safety.should_commit(gh_ok, html_ok, dry_run=dry_run)
+        # 10. commit判定(dry_run時はpushしない・gh状態は非依存=fail-open)
+        do_commit, commit_msg = safety.should_commit(html_ok, dry_run=dry_run)
         _log(f"{commit_msg} (dry_run={dry_run})")
         if do_commit:
             import subprocess

@@ -45,25 +45,44 @@ def test_record_usage_appends(tmp_path):
 
 
 def test_safety_should_commit_dry_run():
-    ok, msg = safety.should_commit(gh_ok=True, html_ok=True, dry_run=True)
+    ok, msg = safety.should_commit(html_ok=True, dry_run=True)
     assert ok is False
 
 
 def test_safety_should_commit_html_fail():
-    ok, msg = safety.should_commit(gh_ok=True, html_ok=False, dry_run=False)
+    ok, msg = safety.should_commit(html_ok=False, dry_run=False)
     assert ok is False
     assert "HTML" in msg
 
 
 def test_safety_should_commit_ok():
-    ok, msg = safety.should_commit(gh_ok=True, html_ok=True, dry_run=False)
+    ok, msg = safety.should_commit(html_ok=True, dry_run=False)
     assert ok is True
 
 
-def test_safety_should_commit_gh_fail_continues():
-    """gh失敗は★N/Aで継続(commit可)。"""
-    ok, msg = safety.should_commit(gh_ok=False, html_ok=True, dry_run=False)
+def test_safety_should_commit_contract_no_gh_dependency():
+    """契約: should_commit は gh 状態を受け取らない=gh失敗の影響を受けない(fail-open)。
+
+    旧 gh_ok 引数は未使用デッドパラメータだったため削除(2026-08-17)。
+    本テストは「引数を受け付けない」ことで fail-open ポリシーを固定する。
+    """
+    import inspect
+
+    params = list(inspect.signature(safety.should_commit).parameters)
+    assert "gh_ok" not in params
+    ok, _ = safety.should_commit(html_ok=True, dry_run=False)
     assert ok is True
+
+
+def test_gh_na_summary():
+    """D案事後シグナル: N/A件数から gh 実績を要約。"""
+    assert "0件N/A=gh正常" in safety.gh_na_summary(
+        [{"stars_total": 100}, {"stars_total": 200}]
+    )
+    assert "2件N/A=gh API失敗あり" in safety.gh_na_summary(
+        [{"stars_total": -1}, {"stars_total": -1}]
+    )
+    assert "0件N/A" in safety.gh_na_summary([])  # 空リストでも崩れない
 
 
 def test_fallback_to_rulestars():

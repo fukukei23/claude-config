@@ -59,6 +59,23 @@ def test_gh_auth_ok_handles_exception(monkeypatch):
     assert collector.gh_auth_ok() is False
 
 
+def test_gh_auth_ok_probes_rate_limit(monkeypatch):
+    """プローブ式: gh api /rate_limit の成否で判定(gh auth status不使用)。"""
+    calls = []
+
+    class FakeRun:
+        def __init__(self, rc):
+            self.returncode = rc
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return FakeRun(0)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    assert collector.gh_auth_ok() is True
+    assert calls[0][:3] == ["gh", "api", "/rate_limit"]
+
+
 def test_validate_url_rejects_ssrf():
     """SSRF対策: 不正スキーマ/ホストを拒否。"""
     import pytest

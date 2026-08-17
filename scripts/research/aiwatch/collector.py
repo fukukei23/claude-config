@@ -73,10 +73,17 @@ def _gh_stargazers(name: str, timeout: int = 15) -> int | None:
 
 
 def gh_auth_ok() -> bool:
-    """gh CLI 認証有効か。"""
+    """gh CLI API呼出可能か（認証含む）。
+
+    gh auth status は hosts.yml 側の失効トークンでも exit 1 になる
+    偽陰性があるため不使用（2026-08-17 実測: auth status rc=1 なのに
+    gh api は GITHUB_TOKEN 環境変数で成功）。
+    実用経路と同一の gh api で判定する。プローブ先は /rate_limit
+    （認証必須・レート制限カウント対象外・特定repoに依存しない）。
+    """
     try:
         return subprocess.run(
-            ["gh", "auth", "status"], capture_output=True, timeout=10
+            ["gh", "api", "/rate_limit"], capture_output=True, timeout=10
         ).returncode == 0
     except Exception:
         return False
