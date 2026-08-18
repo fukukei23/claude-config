@@ -56,6 +56,13 @@ tags: [判断収束ループ, 自動生成]
 | 系譜記録 | sentaku → [[判断収束台帳_系譜]] |
 | 決定記録 | ssot-record（falsification/outcome 付き） |
 | 答え合わせ | ssot-record 逆引き1問（観測事実提示→Yes/No） |
+
+## 手記載（遡及・frontmatter無しの判定用計測・正典はバックログの集計記録）
+
+| date | 対象 | findings_total | converted_to_cmd | overturned | tier | 正典リンク |
+|---|---|---|---|---|---|---|
+| 2026-08-13 | atelier LFS偽差分 | 21 | 4 | 2 | 判定用(遡及) | [バックログ](../バックログ.md) |
+| 2026-08-17 | ISSUE-106 impact分析 | 10 | 4 | 1 | 判定用(遡及) | [LLMサボりバイアス実例](../参考資料/LLMサボりバイアス実例/2026-08-17_同一観点レビューは前提を検査しない-ISSUE106テスト巻き込み.md) |
 """
 
 
@@ -116,10 +123,14 @@ def collect(paths: list[str], base_dir: Path) -> tuple[list[dict], list[str]]:
             rel = os.path.relpath(str(p), str(base_dir))
         except ValueError:
             rel = str(p)
+        dirname = Path(p).parent.name
+        dm = re.match(r"^(\d{4}-\d{2}-\d{2})_", dirname)
+        date_fb = dm.group(1) if dm else "unknown"
+        target_fb = dirname[dm.end():] if dm else dirname
         rows.append(
             {
-                "date": fm.get("date", "unknown"),
-                "target": fm.get("target", Path(p).parent.name),
+                "date": fm.get("date") or date_fb,
+                "target": fm.get("target") or target_fb,
                 "ft": ft,
                 "cc": cc,
                 "ob": ob,

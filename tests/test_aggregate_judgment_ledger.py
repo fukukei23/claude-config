@@ -162,3 +162,20 @@ def test_dry_run_does_not_write(tmp_path):
     assert r.returncode == 0
     assert not out.exists()
     assert "| 21 | 3 | 2 |" in r.stdout
+
+
+def test_date_and_target_fallback_from_dirname(tmp_path):
+    # frontmatterにdate/targetが無い → ディレクトリ名のYYYY-MM-DD接頭辞から補完
+    content = REVIEW_OK.replace("date: 2026-08-18\ntarget: テスト対象\n", "")
+    make_review(tmp_path, "2026-08-16_フロント欠損レビュー", content)
+    run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "| 2026-08-16 | フロント欠損レビュー | 21 | 3 | 2 |" in text
+
+
+def test_manual_retrospective_section_is_in_header(tmp_path):
+    # 遡及手記載セクションはHEADER固定文言（再生成で消えない）
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md", extra=["--dry-run"])
+    assert r.returncode == 0
+    assert "手記載（遡及" in r.stdout
+    assert "判定用(遡及)" in r.stdout
