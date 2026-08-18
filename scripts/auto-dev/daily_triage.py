@@ -712,9 +712,9 @@ def main() -> int:
         if not webhook_url:
             print(f"⚠️ {DISCORD_WEBHOOK_ENV} 未設定・Discord通知スキップ")
         elif send_discord(body, webhook_url):
-            print(f"✅ Discord通知送信完了")
+            print("✅ Discord通知送信完了")
         else:
-            print(f"⚠️ Discord通知失敗（webhook送信エラー）")
+            print("⚠️ Discord通知失敗（webhook送信エラー）")
     return 0
 
 

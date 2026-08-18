@@ -10,10 +10,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from review_lib import (  # noqa: E402
+    NO_ISSUE_MARKERS,
     ReviewItem,
     VendorReview,
     _build_prompt,
     _call_minimax,
+    _call_openrouter,
+    _is_silent,
     _judge,
     _mask_str,
     classify_review_item,
@@ -482,3 +485,292 @@ def test_run_multi_llm_review_aggregates_by_severity():
     assert len(result.by_severity["critical"]) == 1
     assert len(result.by_severity["high"]) == 1
     assert len(result.by_severity["low"]) == 1
+
+
+# ────────────────────────────────────────────────────────────
+# 3社化: OpenRouter 追加 + _judge ポリシーB（2026-08-18）
+# マルチLLMレビュー改訂案（採用8件反映）に基づく TDD
+# ────────────────────────────────────────────────────────────
+
+
+def _or_ok(text):
+    """OpenRouter 200応答モック（choices[0].message.content）。"""
+    return _MockResponse(200, {"choices": [{"message": {"content": text}}]})
+
+
+def _or_down(*_a, **_k):
+    """OpenRouter 障害モック（常時429 → 全モデル試行して exhausted）。"""
+    return _MockResponse(429)
+
+
+# --- _call_openrouter（OpenAI互換・防御的パース） ---
+
+
+def test_call_openrouter_ok():
+    """正常応答 → status=ok・先頭モデル。"""
+    text = '[{"issue":"a","severity":"high","quote":"q","suggestion":"s"}]'
+    out = _call_openrouter(
+        "prompt",
+        "fake-key",
+        requester=lambda *a, **k: _or_ok(text),
+    )
+    text_out, model, status, err = out
+    assert status == "ok"
+    assert model == "cohere/north-mini-code:free"
+    assert err == ""
+
+
+def test_call_openrouter_401_no_retry():
+    """401 は即 error-auth（リトライしてAPI予算を食い潰さない）。"""
+    calls = []
+
+    def post(url, headers, json, timeout):
+        calls.append(json["model"])
+        return _MockResponse(401)
+
+    _, _, status, _ = _call_openrouter("p", "fake-key", requester=post)
+    assert status == "error-auth"
+    assert len(calls) == 1
+
+
+def test_call_openrouter_429_fallback_second_model():
+    """先頭モデル429 → 2番目モデルへフォールバック。"""
+    calls = []
+
+    def post(url, headers, json, timeout):
+        calls.append(json["model"])
+        if json["model"].startswith("cohere"):
+            return _MockResponse(429)
+        return _or_ok('[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]')
+
+    _, model, status, _ = _call_openrouter("p", "fake-key", requester=post)
+    assert status == "ok"
+    assert model == "openai/gpt-oss-20b:free"
+    assert len(calls) == 2
+
+
+def test_call_openrouter_all_fail_exhausted():
+    """全モデル429 → error-exhausted。"""
+    _, _, status, _ = _call_openrouter("p", "fake-key", requester=_or_down)
+    assert status == "error-exhausted"
+
+
+def test_call_openrouter_empty_choices_fallback():
+    """200 でも choices が空配列 → クラッシュせず次モデルへ（防御的パース）。"""
+    calls = []
+
+    def post(url, headers, json, timeout):
+        calls.append(json["model"])
+        if json["model"].startswith("cohere"):
+            return _MockResponse(200, {"choices": []})
+        return _or_ok('[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]')
+
+    _, model, status, _ = _call_openrouter("p", "fake-key", requester=post)
+    assert status == "ok"
+    assert len(calls) == 2
+
+
+def test_call_openrouter_content_none_fallback():
+    """200 でも content が None → クラッシュせず次モデルへ。"""
+    def post(url, headers, json, timeout):
+        if json["model"].startswith("cohere"):
+            return _MockResponse(200, {"choices": [{"message": {"content": None}}]})
+        return _or_ok('[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]')
+
+    _, _, status, _ = _call_openrouter("p", "fake-key", requester=post)
+    assert status == "ok"
+
+
+def test_call_openrouter_models_env_override(monkeypatch):
+    """環境変数 OPENROUTER_MODELS（カンマ区切り）でモデル候補を上書き（退役対策）。"""
+    calls = []
+
+    def post(url, headers, json, timeout):
+        calls.append(json["model"])
+        return _MockResponse(429)
+
+    monkeypatch.setenv("OPENROUTER_MODELS", "vendor-a/retired:free, vendor-b/spare:free")
+    _call_openrouter("p", "fake-key", requester=post)
+    assert calls == ["vendor-a/retired:free", "vendor-b/spare:free"]
+
+
+# --- NO_ISSUE_MARKERS 語彙（OpenRouter英文テンプレ対応） ---
+
+
+def test_is_silent_lgtm_template():
+    """'lgtm' / 'looks good' / 'no significant issues' も silent 扱い。"""
+    for marker in ("lgtm", "looks good to me", "no significant issues found"):
+        rv = _vr("o", [_item(marker, "low")])
+        assert _is_silent(rv) is True, marker
+
+
+def test_no_issue_markers_include_openrouter_phrases():
+    """マーカー辞書に OpenRouter 系英文が含まれる。"""
+    assert "no significant issues" in NO_ISSUE_MARKERS
+    assert "looks good" in NO_ISSUE_MARKERS
+    assert "lgtm" in NO_ISSUE_MARKERS
+
+
+# --- _judge ポリシーB（3社: all silent でのみ ng） ---
+
+
+def test_judge_three_critical1_active_silent_ok():
+    """(b') critical1社 + active1社 + silent(error)1社 → ok（エラー社は無情報）。"""
+    reviews = [
+        _vr("g", [_item("a", "critical")]),
+        _vr("m", [_item("b", "high")]),
+        _vr("o", [], status="error-exhausted"),
+    ]
+    assert _judge(reviews) == "ok"
+
+
+def test_judge_three_critical1_all_silent_ng():
+    """(b') critical1社 + 他2社とも沈黙 → ng（誰も反証しない）。"""
+    reviews = [
+        _vr("g", [_item("a", "critical")]),
+        _vr("m", [_item("no issues found", "low")]),
+        _vr("o", [], status="error-exhausted"),
+    ]
+    assert _judge(reviews) == "ng"
+
+
+def test_judge_three_two_critical_ng():
+    """(a) 3社中2社 critical → ng。"""
+    reviews = [
+        _vr("g", [_item("a", "critical")]),
+        _vr("m", [_item("b", "critical")]),
+        _vr("o", [_item("c", "low")]),
+    ]
+    assert _judge(reviews) == "ng"
+
+
+# --- run_multi_llm_review 3社統合 ---
+
+
+def test_run_three_all_ok():
+    """3社正常 → verdict=ok・reviews 3社。"""
+    g = '[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]'
+    m = '[{"issue":"y","severity":"low","quote":"q","suggestion":"s"}]'
+    o = '[{"issue":"z","severity":"low","quote":"q","suggestion":"s"}]'
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=_gemini_runner(g),
+        minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=lambda *a, **k: _or_ok(o),
+    )
+    assert result.verdict == "ok"
+    assert len(result.reviews) == 3
+    assert {r.vendor for r in result.reviews} == {"gemini", "minimax", "openrouter"}
+
+
+def test_run_three_openrouter_only_down_continues():
+    """OpenRouter単独ダウン → abortしない（ok_vendors=2で継続・3社化の核心）。"""
+    g = '[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]'
+    m = '[{"issue":"y","severity":"low","quote":"q","suggestion":"s"}]'
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=_gemini_runner(g),
+        minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=_or_down,
+    )
+    assert result.verdict == "ok"
+    assert result.abort_reason == ""
+
+
+def test_run_three_two_down_abort():
+    """2社ダウン（minimax+openrouter）→ ok_vendors=1 → abort。"""
+    g = '[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]'
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=_gemini_runner(g),
+        minimax_requester=lambda *a, **k: _MockResponse(429),
+        openrouter_requester=_or_down,
+    )
+    assert result.verdict == "abort"
+    assert "1社のみ" in result.abort_reason
+
+
+def test_run_three_all_down_abort():
+    """3社全滅 → abort・両系障害。"""
+    def gemini_runner_empty():
+        def load_cands(cap, paid_ok_limit=False):
+            return ["gemini-3.1-pro-preview"]
+
+        def run_fn(factory, candidates, api_key):
+            return ("gemini-3.1-pro-preview", "")
+
+        return (run_fn, load_cands)
+
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=gemini_runner_empty(),
+        minimax_requester=lambda *a, **k: _MockResponse(500),
+        openrouter_requester=_or_down,
+    )
+    assert result.verdict == "abort"
+    assert "両系障害" in result.abort_reason
+
+
+def test_run_three_critical1_others_silent_ng():
+    """critical1社 + 他2社とも沈黙 → ng（ポリシーB）。"""
+    g = '[{"issue":"x","severity":"critical","quote":"q","suggestion":"s"}]'
+    m = '[{"issue":"no issues found","severity":"low","quote":"","suggestion":""}]'
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=_gemini_runner(g),
+        minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=_or_down,
+    )
+    assert result.verdict == "ng"
+
+
+def test_run_three_critical1_one_active_ok():
+    """critical1社 + active1社 + openrouterダウン → ok（flaky社で誤NGしない）。"""
+    g = '[{"issue":"x","severity":"critical","quote":"q","suggestion":"s"}]'
+    m = '[{"issue":"y","severity":"high","quote":"q","suggestion":"s"}]'
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=_gemini_runner(g),
+        minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=_or_down,
+    )
+    assert result.verdict == "ok"
+
+
+def test_run_missing_openrouter_key_graceful(monkeypatch):
+    """OPENROUTER_API_KEY 未設定 → HTTP呼出なしで rv_o=error-auth・2社で継続。"""
+    import review_lib
+
+    calls = []
+
+    def post(*a, **k):
+        calls.append(a)
+        return _or_ok('[{"issue":"z","severity":"low","quote":"q","suggestion":"s"}]')
+
+    real_load = review_lib._load_secret
+
+    def fake_load(name):
+        if name == "OPENROUTER_API_KEY":
+            return ""
+        return real_load(name)
+
+    monkeypatch.setattr(review_lib, "_load_secret", fake_load)
+    g = '[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]'
+    m = '[{"issue":"y","severity":"low","quote":"q","suggestion":"s"}]'
+    result = run_multi_llm_review(
+        "target",
+        "objective",
+        gemini_runner=_gemini_runner(g),
+        minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=post,
+    )
+    assert calls == []  # キー無しでは呼ばない
+    or_review = next(r for r in result.reviews if r.vendor == "openrouter")
+    assert or_review.raw_status == "error-auth"
+    assert result.verdict == "ok"  # 2社で継続

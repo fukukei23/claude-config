@@ -11,6 +11,12 @@ Phase 2/5 有効化（2026-08-12）:
 - 判定 3 値（両critical/片側critical+片側silent/両側critical未満）
 - ベンダー数 < 2 は即 abort（多様性保証不能）
 - API キー値のログ漏洩をマスク
+
+3社化（2026-08-18・マルチLLMレビュー改訂案採用8件反映）:
+- OpenRouter（free枠）を3社目に追加 — 片系障害を吸収し「3社中2社残れば成立」
+- _judge ポリシー(b) を「他の全社が沈黙時のみ ng」へ変更（エラー社は無情報）
+- OPENROUTER_MODELS 環境変数でモデル候補を上書き可（free枠退役対策）
+- 責務分離: abort=生存条件（最低2社の多様性保証）/ _judge=生存社の中での品質判定
 """
 from __future__ import annotations
 
@@ -176,8 +182,8 @@ class ReviewItem:
 class VendorReview:
     """1ベンダーのレビュー結果。"""
 
-    vendor: str  # "gemini" / "minimax"
-    backend_kind: str  # "gemini-sdk-rest" / "minimax-anthropic"
+    vendor: str  # "gemini" / "minimax" / "openrouter"
+    backend_kind: str  # "gemini-sdk-rest" / "minimax-anthropic" / "openrouter-chat"
     items: list[ReviewItem]
     raw_status: str  # ok/empty/error-429/error-5xx/error-auth/error-exhausted
     model: str = ""
@@ -201,6 +207,11 @@ class MultiReviewResult:
 
 MINIMAX_URL = "https://api.minimax.io/anthropic/v1/messages"
 MINIMAX_MODELS = ["MiniMax-M3", "MiniMax-M2.7"]
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# 選定根拠: multi-llm-review スキルの purpose=code 実績選定（1番目）+
+# デザイン系 free 枠（2番目・フォールバック）。free 枠は退役が頻繁なため
+# 環境変数 OPENROUTER_MODELS（カンマ区切り）で上書き可能（退役対策）。
+OPENROUTER_MODELS = ["cohere/north-mini-code:free", "openai/gpt-oss-20b:free"]
 _SENSITIVE_HEADER_NAMES = {"x-api-key", "authorization", "api-key"}
 _SECRET_PATTERNS = [
     re.compile(r"(sk-[A-Za-z0-9]{6})[A-Za-z0-9]*"),
@@ -210,6 +221,9 @@ _SECRET_PATTERNS = [
 NO_ISSUE_MARKERS = (
     "no issues",
     "no issues found",
+    "no significant issues",  # OpenRouter 系英文テンプレ（3社化・2026-08-18）
+    "looks good",  # 同上
+    "lgtm",  # 同上
     "見つからなかった",
     "問題ありません",
     "問題なし",
@@ -459,6 +473,77 @@ def _call_minimax(
     return "", "", "error-exhausted", last_err or "全モデル失敗"
 
 
+# --- OpenRouter 呼出（OpenAI互換・free枠・防御的パース） ---
+
+
+def _openrouter_models() -> list[str]:
+    """モデル候補リスト。環境変数 OPENROUTER_MODELS（カンマ区切り）で上書可。
+
+    free 枠は退役が頻発するため、ハードコードを正とせず運用側で
+    差し替えられる経路を用意する（マルチLLMレビュー改訂案・採用B）。
+    """
+    env = os.environ.get("OPENROUTER_MODELS", "")
+    if env:
+        return [m.strip() for m in env.split(",") if m.strip()]
+    return OPENROUTER_MODELS
+
+
+def _call_openrouter(
+    prompt: str,
+    api_key: str,
+    requester: Callable | None = None,
+    timeout: int = 90,
+) -> tuple[str, str, str, str]:
+    """OpenRouter（OpenAI互換 chat/completions）へ直接 requests。
+
+    戻り値: (text, model, raw_status, error_detail)。
+    requester に requests.post 互換 callable を mock 注入可（テスト用）。
+    候補リスト（OPENROUTER_MODELS）を順に試行（フォールバック）。
+
+    防御的パース（採用A・M1+G1）: 200 でも choices 空・content None 等
+    構造欠損はクラッシュせず次モデルへフォールバック。
+    401 は即 error-auth（リトライで予算を食い潰さない・採用M16）。
+    """
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    post = requester or _import_requests_post()
+    last_err = ""
+    for model in _openrouter_models():
+        payload = {
+            "model": model,
+            "max_tokens": 2000,  # 思考モデルでないので 8000 不要
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        try:
+            resp = post(OPENROUTER_URL, headers=headers, json=payload, timeout=timeout)
+            status = getattr(resp, "status_code", None)
+            if status == 200:
+                data = resp.json() if callable(getattr(resp, "json", None)) else {}
+                choices = data.get("choices") or [{}]
+                content = (choices[0].get("message") or {}).get("content") or ""
+                if content.strip():
+                    return content, model, "ok", ""
+                last_err = f"{model}:空応答(構造欠損含む)"
+                continue
+            if status == 401 or status == 403:
+                return "", model, "error-auth", f"{status}"
+            if status == 429:
+                last_err = f"{model}:429"
+                continue
+            if status is not None and 500 <= status < 600:
+                last_err = f"{model}:{status}"
+                continue
+            return "", model, f"error-{status}", f"HTTP {status}"
+        except TimeoutError:
+            last_err = f"{model}:timeout"
+            continue
+        except Exception as exc:  # noqa: BLE001
+            return "", model, "error-5xx", _mask_str(str(exc))
+    return "", "", "error-exhausted", last_err or "全モデル失敗"
+
+
 # --- レビュー結果パース（既存4関数を後処理で再用） ---
 
 
@@ -526,18 +611,21 @@ def _has_critical(review: VendorReview) -> bool:
 
 
 def _judge(reviews: list[VendorReview]) -> str:
-    """判定 3 値ポリシー（silent agree 握り潰し防止）。
+    """判定 3 値ポリシー（silent agree 握り潰し防止・3社化で(b)を修正）。
 
-    (a) 両ベンダー critical → ng
-    (b) 片側 critical + 片側 silent → ng
-    (c) 両側 critical 未満 → ok
+    (a) critical が2社以上 → ng
+    (b) critical が1社 + **他の全社が沈黙** → ng
+        （3社化・ポリシーB・2026-08-18: エラー社は「反証の欠如」でなく
+          無情報。1社でも active（指摘あり）なら反証ありとして ok。
+          2社構成では others=1社のため any==all で旧挙動と同値）
+    (c) それ以外 → ok
     """
     criticals = [r for r in reviews if _has_critical(r)]
     if len(criticals) >= 2:
         return "ng"
     if len(criticals) == 1:
         others = [r for r in reviews if r not in criticals]
-        if any(_is_silent(r) for r in others):
+        if others and all(_is_silent(r) for r in others):
             return "ng"
     return "ok"
 

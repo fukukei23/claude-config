@@ -89,7 +89,7 @@ PLAN_PROMPT="タスク: $OBJECTIVE
 KPI: ${KPI_JSON:-なし}
 
 実装計画を立てよ。'# 計画' で始めて 3-5 セクション（概要・実装手順・テスト方針・想定リスク等）で簡潔に出力せよ。"
-"$CLAUDE" --print "$PLAN_PROMPT" > "$TASK_DIR/plan.md" 2>"$TASK_DIR/logs/plan.stderr.log"
+CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK=1 "$CLAUDE" --print "$PLAN_PROMPT" > "$TASK_DIR/plan.md" 2>"$TASK_DIR/logs/plan.stderr.log"
 echo "[$(date '+%F %T')] plan saved ($(wc -l < "$TASK_DIR/plan.md" 2>/dev/null || echo 0)行)" >> "$LOG"
 
 # Phase 2: 計画レビュー（別ベンダーLLM・backend_kind必須・目的ホールド・2026-08-12有効化）
@@ -119,7 +119,7 @@ trap finalize EXIT
 # ① 実装フェーズ（作るAI）
 HEAD_BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "")
 IMPL_PROMPT="以下のタスクを実装してください。完了したらテストを通し、git commit してください。タスク: $PROMPT"
-"$CLAUDE" --print "$IMPL_PROMPT" >> "$LOG" 2>&1
+CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK=1 "$CLAUDE" --print "$IMPL_PROMPT" >> "$LOG" 2>&1
 IMPL_RC=$?
 if [ "$IMPL_RC" -ne 0 ]; then
   echo "NG" > "$VERIFY"
@@ -155,7 +155,7 @@ KPI: ${KPI_JSON:-なし}
 
 結果の1行目は必ず OK または NG のみ（他の文字・日本語を一切含めない）。2行目以降に理由を書け。
 基準: テスト通過・明らかなバグなし・契約(CONTRACT)違反なしなら OK。"
-"$CLAUDE" --print "$VERIFY_PROMPT" > "$VERIFY" 2>&1
+CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK=1 "$CLAUDE" --print "$VERIFY_PROMPT" > "$VERIFY" 2>&1
 VERIFY_RC=$?
 
 # Phase 5: 実装後レビュー（別ベンダーLLM・git diff対象・⑤拒否権・2026-08-12有効化）
