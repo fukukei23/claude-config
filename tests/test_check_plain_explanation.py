@@ -127,7 +127,7 @@ def test_feedback_user_not_counted(tmp_path):
         ("user", "JUDGE_PROMPT本文"),
         ("assistant", LONG_TEXT),
         ("user", "Stop hook feedback: 平易な解説の併記忘れの可能性: ..."),
-        ("assistant", "C" * 300),  # 追加発話（短文）
+        ("assistant", "D" * 650),  # 追加発話も600字超（short経路を通らずF層到達を保証）
     ])
     rc, out = run_hook(home, t, "machinetest2")
     assert rc == 0
