@@ -34,8 +34,8 @@ wc -l ...
 
 
 def run(target: str, output: Path, extra: list[str] | None = None) -> subprocess.CompletedProcess:
-    """スクリプトをデフォルトdry-run付きで実行する."""
-    cmd = ["python3", str(SCRIPT), "--target", target, "--output", str(output), "--dry-run"]
+    """スクリプトを書込モードで実行する（dry-runは extra=["--dry-run"] で指定）."""
+    cmd = ["python3", str(SCRIPT), "--target", target, "--output", str(output)]
     if extra:
         cmd += extra
     return subprocess.run(cmd, capture_output=True, text=True)
@@ -54,8 +54,9 @@ def test_generates_row_from_frontmatter(tmp_path):
     out = tmp_path / "台帳.md"
     r = run(str(tmp_path / "*" / "revised_proposal.md"), out)
     assert r.returncode == 0, r.stderr
-    assert "| 2026-08-18 | テスト対象 | 21 | 3 | 2 | 判定用 |  |" in r.stdout
-    assert "集約対象: 1件 / 未解析: 0件" in r.stdout
+    text = out.read_text(encoding="utf-8")
+    assert "| 2026-08-18 | テスト対象 | 21 | 3 | 2 | 判定用 |  |" in text
+    assert "集約対象: 1件 / 未解析: 0件" in text
 
 
 def test_bom_crlf_review_is_parsed(tmp_path):
@@ -83,7 +84,7 @@ def test_missing_frontmatter_is_listed_as_unparsed(tmp_path):
 def test_non_numeric_frontmatter_is_unparsed(tmp_path):
     content = REVIEW_OK.replace("findings_total: 21", "findings_total: 不明")
     make_review(tmp_path, "2026-08-18_壊れレビュー", content)
-    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
     text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
     assert "集約対象: 0件 / 未解析: 1件" in text
 
@@ -94,6 +95,6 @@ def test_review_log_md_is_not_picked_up(tmp_path):
     (tmp_path / "2026-08-18_xレビュー" / "review_log.md").write_text(
         "findings_total: 99\n", encoding="utf-8"
     )
-    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
     text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
     assert "| 99 |" not in text
