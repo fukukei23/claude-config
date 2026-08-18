@@ -158,3 +158,80 @@ def test_send_discord_short_passes_through(monkeypatch) -> None:
     short = "短いメッセージ"
     assert send_discord(short, "https://example.com/webhook") is True
     assert captured["content"] == short
+
+
+# ---------------- judge_with_claude: envフラグ + 生応答ログ（2026-08-18改訂案） ----------------
+"""改訂案(H主F副+生応答ログ): claude --print呼び出しへのenvフラグ渡しと
+validate失敗時の生応答JSONL保存（post-mortem用）を検証する。"""
+
+from types import SimpleNamespace  # noqa: E402
+import daily_triage  # noqa: E402
+
+
+def _fake_completed(stdout: str, returncode: int = 0) -> SimpleNamespace:
+    return SimpleNamespace(returncode=returncode, stdout=stdout, stderr="stderR")
+
+
+def test_judge_env_flag_passed_to_subprocess(monkeypatch, tmp_path) -> None:
+    """judge_with_claude は CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK=1 をenvで渡す（H層）"""
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+        captured["cmd"] = cmd
+        return _fake_completed(_VALID_BODY)
+
+    monkeypatch.setattr(daily_triage.subprocess, "run", fake_run)
+    daily_triage.judge_with_claude("ctx", "2026-08-18", ["repo1"])
+    env = captured.get("env")
+    assert env is not None, "env引数が渡されていない"
+    assert env.get("CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK") == "1"
+
+
+def test_judge_failure_saves_raw_response_log(monkeypatch, tmp_path) -> None:
+    """validate失敗時: 生応答をJSONLへ1行保存し、RuntimeErrorは継続する"""
+    log = tmp_path / "judge-error.jsonl"
+    monkeypatch.setattr(daily_triage, "JUDGE_ERROR_LOG", log)
+
+    bad_body = "平易な解説のみの応答" + "X" * 600  # ヘッダなし（今朝の事故と同型）
+
+    def fake_run(cmd, **kwargs):
+        return _fake_completed(bad_body)
+
+    monkeypatch.setattr(daily_triage.subprocess, "run", fake_run)
+    try:
+        daily_triage.judge_with_claude("ctx", "2026-08-18", ["repo1"])
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("validate失敗でRuntimeErrorが出ませんでした")
+
+    assert log.exists(), "生応答ログが書かれていません"
+    lines = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines() if l.strip()]
+    assert len(lines) == 1
+    rec = lines[0]
+    for key in ("ts", "rc", "stdout_len", "prompt_sha256", "validation_error", "stdout"):
+        assert key in rec, f"必須キー {key} がありません"
+    assert rec["stdout"] == bad_body
+    assert "必須ヘッダ不在" in rec["validation_error"]
+
+
+def test_judge_log_write_failure_does_not_mask(monkeypatch, tmp_path) -> None:
+    """ログ書込失敗（権限等）でも validate 由来のRuntimeErrorだけ上がる（クラッシュしない）"""
+    unwritable = tmp_path / "blocked" / "judge-error.jsonl"
+    unwritable.parent.mkdir()
+    unwritable.write_text("")  # 親dirを作ってから…読み取り専用化の代わりにdirをファイルで塞ぐ
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x")
+    monkeypatch.setattr(daily_triage, "JUDGE_ERROR_LOG", blocker / "judge-error.jsonl")
+
+    def fake_run(cmd, **kwargs):
+        return _fake_completed("破壊された応答" + "Y" * 600)  # ヘッダなし
+
+    monkeypatch.setattr(daily_triage.subprocess, "run", fake_run)
+    try:
+        daily_triage.judge_with_claude("ctx", "2026-08-18", ["repo1"])
+    except RuntimeError as e:
+        assert "必須ヘッダ不在" in str(e), "validate由来でない例外に置き換わっています"
+    else:
+        raise AssertionError("RuntimeErrorが出ませんでした")

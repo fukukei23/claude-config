@@ -475,6 +475,8 @@ def judge_with_claude(context: str, date_str: str, repo_list: list[str]) -> str:
     """claude --print で優先度判定し today-tasks.md 形式の本文を返す。
 
     外部APIのため手動検証（pytest 対象外）。
+    envフラグで平易解説Stop hookの差戻しを明示オプトアウトする（2026-08-18改訂案H層。
+    差戻しが最終stdoutを平易解説のみに置換しヘッダ検証を壊す事故の再発防止）。
     """
     prompt = JUDGE_PROMPT.format(
         context=context, date=date_str, repo_list=", ".join(repo_list)
@@ -484,10 +486,43 @@ def judge_with_claude(context: str, date_str: str, repo_list: list[str]) -> str:
         capture_output=True,
         text=True,
         timeout=300,
+        env={**os.environ, "CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK": "1"},
     )
     if result.returncode != 0:
         raise RuntimeError(f"claude --print 失敗 (rc={result.returncode}): {result.stderr}")
-    return validate_judge_output(result.stdout)
+    try:
+        return validate_judge_output(result.stdout)
+    except RuntimeError as err:
+        _save_judge_error_log(result, prompt, err)
+        raise
+
+
+# validate失敗時の生応答ログ（post-mortem用・2026-08-18事故で応答破棄により原因究明に手間取った対策）
+JUDGE_ERROR_LOG = Path.home() / ".claude" / "state" / "daily-triage-judge-error.jsonl"
+_JUDGE_LOG_MAX_BYTES = 512 * 1024  # 512KB超で初期化（毎朝1回・失敗時のみ書く想定）
+
+
+def _save_judge_error_log(result: subprocess.CompletedProcess, prompt: str, err: RuntimeError) -> None:
+    """validate失敗時の生応答をJSONLへ1行追記。書込失敗は本流（フォールバック）を止めない。"""
+    try:
+        rec = {
+            "ts": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "rc": result.returncode,
+            "stdout_len": len(result.stdout or ""),
+            "stderr_len": len(result.stderr or ""),
+            "prompt_sha256": __import__("hashlib").sha256(prompt.encode("utf-8")).hexdigest()[:16],
+            "validation_error": str(err),
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+        }
+        path = Path(JUDGE_ERROR_LOG)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists() and path.stat().st_size > _JUDGE_LOG_MAX_BYTES:
+            path.write_text("", encoding="utf-8")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # ログ書込失敗でtriage全体停止を防ぐ（multi-llm-review Gemini#3採用）
 
 
 DISCORD_WEBHOOK_ENV = "DISCORD_CLAUDE_WEBHOOK"
