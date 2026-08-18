@@ -44,8 +44,8 @@ if [[ "${1:-}" == "--full" ]]; then
   fi
   # OpenRouter health check（短文実呼出で200確認・値は出さない）
   # ※ /models は認証が甘く実証にならないため chat/completions を実呼出（採用D）
-  OR_MODEL="${OPENROUTER_MODELS%%,*}"
-  OR_MODEL="${OR_MODEL:-cohere/north-mini-code:free}"  # 未設定時のデフォルト先頭
+  OR_MODEL="${OPENROUTER_MODELS:-cohere/north-mini-code:free}"
+  OR_MODEL="${OR_MODEL%%,*}"  # 先頭モデルのみ（カンマ区切り複数指定対応）
   OR_HTTP=$(python3 - "$OR_MODEL" <<'PYEOF' 2>/dev/null
 import json, os, sys, urllib.request
 model = sys.argv[1]
