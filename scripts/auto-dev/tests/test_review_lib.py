@@ -365,36 +365,40 @@ def test_judge_fallback_used_is_silent():
 
 
 def test_run_multi_llm_review_both_ok():
-    """両ベンダー正常・critical なし → verdict=ok。"""
+    """3社正常・critical なし → verdict=ok（旧2社テストの3社化版）。"""
     g = '[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]'
     m = '[{"issue":"y","severity":"low","quote":"q","suggestion":"s"}]'
+    o = '[{"issue":"z","severity":"low","quote":"q","suggestion":"s"}]'
     result = run_multi_llm_review(
         "target",
         "objective",
         gemini_runner=_gemini_runner(g),
         minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=lambda *a, **k: _or_ok(o),
     )
     assert result.verdict == "ok"
-    assert len(result.reviews) == 2
-    assert {r.vendor for r in result.reviews} == {"gemini", "minimax"}
+    assert len(result.reviews) == 3
+    assert {r.vendor for r in result.reviews} == {"gemini", "minimax", "openrouter"}
 
 
 def test_run_multi_llm_review_both_critical_ng():
-    """両ベンダー critical → ng・by_severity に2件。"""
+    """2社 critical → ng・by_severity に2件。"""
     g = '[{"issue":"x","severity":"critical","quote":"q","suggestion":"s"}]'
     m = '[{"issue":"y","severity":"critical","quote":"q","suggestion":"s"}]'
+    o = '[{"issue":"z","severity":"low","quote":"q","suggestion":"s"}]'
     result = run_multi_llm_review(
         "target",
         "objective",
         gemini_runner=_gemini_runner(g),
         minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=lambda *a, **k: _or_ok(o),
     )
     assert result.verdict == "ng"
     assert len(result.by_severity["critical"]) == 2
 
 
 def test_run_multi_llm_review_one_critical_one_silent_ng():
-    """片側 critical + 片側 silent → ng（握り潰し防止）。"""
+    """critical 1社 + 他2社とも silent → ng（握り潰し防止・ポリシーB）。"""
     g = '[{"issue":"x","severity":"critical","quote":"q","suggestion":"s"}]'
     m = '[{"issue":"no issues found","severity":"low","quote":"","suggestion":""}]'
     result = run_multi_llm_review(
@@ -402,25 +406,27 @@ def test_run_multi_llm_review_one_critical_one_silent_ng():
         "objective",
         gemini_runner=_gemini_runner(g),
         minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=_or_down,
     )
     assert result.verdict == "ng"
 
 
 def test_run_multi_llm_review_minimax_down_abort():
-    """MiniMax 片系障害(429) → ベンダー1社 → abort。"""
+    """MiniMax+OpenRouter 2社ダウン → ベンダー1社 → abort。"""
     g = '[{"issue":"x","severity":"low","quote":"q","suggestion":"s"}]'
     result = run_multi_llm_review(
         "target",
         "objective",
         gemini_runner=_gemini_runner(g),
         minimax_requester=lambda *a, **k: _MockResponse(429),
+        openrouter_requester=_or_down,
     )
     assert result.verdict == "abort"
     assert "1社のみ" in result.abort_reason
 
 
 def test_run_multi_llm_review_both_down_abort():
-    """両系障害(gemini空応答+minimax500) → abort・両系障害。"""
+    """全社障害(gemini空応答+minimax500+openrouter429) → abort・両系障害。"""
 
     def gemini_runner_empty():
         def load_cands(cap, paid_ok_limit=False):
@@ -436,6 +442,7 @@ def test_run_multi_llm_review_both_down_abort():
         "objective",
         gemini_runner=gemini_runner_empty(),
         minimax_requester=lambda *a, **k: _MockResponse(500),
+        openrouter_requester=_or_down,
     )
     assert result.verdict == "abort"
     assert "両系障害" in result.abort_reason
@@ -464,6 +471,9 @@ def test_run_multi_llm_review_gemini_empty_truncate_retry():
         minimax_requester=lambda *a, **k: _minimax_ok(
             '[{"issue":"y","severity":"low","quote":"q","suggestion":"s"}]'
         ),
+        openrouter_requester=lambda *a, **k: _or_ok(
+            '[{"issue":"z","severity":"low","quote":"q","suggestion":"s"}]'
+        ),
     )
     # Gemini は空→truncate→2回目ok・fallback_used=True だが minimax 正常なので ok_vendors=2
     # ただし fallback_used=True は silent 扱い → minimax が silent でなければ ok
@@ -476,15 +486,17 @@ def test_run_multi_llm_review_aggregates_by_severity():
     """指摘が severity 別に集約される（task_logger review_result 形式）。"""
     g = '[{"issue":"g1","severity":"critical","quote":"q","suggestion":"s"},{"issue":"g2","severity":"low","quote":"q","suggestion":"s"}]'
     m = '[{"issue":"m1","severity":"high","quote":"q","suggestion":"s"}]'
+    o = '[{"issue":"o1","severity":"low","quote":"q","suggestion":"s"}]'
     result = run_multi_llm_review(
         "target",
         "objective",
         gemini_runner=_gemini_runner(g),
         minimax_requester=lambda *a, **k: _minimax_ok(m),
+        openrouter_requester=lambda *a, **k: _or_ok(o),
     )
     assert len(result.by_severity["critical"]) == 1
     assert len(result.by_severity["high"]) == 1
-    assert len(result.by_severity["low"]) == 1
+    assert len(result.by_severity["low"]) == 2
 
 
 # ────────────────────────────────────────────────────────────

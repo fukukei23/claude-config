@@ -657,34 +657,54 @@ def run_multi_llm_review(
     viewpoints: dict[str, str] | None = None,
     gemini_runner: tuple[Callable, Callable] | None = None,
     minimax_requester: Callable | None = None,
+    openrouter_requester: Callable | None = None,
 ) -> MultiReviewResult:
-    """別ベンダー LLM に並列独立レビューさせる（目的ホールド・多様性保証）。
+    """別ベンダー LLM（Gemini + MiniMax + OpenRouter）に独立レビューさせる。
+
+    責務分離（3社化・2026-08-18）:
+    - abort 判定 = 生存条件（ok 応答ベンダー >= 2 の多様性保証）
+    - _judge 判定 = 生存社の中での品質判定（critical の反証構造）
 
     Args:
         target: レビュー対象（plan.md 本文 / git diff）。
         objective: 当初目的（全プロンプト先頭に再注入）。
-        viewpoints: {"gemini": "...", "minimax": "..."}。None ならデフォルト観点。
+        viewpoints: {"gemini": "...", "minimax": "...", "openrouter": "..."}。
+            None ならデフォルト観点。
         gemini_runner: テスト用 mock (run_api_with_fallback, _load_candidates)。
         minimax_requester: テスト用 mock (requests.post 互換)。
+        openrouter_requester: テスト用 mock (requests.post 互換)。
 
     Returns:
         MultiReviewResult。verdict は "ok"/"ng"/"abort"。
-        ベンダー数 < 2（片系障害含む）は即 abort（多様性保証不能）。
+        ベンダー数 < 2 は即 abort（多様性保証不能・意図的保守選択として
+        閾値 <2 は 3社化後も変更しない）。
+        OPENROUTER_API_KEY 未設定時は rv_o=error-auth で 2社縮退継続
+        （graceful・採用C）。
     """
     viewpoints = viewpoints or {
         "gemini": "エッジケース/セキュリティ/リスク",
         "minimax": "設計/可読性/実現性",
+        "openrouter": "実装の妥当性/網羅性",
     }
     key_g = _load_secret("GEMINI_API_KEY")
     key_m = _load_secret("MINIMAX_API_KEY")
+    key_o = _load_secret("OPENROUTER_API_KEY")
 
     prompt_g = _build_prompt(target, objective, viewpoints.get("gemini", ""))
     prompt_m = _build_prompt(target, objective, viewpoints.get("minimax", ""))
+    prompt_o = _build_prompt(target, objective, viewpoints.get("openrouter", ""))
 
     text_g, model_g, status_g, err_g, fb_g = _call_gemini_with_retry(
         prompt_g, key_g, gemini_runner
     )
     text_m, model_m, status_m, err_m = _call_minimax(prompt_m, key_m, minimax_requester)
+    if key_o:
+        text_o, model_o, status_o, err_o = _call_openrouter(
+            prompt_o, key_o, openrouter_requester
+        )
+    else:
+        # キー未設定 → HTTP呼出なしで error-auth（2社縮退で継続・採用C）
+        text_o, model_o, status_o, err_o = "", "", "error-auth", "OPENROUTER_API_KEY 未設定"
 
     rv_g = VendorReview(
         vendor="gemini",
@@ -703,9 +723,17 @@ def run_multi_llm_review(
         model=model_m,
         error_detail=err_m,
     )
-    reviews = [rv_g, rv_m]
+    rv_o = VendorReview(
+        vendor="openrouter",
+        backend_kind="openrouter-chat",
+        items=_parse_items(text_o, objective),
+        raw_status=status_o,
+        model=model_o,
+        error_detail=err_o,
+    )
+    reviews = [rv_g, rv_m, rv_o]
 
-    # ベンダー数判定（<2 は即 abort・片系障害含む）
+    # ベンダー数判定（<2 は即 abort・2社以上生き残れば成立）
     ok_vendors = {r.vendor for r in reviews if r.raw_status == "ok"}
     if len(ok_vendors) < 2:
         if not ok_vendors:
@@ -737,6 +765,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--objective-file", required=True)
     parser.add_argument("--viewpoint-gemini", default="エッジケース/セキュリティ/リスク")
     parser.add_argument("--viewpoint-minimax", default="設計/可読性/実現性")
+    parser.add_argument("--viewpoint-openrouter", default="実装の妥当性/網羅性")
     parser.add_argument("--out", help="結果JSON出力先パス(省略時stdout)")
     args = parser.parse_args(argv)
 
@@ -745,6 +774,7 @@ def main(argv: list[str] | None = None) -> int:
     viewpoints = {
         "gemini": args.viewpoint_gemini,
         "minimax": args.viewpoint_minimax,
+        "openrouter": args.viewpoint_openrouter,
     }
     result = run_multi_llm_review(target, objective, viewpoints)
     payload = {
