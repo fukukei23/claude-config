@@ -81,10 +81,33 @@ tail -20 /tmp/glm-proxy.log
 
 | モード | 使用率 | モデル | いつ |
 |---|---|---|---|
+| manual | （全モード優先） | MiniMax-M3 | `POST /proxy/mode` で手動指定中（下記） |
 | peak_block | peak_hours時間帯 | `fallback.model`（既定: MiniMax-M3） | 設定されたピーク時間帯 |
 | normal | <95% | GLM-5.3 | 通常時 |
 | emergency | 95%+ | MiniMax-M3 | 5h/週間どちらかが限界付近 |
-| fallback(429時) | ZAI 429 | ①MiniMax-M3（keys連鎖）→ ②GLM-4.7-Flash（最後の砦）→ ③503 | ZAIが429を返した時 |
+| fallback(429時) | ZAI 429 | ①MiniMax-M3（keys連鎖）→ ②GLM-4.7-Flash（最後の砦）→ ③503（Retry-After付き） | ZAIが429を返した時 |
+
+## 手動モード切替（POST /proxy/mode・2026-08-19追加）
+
+「今日はMiniMax固定」等、再起動なしでプロバイダを手動切り替えする。GLM使用率が枯渇しそうな時にMiniMaxへ退避するのが主用途。
+
+```bash
+# MiniMaxへ固定（TTL 10時間・既定8時間・上限72）
+curl -X POST http://127.0.0.1:8787/proxy/mode -d '{"provider":"minimax","hours":10}'
+
+# 通常運用へ戻す
+curl -X POST http://127.0.0.1:8787/proxy/mode -d '{"provider":"auto"}'
+
+# 現在の手動モード確認
+curl -s http://127.0.0.1:8787/proxy/status | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('manual_provider'), d.get('manual_expires_at'))"
+```
+
+- manual=minimax 中は全リクエストを MiniMax-M3 へ強制（peak時間帯・使用率しきい値は**ルーティングに影響しない**・monitor ポーリングは表示のため継続）
+- MiniMax両キー全滅時は通常チェーン同様 GLM-4.7-Flash（最後の砦）へ逃げる
+- **TTLで自動 auto 復帰**（切りっぱなし忘れ防止）・期限30分前に WARNING ログを1回出力
+- 状態は `/tmp/glm-rate-proxy-manual.json` に永続化（クラッシュ→systemd再起動でも意図維持・期限切れファイルは無視）
+- 不正なprovider値・hours範囲外（1-72）は400
+- エンドポイントは `listen_host: 127.0.0.1` 限定（外部からは叩けない）
 
 ## ピーク時間帯（peak_hours）
 
@@ -97,7 +120,7 @@ tail -20 /tmp/glm-proxy.log
 | `end_hour` | 終了時刻（24h表記・JST・排他的） | `19` |
 | `timezone_offset` | タイムゾーンオフセット | `9`（JST） |
 
-**動作**: peak_hours時間帯中は、ModelRouterの `determine_mode()` が `peak_block` を返し、`route_model()` がフォールバック先（既定 `MiniMax-M3`）へ**強制切替**する。Z.AI（GLM）は呼ばれず、結果としてCoding Plan側のレートリミットを回避する。
+**動作**: peak_hours時間帯中は、ModelRouterの `determine_mode()` が `peak_block` を返し、`route_model()` がフォールバック先（既定 `MiniMax-M3`）へ**強制切替**する。Z.AI（GLM）は呼ばれず、結果としてCoding Plan側のレートリミットを回避する。**MiniMax両キー全滅時のみ、最後の砦として GLM-4.7-Flash（ZAI無料枠・60sタイムアウト付き1回試行）へ逃げる**（2026-08-19改訂・試さなければ結末は同じ503のため）。503には `Retry-After: 600` を付ける。
 
 **実装**: `src/glm_rate_proxy/model_router.py` の `_is_peak_hour()` が JST タイムゾーンで現在時刻を判定。`start_hour <= now_hour < end_hour` の条件。
 

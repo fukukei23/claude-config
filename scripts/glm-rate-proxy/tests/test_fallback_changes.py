@@ -301,15 +301,19 @@ class TestHandle429PeakBlock:
         assert resp.status == 200
 
     @pytest.mark.asyncio
-    async def test_ピーク中minimax429なら503_glmは不呼(self):
-        """ピーク時間帯の設計: MiniMaxが429でもGLMには逃げない."""
+    async def test_ピーク中minimax429なら47flash最後の砦へ(self):
+        """ピーク時間帯の設計（2026-08-19改訂）: MiniMax全滅時のみ
+        GLM-4.7-Flash（ZAI無料枠）へ1回逃がる。4.7-Flashも429なら503."""
         server = _make_peak_server()
         server._upstream.request_minimax = AsyncMock(
             side_effect=RateLimitError(429, b"rate limited"))
-        server._upstream.request_zai = AsyncMock()
+        server._upstream.request_zai = AsyncMock(
+            side_effect=RateLimitError(429, b"rate limited"))
         resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
         assert resp.status == 503
-        server._upstream.request_zai.assert_not_awaited()
+        assert resp.headers.get("Retry-After") == "600"
+        # 最後の砦としてZAI（4.7-Flash）が1回呼ばれていること
+        server._upstream.request_zai.assert_awaited_once()
 
 
 # ---- _handle_upstream_error（ZAI 5xx → MiniMax） ----

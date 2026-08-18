@@ -10,6 +10,7 @@ from .usage_tracker import UsageTracker
 from .model_router import ModelRouter
 from .upstream import UpstreamClient, RateLimitError, UpstreamError
 from .tool_sanitizer import sanitize_for_minimax
+from .manual_mode import ManualOverride
 
 logger = logging.getLogger("glm-rate-proxy")
 
@@ -46,6 +47,9 @@ class ProxyServer:
             config.upstream_timeout,
         )
         self._last_actual_model: str | None = None
+        # 手動プロバイダ指定（POST /proxy/mode・再起動でも復元）
+        self._manual = ManualOverride()
+        self._manual.load()
         # 直近リクエストの実ペイロードサイズ（バイト）
         # Claude Code -> proxy 間の生body長 = 真のAPIリクエストサイズ
         # (ツール定義+システムプロンプト+履歴 全部入り)
@@ -73,6 +77,7 @@ class ProxyServer:
         app = web.Application(client_max_size=32 * 1024 * 1024)
         app.router.add_route("*", "/v1/{path:.*}", self._handle_api)
         app.router.add_get("/proxy/status", self._handle_status)
+        app.router.add_post("/proxy/mode", self._handle_mode)
         return app
 
     async def _handle_status(self, request: web.Request) -> web.Response:
@@ -80,6 +85,11 @@ class ProxyServer:
         status["mode"] = self._router.current_mode
         _, provider = self._router.route_model(None, self._tracker.get_usage())
         status["provider"] = provider
+        # 手動モード状態（切替忘れの気づき用）
+        status["manual_provider"] = self._manual.active()
+        status["manual_expires_at"] = self._manual.expires_at()
+        if status["manual_provider"] == "minimax":
+            status["provider"] = "minimax"
         status["zai_configured"] = bool(self._config.zai_api_key)
         status["minimax_configured"] = bool(self._config.minimax_api_keys)
         status["peak_block"] = self._router.current_mode == "peak_block"
@@ -87,6 +97,52 @@ class ProxyServer:
         # 直近リクエストの実サイズ（MB）= 32MB API上限の真の目安
         status["last_request_mb"] = round(self._last_request_bytes / 1048576, 1)
         return web.json_response(status)
+
+    async def _handle_mode(self, request: web.Request) -> web.Response:
+        """POST /proxy/mode — 手動プロバイダ切替（再起動なし）.
+
+        body: {"provider": "minimax" | "auto", "hours": 1-72（既定8）}
+        manual=minimax 中は全リクエストを MiniMax-M3 へ強制（使用率/peak無視）。
+        """
+        try:
+            data = await request.json()
+        except Exception:
+            return web.json_response({"error": "invalid_json"}, status=400)
+        if not isinstance(data, dict):
+            return web.json_response({"error": "invalid_body"}, status=400)
+
+        provider = data.get("provider")
+        if provider == "auto":
+            await self._manual.clear()
+            logger.info("Manual mode cleared (auto)")
+            return web.json_response(self._manual_status())
+        if provider != "minimax":
+            return web.json_response(
+                {"error": "provider must be 'minimax' or 'auto'"}, status=400)
+
+        hours = data.get("hours", 8)
+        if not isinstance(hours, (int, float)) or isinstance(hours, bool) \
+                or not (1 <= hours <= 72):
+            return web.json_response({"error": "hours must be 1-72"}, status=400)
+
+        await self._manual.set("minimax", float(hours))
+        logger.info(f"Manual mode set: provider=minimax hours={hours}")
+        return web.json_response(self._manual_status())
+
+    def _manual_status(self) -> dict:
+        return {"manual_provider": self._manual.active(),
+                "manual_expires_at": self._manual.expires_at()}
+
+    def _effective_route(self, req_model: str | None,
+                         usage_pct: float) -> tuple[str, str]:
+        """通常ルーティング + 手動モード上書き。manual=minimax 中は
+        peak時間帯・使用率しきい値を無視して MiniMax-M3 へ強制する。"""
+        model, provider = self._router.route_model(req_model, usage_pct)
+        if self._manual.active() == "minimax":
+            fb_model, _ = self._router.get_fallback()
+            model = fb_model
+            provider = "minimax"
+        return model, provider
 
     async def _handle_api(self, request: web.Request) -> web.Response:
         path = f"/v1/{request.match_info['path']}"
@@ -99,7 +155,7 @@ class ProxyServer:
 
         req_model = self._default_model_from_body(body)
         usage_pct = self._tracker.get_usage()
-        model, provider = self._router.route_model(req_model, usage_pct)
+        model, provider = self._effective_route(req_model, usage_pct)
 
         if model != req_model and body:
             body = self._replace_model(body, model)
@@ -137,7 +193,8 @@ class ProxyServer:
     async def _handle_429(self, method: str, path: str,
                           headers: dict, orig_body: bytes) -> web.Response:
         # peak_block (JST 15-19時) は GLM を使わない設計。
-        # MiniMax が 429 でも GLM には逃げず、MiniMax の短いリトライのみ行う。
+        # MiniMax が 429 でも通常は GLM には逃げず MiniMax の短いリトライのみ行う
+        # （MiniMax 全滅時のみ 4.7-Flash 最後の砦へ逃がす・2026-08-19 改訂）。
         if self._router.current_mode == "peak_block":
             return await self._handle_429_peak_block(method, path, headers, orig_body)
 
@@ -184,6 +241,7 @@ class ProxyServer:
 
         return web.Response(
             status=503,
+            headers={"Retry-After": "600"},
             content_type="application/json",
             text=json.dumps({
                 "error": "all_providers_rate_limited",
@@ -193,11 +251,13 @@ class ProxyServer:
 
     async def _handle_429_peak_block(self, method: str, path: str,
                                      headers: dict, orig_body: bytes) -> web.Response:
-        """peak_block 中の 429 処理: MiniMax を1回リトライ、ダメなら 503。
+        """peak_block 中の 429 処理: MiniMax を1回リトライ → 全滅時のみ 4.7-Flash → 503。
 
         設計上、peak_block (JST 15-19時) は GLM を使わない（ZAI 側のピーク
-        制限を避けるため）。MiniMax が 429 でも GLM-4.7-Flash へは逃げず、
-        MiniMax の短いリトライ (1秒待ち・1回) のみを行う。
+        制限を避けるため）。MiniMax が 429 でも通常は GLM-4.7-Flash へは逃げず
+        MiniMax の短いリトライ (1秒待ち・1回) のみ行う。ただし MiniMax 両キー
+        全滅時は 503 が確定しているため、最後の砦として 4.7-Flash（ZAI無料枠）
+        を60sタイムアウト付きで1回だけ試行する（2026-08-19 改訂）。
         """
         if self._config.minimax_api_keys:
             fb_model, _ = self._router.get_fallback()
@@ -214,16 +274,43 @@ class ProxyServer:
                     body=resp["body"],
                 )
             except RateLimitError:
-                logger.error("MiniMax rate limited in peak_block (GLM disabled), returning 503")
+                logger.error("MiniMax rate limited in peak_block, trying GLM-4.7-Flash last resort")
             except UpstreamError as e:
-                logger.error(f"MiniMax error in peak_block: {e}, returning 503")
+                logger.error(f"MiniMax error in peak_block: {e}, trying GLM-4.7-Flash last resort")
+
+        # 最後の砦（2026-08-19 改訂・3機レビュー採用）: MiniMax全滅時のみ
+        # 4.7-Flash（ZAI無料枠）へ1回逃がす。60sタイムアウトでZAIゲートウェイ
+        # 遅延時の全タブハングを防止（試さなければ結末は同じ503のため試す方が合理的）。
+        last_resort_model = "GLM-4.7-Flash"
+        lr_body = self._replace_model(orig_body, last_resort_model) if orig_body else orig_body
+        try:
+            resp = await asyncio.wait_for(
+                self._upstream.request_zai(method, path, headers, lr_body),
+                timeout=60.0)
+            logger.info(
+                "peak_block: MiniMax exhausted, escaping to GLM-4.7-Flash "
+                "(last resort) succeeded")
+            self._tracker.update_from_headers(resp["headers"])
+            self._capture_model(resp["body"])
+            return web.Response(
+                status=resp["status"],
+                content_type="application/json",
+                body=resp["body"],
+            )
+        except asyncio.TimeoutError:
+            logger.error("peak_block: GLM-4.7-Flash last resort timed out (60s)")
+        except RateLimitError:
+            logger.error("peak_block: GLM-4.7-Flash last resort rate limited")
+        except UpstreamError as e:
+            logger.error(f"peak_block: GLM-4.7-Flash last resort error: {e}")
 
         return web.Response(
             status=503,
+            headers={"Retry-After": "600"},
             content_type="application/json",
             text=json.dumps({
-                "error": "peak_block_minimax_limited",
-                "message": "MiniMax rate limited during peak block (GLM disabled 15-19 JST). Wait for reset.",
+                "error": "peak_block_all_providers_limited",
+                "message": "MiniMax and GLM-4.7-Flash last resort both failed during peak block. Wait for reset.",
             }),
         )
 
