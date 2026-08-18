@@ -134,3 +134,31 @@ def test_overturned_zero_with_no_evidence_is_ok(tmp_path):
     run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
     text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
     assert "⚠️要修正" not in text
+
+
+def test_idempotent_two_runs_identical(tmp_path):
+    # 2回連続実行で出力が完全一致（冪等・出力に時刻等の非決定要素を含まない）
+    make_review(tmp_path, "2026-08-18_レビューA", REVIEW_OK)
+    make_review(tmp_path, "2026-08-18_レビューB", REVIEW_OK)
+    out = tmp_path / "台帳.md"
+    run(str(tmp_path / "*" / "revised_proposal.md"), out)
+    first = out.read_text(encoding="utf-8")
+    run(str(tmp_path / "*" / "revised_proposal.md"), out)
+    assert out.read_text(encoding="utf-8") == first
+
+
+def test_empty_target_generates_empty_table(tmp_path):
+    # 対象0件でも空表を生成（クラッシュしない）
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    assert r.returncode == 0, r.stderr
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "（計測対象レビューなし）" in text
+
+
+def test_dry_run_does_not_write(tmp_path):
+    make_review(tmp_path, "2026-08-18_レビュー", REVIEW_OK)
+    out = tmp_path / "台帳.md"
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), out, extra=["--dry-run"])
+    assert r.returncode == 0
+    assert not out.exists()
+    assert "| 21 | 3 | 2 |" in r.stdout
