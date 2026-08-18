@@ -71,6 +71,7 @@ if model_name == 'unknown' and proxy_provider != 'minimax':
 
 # --- 作業量（優先度低・末尾に追加。コストは非表示→claude-costコマンドで確認）---
 work_str = None
+req_str = None
 try:
     cost_d = d.get('cost', {})
     added = cost_d.get('total_lines_added')
@@ -144,18 +145,14 @@ try:
             rcolor = '\033[33m'
         else:
             rcolor = '\033[32m'
-        parts.append(f'{rcolor}Req {req_mb:.1f}MB/32\033[0m')
+        req_str = f'{rcolor}Req {req_mb:.1f}MB/32\033[0m'
 except:
     pass
 
-# 作業量は末尾（優先度低）
-if work_str:
-    parts.append(work_str)
-
-# タブ識別子を末尾に（WT_SESSION先頭4桁・/clearで不変・タブ単位の識別子。
+# タブ識別子（WT_SESSION先頭4桁・/clearで不変・タブ単位の識別子。
 # WT_SESSION未設定時は session_id 先頭4桁でフォールバック。
-# 2026-08-16 並び順変更: モデル→Ctx→Req→作業量→🪟タブID（スマホ表示で末尾が見切れるため
-# 重要度順にモデル/コンテキストを先頭へ・🪟は末尾へ）
+# 2026-08-18 並び順変更: モデル→Ctx→🪟タブID→作業量→Req（ユーザー指示・
+# 2026-08-16の「モデル→Ctx→Req→作業量→🪟」から🪟を前へ・Reqを末尾へ）
 wt = os.environ.get('WT_SESSION', '')
 if wt:
     tab_id = wt[:4]
@@ -163,6 +160,14 @@ else:
     sid = d.get('session_id', '')
     tab_id = sid[:4] if sid else '----'
 parts.append(f'\033[36m🪟{tab_id}\033[0m')
+
+# 作業量（タブIDの次・優先度低）
+if work_str:
+    parts.append(work_str)
+
+# リクエストサイズは末尾（優先度最低・32MB上限の目安）
+if req_str:
+    parts.append(req_str)
 
 # str() で包む: 万が一 dict が混入しても TypeError を起こさない安全策
 print(' | '.join(str(p) for p in parts))
