@@ -98,3 +98,39 @@ def test_review_log_md_is_not_picked_up(tmp_path):
     run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
     text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
     assert "| 99 |" not in text
+
+
+def test_overturned_without_evidence_is_flagged(tmp_path):
+    # overturned>0 なのに証跡0件 → 要修正（frontmatterの嘘を機械検出）
+    content = REVIEW_OK.replace(
+        "### 証跡1\n\ngrep -c ...\n\n### 証跡2\n\nwc -l ...\n", ""
+    )
+    make_review(tmp_path, "2026-08-18_無証拠レビュー", content)
+    run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "⚠️要修正(証跡0)" in text
+
+
+def test_overturned_greater_than_evidence_is_flagged(tmp_path):
+    # overturned=5 > 証跡2件 → 要修正（証拠不足・数値の盛り検出）
+    content = REVIEW_OK.replace(
+        "overturned_by_measurement: 2", "overturned_by_measurement: 5"
+    )
+    make_review(tmp_path, "2026-08-18_盛りレビュー", content)
+    run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "⚠️要修正(証跡不足)" in text
+
+
+def test_overturned_zero_with_no_evidence_is_ok(tmp_path):
+    # overturned=0・証跡0 は正当（空欄ステータス）
+    content = REVIEW_OK.replace(
+        "overturned_by_measurement: 2", "overturned_by_measurement: 0"
+    )
+    content = content.replace(
+        "## 実測証跡\n\n### 証跡1\n\ngrep -c ...\n\n### 証跡2\n\nwc -l ...\n", ""
+    )
+    make_review(tmp_path, "2026-08-18_通常レビュー", content)
+    run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "⚠️要修正" not in text
