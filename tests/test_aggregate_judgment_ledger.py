@@ -56,3 +56,44 @@ def test_generates_row_from_frontmatter(tmp_path):
     assert r.returncode == 0, r.stderr
     assert "| 2026-08-18 | テスト対象 | 21 | 3 | 2 | 判定用 |  |" in r.stdout
     assert "集約対象: 1件 / 未解析: 0件" in r.stdout
+
+
+def test_bom_crlf_review_is_parsed(tmp_path):
+    # BOM付き + CRLFのレビューでも解析できる
+    content = "﻿" + REVIEW_OK.replace("\n", "\r\n")
+    make_review(tmp_path, "2026-08-18_BOMレビュー", content)
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    assert r.returncode == 0, r.stderr
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "| 21 | 3 | 2 |" in text
+
+
+def test_missing_frontmatter_is_listed_as_unparsed(tmp_path):
+    (tmp_path / "2026-08-13_旧レビュー").mkdir()
+    (tmp_path / "2026-08-13_旧レビュー" / "revised_proposal.md").write_text(
+        "# 改訂案（frontmatter無し）\n", encoding="utf-8"
+    )
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    assert r.returncode == 0, r.stderr
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "集約対象: 0件 / 未解析: 1件" in text
+    assert "2026-08-13_旧レビュー/revised_proposal.md" in text
+
+
+def test_non_numeric_frontmatter_is_unparsed(tmp_path):
+    content = REVIEW_OK.replace("findings_total: 21", "findings_total: 不明")
+    make_review(tmp_path, "2026-08-18_壊れレビュー", content)
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "集約対象: 0件 / 未解析: 1件" in text
+
+
+def test_review_log_md_is_not_picked_up(tmp_path):
+    # review_log.md には本文中に findings_total が出現するが対象外（厳密glob）
+    make_review(tmp_path, "2026-08-18_xレビュー", REVIEW_OK)
+    (tmp_path / "2026-08-18_xレビュー" / "review_log.md").write_text(
+        "findings_total: 99\n", encoding="utf-8"
+    )
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), tmp_path / "台帳.md")
+    text = (tmp_path / "台帳.md").read_text(encoding="utf-8")
+    assert "| 99 |" not in text
