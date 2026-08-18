@@ -495,6 +495,7 @@ LLMの判定結果をユーザーに以下の形式で**一画面**で提示す�
 project: <project>
 date: YYYY-MM-DD
 tags: [tag1, tag2, tag3]
+tech_tags: [解決課題の抽象化キーワード1, キーワード2]  # 技術実装を含む場合のみ・後述
 root_cause:
   category: <フェーズ1のroot_cause.category>
   description: <フェーズ1のroot_cause.description>
@@ -550,6 +551,15 @@ related_entries:
 `root_cause`の`category`は以下から選ぶ: `code_defect`（コード上の不具合） / `design_mismatch`（設計・前提のズレ） / `requirement_change`（要件変更） / `external_dependency`（外部要因） / `operational_error`（運用ミス） / `unknown`（不明）。フェーズ1のJSON出力をそのまま転記する。
 
 `related_entries`は`related_pattern`が非nullだった場合のみ追加し、nullの場合はフィールド自体を省略する。
+
+**`tech_tags`の付与ルール（2026-08-18追加・既存資産の横断発見可能性を担保）**:
+
+記録内容が**技術的な実装・解決策を含む**場合、`tech_tags`に**解決した課題の抽象化キーワード**を2〜5個付与する（技術名だけでなく課題名で検索してヒットさせるため）。
+
+- ✅ 正しい例: `tech_tags: [bot対策, スクレイピング, TLS偽装, Cloudflare回避, HTTP取得]`（curl_cffiの実装記録）
+- ❌ 誤った例: `tech_tags: [curl_cffi]`（技術名のみ→「bot対策したい」で検索してもヒットしない）
+- **判断基準**: 「他のプロジェクトで同じ課題に直面した時、どんな語彙で検索するか？」を自問して、その語彙を並べる
+- 記録内容が技術的実装を含まない（会議・方針・手順等）場合は`tech_tags`フィールド自体を省略してよい
 
 **3-1-α: 逆リンク追記チェック（同テーマ過去記録への今回リンク・2026-08-11 追記）**
 
