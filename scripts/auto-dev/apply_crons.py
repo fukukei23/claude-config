@@ -83,7 +83,11 @@ def cmd_reconcile(definitions: list[CronDefinition], force: bool = False) -> int
     if not version_gate():
         print(result_line("error", reason="cc-version-changed"))
         return EXIT_FAIL
-    tasks = load_tasks()
+    try:
+        tasks = load_tasks()
+    except (json.JSONDecodeError, OSError):
+        print(result_line("error", reason="source-invalid"))
+        return EXIT_FAIL
     enabled = [d for d in definitions if d.enabled]
     create_n = sum(1 for a in diff(definitions, tasks) if a.kind == "create")
     ghost_n = len([t for t in tasks if not any(_match(d, t) for d in enabled)])
@@ -320,12 +324,12 @@ def run_health(probe: str) -> HealthResult:
 TASKS_PATH = os.path.expanduser("~/.claude/scheduled_tasks.json")
 
 
-def write_tasks(new_tasks: list[dict], path: str = TASKS_PATH) -> str:
+def write_tasks(new_tasks: list[dict], path: str | None = None) -> str:
     """マージ方式の冪等書換え。'done' or 'error' を返す。
     - バックアップは「現在ファイルがJSONとして有効な場合のみ」取得(破損時は既存bakを保全)
     - 書込みは temp+rename(アトミック)。書込み後validate失敗なら書き込まない
     """
-    fp = Path(path)
+    fp = Path(TASKS_PATH if path is None else path)
     if fp.exists():
         try:
             current_raw = fp.read_text(encoding="utf-8")
@@ -392,7 +396,8 @@ class Action:
     reason: str = ""
 
 
-def load_tasks(path: str = TASKS_PATH) -> list[dict]:
+def load_tasks(path: str | None = None) -> list[dict]:
+    path = TASKS_PATH if path is None else path
     """scheduled_tasks.json から全タスクを読込。
 
     注意: Claude Code は durable フラグを json に永続化しない（recurring のみ）。
