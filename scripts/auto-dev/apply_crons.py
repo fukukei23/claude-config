@@ -22,6 +22,36 @@ from pathlib import Path
 from typing import Iterable
 
 
+VERSION_GATE_PATH = str(Path(__file__).parent / ".cron-cc-version")
+
+
+def _cc_version() -> str:
+    """Claude Code CLIのバージョン文字列（失敗時は'unknown'）。"""
+    try:
+        return subprocess.run(
+            ["claude", "--version"], capture_output=True, text=True, timeout=15
+        ).stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def version_gate(current: str | None = None) -> bool:
+    """Phase 0観測時のCCバージョンと異なればFalse（apply拒否→golden master再観測要求）.
+
+    ゲートファイルが無い初回は現在値を記録してTrue（破損時も記録し直してTrue）。
+    """
+    cur = current if current is not None else _cc_version()
+    g = Path(VERSION_GATE_PATH)
+    try:
+        saved = g.read_text(encoding="utf-8").strip() if g.exists() else ""
+    except OSError:
+        saved = ""
+    if not saved:
+        g.write_text(cur + "\n", encoding="utf-8")
+        return True
+    return saved == cur
+
+
 EXIT_OK = 0
 EXIT_FAIL = 20
 
