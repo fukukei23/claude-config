@@ -246,3 +246,17 @@ def test_self_bootstrap_only_when_missing():
     current = [{"id": "a", "prompt": "renew-crons: bash ~/bin/apply-crons.sh reconcile\n[cron-id:3]", "cron": "0 3 */6 * *", "recurring": True}]
     desired = apply_crons.desired_entries(_defs(), current)
     assert sum(1 for e in desired if "cron-id:3" in e["prompt"]) == 1  # 二重にならない
+
+
+# ============================================================================
+# Task 6: CCバージョン照合ゲート
+# ============================================================================
+
+def test_version_gate(tmp_path, monkeypatch):
+    gate_file = tmp_path / "v"
+    gate_file.write_text("1.0.99")
+    monkeypatch.setattr(apply_crons, "VERSION_GATE_PATH", str(gate_file))
+    assert apply_crons.version_gate(current="1.0.99") is True   # 一致→通過
+    assert apply_crons.version_gate(current="1.1.0") is False   # 乖離→拒否
+    assert apply_crons.version_gate(current="1.1.0") is False   # 2回目も拒否(gate不変)
+    assert gate_file.read_text() == "1.0.99"
