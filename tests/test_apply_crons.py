@@ -213,3 +213,34 @@ def test_write_tasks_invalid_source_rollback():
     open(p, "w").write("{broken")
     out = apply_crons.write_tasks([{"id": "x1", "prompt": "B"}], path=p)
     assert out == "error" and open(p).read() == "{broken"  # 失敗時は書き込まない
+
+
+# ============================================================================
+# Task 5: desired_entries（自己bootstrap・未知フィールド保持・ゴースト除去）
+# ============================================================================
+
+def _defs():
+    return [
+        apply_crons.CronDefinition(id=3, name="renew", schedule="0 3 */6 * *",
+                                   health="none", prompt="renew-crons: bash ~/bin/apply-crons.sh reconcile"),
+        apply_crons.CronDefinition(id=5, name="daily", schedule="5 15 * * *",
+                                   health="none", prompt="usage"),
+    ]
+
+
+def test_desired_entries_keeps_unknown_fields_and_drops_ghost():
+    current = [
+        {"id": "a", "prompt": "usage [cron-id:5]", "durable": True, "extra": "keep-me"},
+        {"id": "b", "prompt": "ghost job", "durable": True},
+    ]
+    desired = apply_crons.desired_entries(_defs(), current)
+    prompts = [e["prompt"] for e in desired]
+    assert any("cron-id:3" in p for p in prompts)      # renew自己bootstrap生成
+    assert any(e.get("extra") == "keep-me" for e in desired)  # 未知フィールド保持
+    assert all("ghost" not in p for p in desired)      # ゴースト除去
+
+
+def test_self_bootstrap_only_when_missing():
+    current = [{"id": "a", "prompt": "renew-crons: bash ~/bin/apply-crons.sh reconcile [cron-id:3]", "recurring": True}]
+    desired = apply_crons.desired_entries(_defs(), current)
+    assert sum(1 for e in desired if "cron-id:3" in e["prompt"]) == 1  # 二重にならない
