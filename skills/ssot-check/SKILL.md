@@ -96,10 +96,16 @@ gh repo list fukukei23 --limit 50 --json name,visibility --jq '.[] | .name' | wc
 ls /home/yn4416/projects/obsidian-ssot/01_DECISIONS/
 
 # 4. scheduled_tasks.json のCron
-cat ~/.claude/scheduled_tasks.json
+python3 -c "import json; print(len(json.load(open('/home/yn4416/.claude/scheduled_tasks.json'))['tasks']), '件')"
 
 # 5. settings.json のmcpServers
 python3 -c "import json; print(list(json.load(open('/home/yn4416/.claude/settings.json'))['mcpServers'].keys()))"
+
+# 6. Cron整合の独立検視（reconcileの沈黙事故検知・2026-08-20追加）
+bash ~/bin/apply-crons.sh check 2>&1 | tail -4
+# →「整合: ✅」なら正常。「⚠️ create/ghost」またはコマンド自体が失敗する場合は
+#   reconcileまたは定義が壊れている可能性→高重要度として記録（reconcileは*/6hで自己修復するが、
+#   この検視はreconcile自体の死亡を検知する独立層）
 ```
 
 ---
