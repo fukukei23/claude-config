@@ -288,3 +288,49 @@ def test_one_shot_kept_if_present_not_recreated():
     # 不在の場合→作らない
     out2 = apply_crons.desired_entries(defs, [])
     assert not any("cron-id:15" in e["prompt"] for e in out2)
+
+
+# ============================================================================
+# Task 9: reconcile統合テスト（冪等・異常系）
+# ============================================================================
+
+def test_reconcile_idempotent(tmp_path, monkeypatch):
+    """--force 2回連続: 両回exit 0・件数不変（スキップによる偽陽性なし）。"""
+    fake = tmp_path / "tasks.json"
+    fake.write_text(_json.dumps({"tasks": []}))
+    monkeypatch.setattr(apply_crons, "TASKS_PATH", str(fake))
+    monkeypatch.setattr(apply_crons, "STAMP_PATH", str(tmp_path / "stamp"))
+    monkeypatch.setattr(apply_crons, "VERSION_GATE_PATH", str(tmp_path / "v"))
+    monkeypatch.setattr(apply_crons, "LOCK_PATH", str(tmp_path / "l"))
+    monkeypatch.setattr(apply_crons, "version_gate", lambda: True)
+    defs = _defs()
+    r1 = apply_crons.cmd_reconcile(defs, force=True)
+    n1 = len(_json.load(open(fake))["tasks"])
+    r2 = apply_crons.cmd_reconcile(defs, force=True)
+    n2 = len(_json.load(open(fake))["tasks"])
+    assert (r1, r2) == (0, 0) and n1 == n2 and n1 == 2
+
+
+def test_reconcile_version_gate_reject(tmp_path, monkeypatch, capsys):
+    """CCバージョン乖離→exit 20・[RESULT]=error・ファイル無変更。"""
+    fake = tmp_path / "tasks.json"
+    before = _json.dumps({"tasks": []})
+    fake.write_text(before)
+    monkeypatch.setattr(apply_crons, "TASKS_PATH", str(fake))
+    monkeypatch.setattr(apply_crons, "LOCK_PATH", str(tmp_path / "l"))
+    monkeypatch.setattr(apply_crons, "version_gate", lambda: False)
+    r = apply_crons.cmd_reconcile(_defs(), force=True)
+    assert r == 20
+    assert "[RESULT]=error reason=cc-version-changed" in capsys.readouterr().out
+    assert fake.read_text() == before  # 無変更
+
+
+def test_reconcile_broken_source_error(tmp_path, monkeypatch):
+    """ソース破損→exit 20（バックアップ不能のため書換え拒否）。"""
+    fake = tmp_path / "tasks.json"
+    fake.write_text("{broken")
+    monkeypatch.setattr(apply_crons, "TASKS_PATH", str(fake))
+    monkeypatch.setattr(apply_crons, "LOCK_PATH", str(tmp_path / "l"))
+    monkeypatch.setattr(apply_crons, "version_gate", lambda: True)
+    r = apply_crons.cmd_reconcile(_defs(), force=True)
+    assert r == 20 and fake.read_text() == "{broken"
