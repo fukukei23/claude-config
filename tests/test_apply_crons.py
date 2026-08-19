@@ -230,8 +230,8 @@ def _defs():
 
 def test_desired_entries_keeps_unknown_fields_and_drops_ghost():
     current = [
-        {"id": "a", "prompt": "usage [cron-id:5]", "durable": True, "extra": "keep-me"},
-        {"id": "b", "prompt": "ghost job", "durable": True},
+        {"id": "a", "prompt": "usage [cron-id:5]", "cron": "5 15 * * *", "extra": "keep-me"},
+        {"id": "b", "prompt": "ghost job", "cron": "1 1 1 1 *"},
     ]
     desired = apply_crons.desired_entries(_defs(), current)
     prompts = [e["prompt"] for e in desired]

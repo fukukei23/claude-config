@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass as _dc
 from dataclasses import field
 from enum import Enum
@@ -263,6 +264,37 @@ def write_tasks(new_tasks: list[dict], path: str = TASKS_PATH) -> str:
         return "error"
     tmp.replace(fp)
     return "done"
+
+
+def _def_to_entry(d: CronDefinition) -> dict:
+    """定義→新規エントリ(自己bootstrap用)。Phase 0観測スキーマ準拠:
+    durableキーは存在しない/createdBy*は捏造しない/createdAtは実時刻。"""
+    return {
+        "id": uuid.uuid4().hex[:8],
+        "cron": d.schedule,
+        "prompt": _append_cron_id_marker(d.prompt, d.id),
+        "recurring": True,
+        "createdAt": int(time.time() * 1000),
+    }
+
+
+def desired_entries(definitions: list[CronDefinition], current: list[dict]) -> list[dict]:
+    """定義(+許可one-shot)+自己bootstrapからdesired状態を計算。
+    既存エントリの未知フィールドは保持(_matchした既存を土台に上書き)。
+    renew-crons自身が消えていても _def_to_entry が再生成する(自己bootstrap)。"""
+    desired: list[dict] = []
+    for d in definitions:
+        if not d.enabled and not d.one_shot:
+            continue
+        base = next((t for t in current if _match(d, t)), None)
+        if base is None:
+            entry = _def_to_entry(d)
+        else:
+            entry = dict(base)
+            entry["prompt"] = _append_cron_id_marker(d.prompt, d.id)
+            entry["cron"] = d.schedule
+        desired.append(entry)
+    return desired
 
 
 @_dc
