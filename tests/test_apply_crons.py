@@ -220,17 +220,19 @@ def test_write_tasks_invalid_source_rollback():
 # ============================================================================
 
 def _defs():
+    """実運用と同じくprompt末尾に[cron-id:N]マーカー付きで構築(parse_definitions相当)。"""
+    mk = apply_crons._append_cron_id_marker
     return [
         apply_crons.CronDefinition(id=3, name="renew", schedule="0 3 */6 * *",
-                                   health="none", prompt="renew-crons: bash ~/bin/apply-crons.sh reconcile"),
+                                   health="none", prompt=mk("renew-crons: bash ~/bin/apply-crons.sh reconcile", 3)),
         apply_crons.CronDefinition(id=5, name="daily", schedule="5 15 * * *",
-                                   health="none", prompt="usage"),
+                                   health="none", prompt=mk("usage", 5)),
     ]
 
 
 def test_desired_entries_keeps_unknown_fields_and_drops_ghost():
     current = [
-        {"id": "a", "prompt": "usage [cron-id:5]", "cron": "5 15 * * *", "extra": "keep-me"},
+        {"id": "a", "prompt": "usage\n[cron-id:5]", "cron": "5 15 * * *", "extra": "keep-me"},
         {"id": "b", "prompt": "ghost job", "cron": "1 1 1 1 *"},
     ]
     desired = apply_crons.desired_entries(_defs(), current)
@@ -241,6 +243,6 @@ def test_desired_entries_keeps_unknown_fields_and_drops_ghost():
 
 
 def test_self_bootstrap_only_when_missing():
-    current = [{"id": "a", "prompt": "renew-crons: bash ~/bin/apply-crons.sh reconcile [cron-id:3]", "recurring": True}]
+    current = [{"id": "a", "prompt": "renew-crons: bash ~/bin/apply-crons.sh reconcile\n[cron-id:3]", "cron": "0 3 */6 * *", "recurring": True}]
     desired = apply_crons.desired_entries(_defs(), current)
     assert sum(1 for e in desired if "cron-id:3" in e["prompt"]) == 1  # 二重にならない
