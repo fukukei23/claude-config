@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import fcntl
 import time
 import uuid
 from dataclasses import dataclass as _dc
@@ -50,6 +51,57 @@ def version_gate(current: str | None = None) -> bool:
         g.write_text(cur + "\n", encoding="utf-8")
         return True
     return saved == cur
+
+STAMP_PATH = str(Path(__file__).parent / ".reconcile-stamp")
+LOCK_PATH = str(Path(__file__).parent / ".reconcile.lock")
+
+
+def stamp_today() -> bool:
+    """当日のcheck緑スタンプが有るか。"""
+    p = Path(STAMP_PATH)
+    return p.exists() and p.read_text(encoding="utf-8").strip() == time.strftime("%Y-%m-%d")
+
+
+def write_stamp() -> None:
+    """当日のcheck緑を記録。"""
+    Path(STAMP_PATH).write_text(time.strftime("%Y-%m-%d"), encoding="utf-8")
+
+
+def should_apply(stamp_ok: bool, mismatch: bool, force: bool) -> bool:
+    """不一致(mismatch)ならスタンプに拘らず常にapply。スタンプは変化なき日の省略のみ。"""
+    return force or mismatch or not stamp_ok
+
+
+def cmd_reconcile(definitions: list[CronDefinition], force: bool = False) -> int:
+    """reconcileサブコマンド: check→apply→check（1プロセス・flock・スタンプ・[RESULT]）。"""
+    lock = open(LOCK_PATH, "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print(result_line("skip", reason="flock"))
+        return EXIT_OK
+    if not version_gate():
+        print(result_line("error", reason="cc-version-changed"))
+        return EXIT_FAIL
+    tasks = load_tasks()
+    enabled = [d for d in definitions if d.enabled]
+    create_n = len(diff(definitions, tasks))
+    ghost_n = len([t for t in tasks if not any(_match(d, t) for d in enabled)])
+    mismatch = bool(create_n or ghost_n)
+    if should_apply(stamp_today(), mismatch, force):
+        if write_tasks(desired_entries(definitions, tasks)) != "done":
+            print(result_line("error", reason="write-validate"))
+            return EXIT_FAIL
+        after = load_tasks()
+        if not diff(definitions, after):
+            write_stamp()
+            _log(APPLY_LOG, f"reconcile done tasks={len(after)}")
+            print(result_line("done"))
+            return EXIT_OK
+        print(result_line("error", reason="postcheck"))
+        return EXIT_FAIL
+    print(result_line("skip", reason="stamp"))
+    return EXIT_OK
 
 
 EXIT_OK = 0
@@ -520,8 +572,8 @@ def cmd_apply(definitions: list[CronDefinition]) -> int:
 
 def main(argv: list[str]) -> int:
     """CLIエントリポイント。"""
-    if len(argv) < 2 or argv[1] not in {"check", "diff", "apply", "clean"}:
-        print("usage: apply-crons.sh {check|diff|apply|clean} [--force]", file=sys.stderr)
+    if len(argv) < 2 or argv[1] not in {"check", "diff", "apply", "clean", "reconcile"}:
+        print("usage: apply-crons.sh {check|diff|apply|clean|reconcile} [--force]", file=sys.stderr)
         return 2
 
     defs_path = os.path.expanduser("~/bin/renew-crons.sh")
@@ -541,6 +593,8 @@ def main(argv: list[str]) -> int:
         return 0
     if sub == "apply":
         return cmd_apply(definitions)
+    if sub == "reconcile":
+        return cmd_reconcile(definitions, force="--force" in argv)
     if sub == "clean":
         force = "--force" in argv
         try:

@@ -260,3 +260,17 @@ def test_version_gate(tmp_path, monkeypatch):
     assert apply_crons.version_gate(current="1.1.0") is False   # 乖離→拒否
     assert apply_crons.version_gate(current="1.1.0") is False   # 2回目も拒否(gate不変)
     assert gate_file.read_text() == "1.0.99"
+
+
+# ============================================================================
+# Task 7: reconcile（スタンプ判定・flock・[RESULT]）
+# ============================================================================
+
+def test_stamp_should_apply(tmp_path, monkeypatch):
+    monkeypatch.setattr(apply_crons, "STAMP_PATH", str(tmp_path / "stamp"))
+    apply_crons.write_stamp()  # 今日のcheck緑を記録
+    assert apply_crons.stamp_today() is True
+    assert apply_crons.should_apply(stamp_ok=True, mismatch=False, force=True) is True   # --force
+    assert apply_crons.should_apply(stamp_ok=True, mismatch=False, force=False) is False  # 省略
+    assert apply_crons.should_apply(stamp_ok=True, mismatch=True, force=False) is True    # 不一致→常にapply
+    assert apply_crons.should_apply(stamp_ok=False, mismatch=False, force=False) is True  # 未記録→apply
