@@ -237,6 +237,30 @@ def run_health(probe: str) -> HealthResult:
 TASKS_PATH = os.path.expanduser("~/.claude/scheduled_tasks.json")
 
 
+def write_tasks(new_tasks: list[dict], path: str = TASKS_PATH) -> str:
+    """マージ方式の冪等書換え。'done' or 'error' を返す。
+    - バックアップは「現在ファイルがJSONとして有効な場合のみ」取得(破損時は既存bakを保全)
+    - 書込みは temp+rename(アトミック)。書込み後validate失敗なら書き込まない
+    """
+    fp = Path(path)
+    try:
+        if fp.exists():
+            current_raw = fp.read_text(encoding="utf-8")
+            json.loads(current_raw)  # 有効性チェック
+            fp.with_suffix(fp.suffix + ".bak").write_text(current_raw, encoding="utf-8")
+    except (json.JSONDecodeError, OSError):
+        pass  # 壊れたソースはバックアップしない(既存bak保全)
+    tmp = fp.with_suffix(fp.suffix + ".tmp")
+    tmp.write_text(json.dumps({"tasks": new_tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        json.loads(tmp.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        tmp.unlink(missing_ok=True)
+        return "error"
+    tmp.replace(fp)
+    return "done"
+
+
 @_dc
 class Action:
     """1件の同期アクション。"""

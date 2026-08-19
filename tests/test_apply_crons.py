@@ -181,3 +181,35 @@ def test_result_line_skip_with_reason():
 
 def test_result_line_error_exit_code():
     assert apply_crons.EXIT_FAIL == 20 and apply_crons.EXIT_OK == 0
+
+
+# ============================================================================
+# Task 4: write_tasks（マージ方式書換え・バックアップ・validate・ロールバック）
+# ============================================================================
+
+import json as _json
+import os as _os
+import tempfile as _tempfile
+
+
+def _tmp_tasks(entries):
+    fd, p = _tempfile.mkstemp(suffix=".json")
+    _os.close(fd)
+    _json.dump({"tasks": entries}, open(p, "w"))
+    return p
+
+
+def test_write_tasks_backup_and_validate_ok():
+    p = _tmp_tasks([{"id": "x1", "prompt": "A", "unknown": {"keep": 1}}])
+    out = apply_crons.write_tasks([{"id": "x1", "prompt": "A2", "unknown": {"keep": 1}}], path=p)
+    d = _json.load(open(p))
+    assert d["tasks"][0]["prompt"] == "A2" and d["tasks"][0]["unknown"] == {"keep": 1}
+    assert out == "done" and _os.path.exists(p + ".bak")
+
+
+def test_write_tasks_invalid_source_rollback():
+    p = _tmp_tasks([{"id": "x1", "prompt": "A"}])
+    # ソース(json)自体が壊れている状態を作る
+    open(p, "w").write("{broken")
+    out = apply_crons.write_tasks([{"id": "x1", "prompt": "B"}], path=p)
+    assert out == "error" and open(p).read() == "{broken"  # 失敗時は書き込まない
