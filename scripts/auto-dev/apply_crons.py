@@ -34,6 +34,7 @@ class CronDefinition:
     health: str
     prompt: str
     enabled: bool = True
+    one_shot: bool = False
 
 
 _TAG_RE = re.compile(
@@ -43,6 +44,7 @@ _TAG_RE = re.compile(
     r'schedule="(?P<schedule>[^"]*)"\s+'
     r'health="(?P<health>[^"]*)"'
     r'(?:\s+enabled=(?P<enabled>true|false))?'
+    r'(?:\s+one_shot=(?P<one_shot>true|false))?'
     r'\s*$'
 )
 
@@ -136,6 +138,7 @@ def parse_definitions(text: str) -> list[CronDefinition]:
                 health=tag.group("health"),
                 prompt="",
                 enabled=enabled,
+                one_shot=(tag.group("one_shot") == "true") if tag.group("one_shot") else False,
             )
         elif current is not None:
             pm = _PROMPT_PREFIX_RE.match(line)
