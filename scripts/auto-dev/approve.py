@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 
 import state_store
+import tdd_gate
 from daily_triage import validate_repo
 
 STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
@@ -80,21 +81,54 @@ def parse_today_tasks(text: str) -> list[dict]:
     return tasks
 
 
+def prompt_test_policy(title: str, _input=input) -> dict | None:
+    """対話的にテスト方針を入力させる（F層・欄空白=起票block）。
+
+    選択肢: 1=テスト追加必要 / 2=既存テストで網羅 / 3=該当なし（理由20字以上）。
+    無効・空白は1回再問し、それでも無効なら None（該当タスク起票除外）。
+
+    Args:
+        title: タスク名（プロンプト表示用）。
+        _input: 入力関数（テスト差し替え用・デフォルト input）。
+
+    Returns:
+        {"choice": 1|2|3, "reason": str} または None（起票除外）。
+    """
+    for _ in range(2):
+        raw = _input(
+            f"テスト方針 [{title}] "
+            "1=テスト追加 / 2=既存で網羅 / 3=該当なし(理由20字以上): "
+        ).strip()
+        policy = tdd_gate.parse_test_policy(raw)
+        if policy:
+            return policy
+        print("⚠️ 無効・空白は起票不可（1/2/3 のいずれか・3は理由20字以上）")
+    return None
+
+
 def build_task_entry(task: dict, repo: str) -> dict:
     """選択タスクから state.json の pending 要素を生成。
 
     Args:
-        task: parse_today_tasks の要素。
+        task: parse_today_tasks の要素（test_policy キー込み・F層）。
         repo: 実行先リポジトリの絶対パス。
 
     Returns:
-        {title, prompt, repo, issue}。issue は本文由来なので None。
+        {title, prompt, repo, issue, test_policy}。issue は本文由来なので None。
     """
+    policy = task.get("test_policy") or {}
+    policy_text = f"{policy.get('choice', '')} {policy.get('reason', '')}".strip()
+    prompt = (
+        f"{task['title']} を実装してください。理由/背景: {task['reason']}"
+    )
+    if policy_text:
+        prompt += f"\nテスト方針(起票時宣言・計画と実装に引き継ぐこと): {policy_text}"
     return {
         "title": task["title"],
-        "prompt": f"{task['title']} を実装してください。理由/背景: {task['reason']}",
+        "prompt": prompt,
         "repo": repo,
         "issue": None,
+        "test_policy": policy,
     }
 
 
@@ -174,6 +208,17 @@ def main() -> int:
 
     selected = [t for t in tasks if t["n"] in nums]
     queueable, excluded = select_queueable(selected)
+
+    # F層: テスト方針入力（欄空白・無効は起票block・D″案第一段階）
+    with_policy: list[dict] = []
+    for t in queueable:
+        policy = prompt_test_policy(t["title"])
+        if policy is None:
+            print(f"⚠️ テスト方針未宣言・起票除外: {t['title']}")
+            excluded.append(t)
+        else:
+            with_policy.append({**t, "test_policy": policy})
+    queueable = with_policy
 
     for t in excluded:
         print(f"⚠️ 自動実行対象外・人間対応: {t['title']}")

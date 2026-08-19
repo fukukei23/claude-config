@@ -7,3 +7,9 @@ repos:
     path: /home/yn4416/projects/atelier-kyo-manager
 label: auto-loop
 max_tasks_per_session: 3
+# C層テストゲートallowlist（D″案第一段階・コード系repoのみ有効・手動フラグで機械判定）
+test_gate_repos:
+  - name: NexusCore
+    path: /home/yn4416/projects/NexusCore
+  - name: atelier-kyo-manager
+    path: /home/yn4416/projects/atelier-kyo-manager

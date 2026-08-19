@@ -1,6 +1,5 @@
 """fetch_issues.py のテスト。"""
 import json
-from pathlib import Path
 from unittest import mock
 
 import fetch_issues
@@ -68,3 +67,44 @@ def test_fetch_from_repo_正常取得():
     assert len(result) == 1
     assert result[0]["issue"] == 7
     assert result[0]["repo"] == "/home/yn4416/projects/NexusCore"
+
+
+# ===== F層: テスト方針宣言（D″案第一段階） =====
+
+
+def test_extract_issue_test_policy_宣言あり():
+    body = "概要\n\nテスト方針: 1"
+    result = fetch_issues.extract_issue_test_policy(body)
+    assert result == {"choice": 1, "reason": ""}
+
+
+def test_extract_issue_test_policy_該当なし理由付き():
+    body = "テスト方針: 3 該当なし: ドキュメント追記のみのためテスト不要"
+    result = fetch_issues.extract_issue_test_policy(body)
+    assert result is not None
+    assert result["choice"] == 3
+
+
+def test_extract_issue_test_policy_宣言なしはNone():
+    assert fetch_issues.extract_issue_test_policy("本文のみ") is None
+
+
+def test_extract_issue_test_policy_理由短すぎはNone():
+    assert fetch_issues.extract_issue_test_policy("テスト方針: 3 短い") is None
+
+
+def test_format_issue_test_policy込み():
+    issue = {"number": 8, "title": "改修", "body": "テスト方針: 2 既存で網羅"}
+    result = fetch_issues.format_issue(issue, "/r")
+    assert result["test_policy"] == {"choice": 2, "reason": "既存で網羅"}
+
+
+def test_filter_missing_test_policy_振り分け():
+    tasks = [
+        {"issue": 1, "title": "あり", "test_policy": {"choice": 1, "reason": ""}},
+        {"issue": 2, "title": "なし", "test_policy": None},
+        {"issue": 3, "title": "欄自体なし"},
+    ]
+    kept, skipped = fetch_issues.filter_missing_test_policy(tasks)
+    assert [t["issue"] for t in kept] == [1]
+    assert [t["issue"] for t in skipped] == [2, 3]

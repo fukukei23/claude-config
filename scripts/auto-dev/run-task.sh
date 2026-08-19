@@ -14,19 +14,24 @@ CLAUDE="/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/cl
 SS="/home/yn4416/.claude/scripts/auto-dev/state_store.py"
 SS_PYSPATH="/home/yn4416/.claude/scripts/auto-dev"
 
-# state.json の current から PROMPT/REPO/ISSUE 抽出（state_store.read 経由・共有ロック）
+# state.json の current から PROMPT/REPO/ISSUE/TEST_POLICY 抽出（state_store.read 経由・共有ロック）
+# JSON経由で取出す（複数行promptで行ベースsedが壊れる既存バグ修正・2026-08-12 13:38実測）
 CURRENT_JSON=$(python3 -c "
-import sys; sys.path.insert(0, '$SS_PYSPATH')
+import sys, json; sys.path.insert(0, '$SS_PYSPATH')
 import state_store
 from pathlib import Path
 c = state_store.read(Path('$STATE'), lambda s: (s.get('current') or {})) or {}
-print(c.get('prompt', '$TITLE を実装せよ'))
-print(c.get('repo', '/home/yn4416'))
-print(c.get('issue') or '')
+print(json.dumps({
+    'prompt': c.get('prompt', '$TITLE を実装せよ'),
+    'repo': c.get('repo', '/home/yn4416'),
+    'issue': c.get('issue') or '',
+    'test_policy': c.get('test_policy') or {},
+}, ensure_ascii=False))
 ")
-PROMPT=$(echo "$CURRENT_JSON" | sed -n '1p')
-REPO=$(echo "$CURRENT_JSON" | sed -n '2p')
-ISSUE=$(echo "$CURRENT_JSON" | sed -n '3p')
+PROMPT=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['prompt'])" "$CURRENT_JSON")
+REPO=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['repo'])" "$CURRENT_JSON")
+ISSUE=$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['issue'])" "$CURRENT_JSON")
+TEST_POLICY=$(python3 -c "import json,sys; print(json.dumps(json.loads(sys.argv[1])['test_policy'], ensure_ascii=False))" "$CURRENT_JSON")
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === run-task: '$TITLE' repo=$REPO issue=$ISSUE ===" >> "$LOG"
 
@@ -64,6 +69,15 @@ export PYTHONPATH="$SS_PYSPATH:${PYTHONPATH:-}"
 # verify-result.txt は TASK_DIR 配下（世代ガード・グローバル混入防止）
 VERIFY="$TASK_DIR/verify-result.txt"
 
+# 終了時（exit パス問わず）: running=false にして next_issue.py を直接呼ぶ
+# （Phase1.5/Phase2のabort exitでもfinalizeが走るよう前倒し・2026-08-20）
+NEXT_ISSUE="/home/yn4416/.claude/scripts/auto-dev/next_issue.py"
+finalize() {
+  python3 "$SS" clear-running
+  python3 "$NEXT_ISSUE" >> "$LOG" 2>&1
+}
+trap finalize EXIT
+
 # Phase 0: 目的抽出（PROMPT → objective.txt + KPI JSON）
 echo "[$(date '+%F %T')] Phase 0: 目的抽出 task_id=$TASK_ID" >> "$LOG"
 PROMPT_PY=$(python3 -c "import json,sys; sys.stdout.write(json.dumps(sys.argv[1]))" "$PROMPT")
@@ -83,14 +97,28 @@ print(json.dumps(k, ensure_ascii=False) if k else '')
 echo "$OBJECTIVE" > "$TASK_DIR/objective.txt"
 echo "[$(date '+%F %T')] objective=${OBJECTIVE:0:80} kpi=${KPI_JSON:-なし}" >> "$LOG"
 
-# Phase 1: 計画立案（claude --print で plan.md を生成）
+# Phase 1: 計画立案（claude --print で plan.md を生成・A層AC必須化をプロンプトで義務付け）
 echo "[$(date '+%F %T')] Phase 1: 計画立案" >> "$LOG"
 PLAN_PROMPT="タスク: $OBJECTIVE
 KPI: ${KPI_JSON:-なし}
+テスト方針(起票時宣言・F層): ${TEST_POLICY:-{}}
 
-実装計画を立てよ。'# 計画' で始めて 3-5 セクション（概要・実装手順・テスト方針・想定リスク等）で簡潔に出力せよ。"
+実装計画を立てよ。'# 計画' で始めて 3-5 セクション（概要・実装手順・テスト方針・想定リスク等）で簡潔に出力せよ。以下は必須（D″案A層・機械検証される）:
+- 「受け入れ条件」セクション: 証跡は exit code / テスト緑件数 / coverage / 本番CLI実測ログ のみ有効。coverage目標は既存値±5pt以内・100%は禁止。指標間矛盾（テスト0件なのにcoverage目標100%等）も禁止。
+- 「テスト区分: 新規追加」or「テスト区分: 既存修正」or「テスト区分: 対象外」の1行を必ず含めよ（対象外はコードファイル変更が無いタスクのみ可・テスト方針と矛盾する区分は禁止）。"
 CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK=1 "$CLAUDE" --print "$PLAN_PROMPT" > "$TASK_DIR/plan.md" 2>"$TASK_DIR/logs/plan.stderr.log"
 echo "[$(date '+%F %T')] plan saved ($(wc -l < "$TASK_DIR/plan.md" 2>/dev/null || echo 0)行)" >> "$LOG"
+
+# Phase 1.5: A層 plan機械検証（AC欄・テスト区分・coverage100%禁止・D″案第一段階）
+python3 "$SS_PYSPATH/tdd_gate.py" validate-plan --plan "$TASK_DIR/plan.md" >> "$LOG" 2>&1
+PLAN_VALID_RC=$?
+echo "[$(date '+%F %T')] A層plan検証 rc=$PLAN_VALID_RC (0=ok)" >> "$LOG"
+if [ "$PLAN_VALID_RC" -ne 0 ]; then
+  echo "NG" > "$VERIFY"
+  echo "A層plan検証NG: 受け入れ条件(AC)欄・テスト区分宣言が不正（tdd_gate validate-plan参照）" >> "$VERIFY"
+  echo "[$(date '+%F %T')] A層plan検証NG・中止" >> "$LOG"
+  exit 1
+fi
 
 # Phase 2: 計画レビュー（別ベンダーLLM・backend_kind必須・目的ホールド・2026-08-12有効化）
 echo "[$(date '+%F %T')] Phase 2: 計画レビュー（別LLM・Gemini+MiniMax）" >> "$LOG"
@@ -107,14 +135,6 @@ fi
 
 # run-task 実行中フラグ再設定（実装/検証 claude の Stop hook 発火を next_issue.py で無視させる）
 python3 "$SS" set-running "$$"
-
-# 終了時（exit パス問わず）: running=false にして next_issue.py を直接呼ぶ
-NEXT_ISSUE="/home/yn4416/.claude/scripts/auto-dev/next_issue.py"
-finalize() {
-  python3 "$SS" clear-running
-  python3 "$NEXT_ISSUE" >> "$LOG" 2>&1
-}
-trap finalize EXIT
 
 # ① 実装フェーズ（作るAI）
 HEAD_BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "")
@@ -134,6 +154,29 @@ if [ "$HEAD_BEFORE" = "$HEAD_AFTER" ]; then
   echo "NG" > "$VERIFY"
   echo "実装でコミットなし（タスク曖昧・既に完了の可能性）" >> "$VERIFY"
   echo "[$(date '+%F %T')] 実装空振り（HEAD不変・検証スキップ）" >> "$LOG"
+  exit 1
+fi
+
+# Phase 2.5: C層テストゲート（4条件block・allowlistはauto-loop-config.yaml・D″案第一段階）
+# 4条件: ①テスト関数差分>=1 or 既存テストAST差分（空アサーション除外） ②pytest生ログ提出
+#        ③repo種別allowlist ④失敗=block（機械的差戻し）
+echo "[$(date '+%F %T')] Phase 2.5: C層テストゲート" >> "$LOG"
+python3 "$SS_PYSPATH/tdd_gate.py" gate --repo "$REPO" --before "$HEAD_BEFORE" --task-dir "$TASK_DIR" >> "$LOG" 2>&1
+GATE_RC=$?
+echo "[$(date '+%F %T')] test-gate rc=$GATE_RC (0=pass/1=block)" >> "$LOG"
+if [ "$GATE_RC" -ne 0 ]; then
+  echo "NG" > "$VERIFY"
+  echo "C層テストゲートblock（テスト無し完了・証跡不足・区分不整合等）:" >> "$VERIFY"
+  python3 -c "
+import json
+try:
+    d = json.load(open('$TASK_DIR/gate-result.json'))
+    for r in d.get('reasons', []):
+        print(f'- {r}')
+except Exception as e:
+    print(f'- gate-result.json読取失敗: {e}')
+" >> "$VERIFY"
+  echo "[$(date '+%F %T')] ゲートNG・差戻し" >> "$LOG"
   exit 1
 fi
 

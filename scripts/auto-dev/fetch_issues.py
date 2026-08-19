@@ -7,15 +7,49 @@ manual モード（Daily Triage から候補混入）・auto モード（next_is
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import state_store
+import tdd_gate
 
 STATE = Path("/home/yn4416/.claude/scripts/auto-dev/state.json")
 CONFIG = Path("/home/yn4416/.claude/scripts/auto-dev/auto-loop-config.yaml")
+
+# F層: Issue body 内のテスト方針宣言（欄なし=起票block・D″案第一段階）
+POLICY_RE = re.compile(r"テスト方針[:：]\s*(.+)")
+
+
+def extract_issue_test_policy(body: str) -> dict | None:
+    """Issue body からテスト方針宣言を抽出する（F層・欄なし/無効は None）。
+
+    Args:
+        body: Issue 本文。
+
+    Returns:
+        tdd_gate.parse_test_policy 準拠の {"choice", "reason"}、または None。
+    """
+    m = POLICY_RE.search(body or "")
+    if not m:
+        return None
+    return tdd_gate.parse_test_policy(m.group(1).strip())
+
+
+def filter_missing_test_policy(tasks: list[dict]) -> tuple[list[dict], list[dict]]:
+    """テスト方針宣言の無いタスクを起票時に除外する（欄空白block・F層）。
+
+    Args:
+        tasks: pending 形式リスト（test_policy キー込み）。
+
+    Returns:
+        (宣言ありリスト, 除外リスト)。
+    """
+    kept = [t for t in tasks if t.get("test_policy")]
+    skipped = [t for t in tasks if not t.get("test_policy")]
+    return kept, skipped
 
 
 def ensure_gh_path() -> None:
@@ -47,13 +81,20 @@ def format_issue(issue: dict, repo_path: str) -> dict:
         repo_path: リポジトリの絶対パス（per-task・next_issue.py 互換）。
 
     Returns:
-        {title, prompt, repo, issue} の pending エントリ。
+        {title, prompt, repo, issue, test_policy} の pending エントリ。
+        test_policy は body 由来（宣言なしは None・run() で除外）。
     """
     number = issue.get("number")
     title = issue.get("title", f"Issue #{number}")
     body = issue.get("body") or ""
     prompt = f"以下のGitHub Issueを実装せよ。\n\n# {title}\n\n{body}"
-    return {"title": title, "prompt": prompt, "repo": repo_path, "issue": number}
+    return {
+        "title": title,
+        "prompt": prompt,
+        "repo": repo_path,
+        "issue": number,
+        "test_policy": extract_issue_test_policy(body),
+    }
 
 
 def fetch_from_repo(repo_path: str, label: str) -> list[dict]:
@@ -146,7 +187,14 @@ def run() -> list[dict]:
         repo_path = repo.get("path")
         if repo_path:
             new_tasks.extend(fetch_from_repo(repo_path, label))
-    return filter_duplicates(new_tasks, state)
+    new_tasks = filter_duplicates(new_tasks, state)
+    # F層: テスト方針宣言の無い Issue は起票block（除外+警告）
+    kept, skipped = filter_missing_test_policy(new_tasks)
+    for t in skipped:
+        sys.stderr.write(
+            f"[fetch_issues] ⚠️ テスト方針宣言なし・起票除外: #{t.get('issue')} {t.get('title')}\n"
+        )
+    return kept
 
 
 def main() -> int:

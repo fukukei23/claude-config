@@ -110,3 +110,54 @@ def test_parse_generated_at_returns_none_when_missing():
     """メタデータ行が無ければ None（後方互換・旧形式の today-tasks.md）。"""
     text = "## 今日のタスク候補\n1. **A** — x\n"
     assert parse_generated_at(text) is None
+
+
+# ===== F層: テスト方針入力（D″案第一段階） =====
+
+
+def test_prompt_test_policy_有効入力1回で返る():
+    """選択肢1（テスト追加）は理由不要で即確定。"""
+    from approve import prompt_test_policy
+
+    policy = prompt_test_policy("タスクA", _input=lambda *a: "1")
+    assert policy == {"choice": 1, "reason": ""}
+
+
+def test_prompt_test_policy_該当なしは理由20字必須():
+    """選択肢3は理由20字以上・不足は再問→有効入力で確定。"""
+    from approve import prompt_test_policy
+
+    inputs = iter(["3 短い", "3 該当なし: ドキュメント追記のみのためテスト不要"])
+    policy = prompt_test_policy("タスクB", _input=lambda *a: next(inputs))
+    assert policy is not None
+    assert policy["choice"] == 3
+
+
+def test_prompt_test_policy_2回無効はNoneで起票block():
+    """空白・無効が2回続けば None（該当タスク起票除外）。"""
+    from approve import prompt_test_policy
+
+    inputs = iter(["", "9"])
+    assert prompt_test_policy("タスクC", _input=lambda *a: next(inputs)) is None
+
+
+def test_build_task_entry_test_policy込み():
+    """test_policy 付きタスクは prompt と entry 両方に引き継がれる。"""
+    t = {
+        "n": 1,
+        "title": "機能X",
+        "reason": "改善",
+        "cost": "S",
+        "test_policy": {"choice": 1, "reason": ""},
+    }
+    entry = build_task_entry(t, repo="/r/x")
+    assert entry["test_policy"] == {"choice": 1, "reason": ""}
+    assert "テスト方針" in entry["prompt"]
+
+
+def test_build_task_entry_方針なし後方互換():
+    """test_policy キー自体が無い旧形式でも壊れない（空dict格納）。"""
+    t = {"n": 2, "title": "旧タスク", "reason": "r", "cost": "S"}
+    entry = build_task_entry(t, repo="/r/x")
+    assert entry["test_policy"] == {}
+    assert "テスト方針" not in entry["prompt"]
