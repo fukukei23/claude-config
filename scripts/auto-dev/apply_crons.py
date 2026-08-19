@@ -243,13 +243,17 @@ def write_tasks(new_tasks: list[dict], path: str = TASKS_PATH) -> str:
     - 書込みは temp+rename(アトミック)。書込み後validate失敗なら書き込まない
     """
     fp = Path(path)
-    try:
-        if fp.exists():
+    if fp.exists():
+        try:
             current_raw = fp.read_text(encoding="utf-8")
             json.loads(current_raw)  # 有効性チェック
+        except (json.JSONDecodeError, OSError):
+            # ソースが壊れている=バックアップ不能→書換え拒否(既存bakも保全)
+            return "error"
+        try:
             fp.with_suffix(fp.suffix + ".bak").write_text(current_raw, encoding="utf-8")
-    except (json.JSONDecodeError, OSError):
-        pass  # 壊れたソースはバックアップしない(既存bak保全)
+        except OSError:
+            return "error"
     tmp = fp.with_suffix(fp.suffix + ".tmp")
     tmp.write_text(json.dumps({"tasks": new_tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
     try:
