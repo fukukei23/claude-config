@@ -1,0 +1,19 @@
+{
+  "_comment": "Phase 0スキーマ観測 (2026-08-20 02:24・CC実測・probe=b44829f1)",
+  "top_level": {
+    "tasks": "array[entry]"
+  },
+  "entry_fields": {
+    "id": "A: 必須・CC生成の短いhex文字列（例 b44829f1）・reconcile新規生成時は uuid4().hex[:8] を使用",
+    "cron": "A: 必須・5フィールドcron式（先頭に分を置く標準形・例 '57 23 20 8 *'）",
+    "prompt": "A: 必須・発火プロンプト全文（[cron-id:N]マーカー運用はapply_crons既存仕様）",
+    "recurring": "A: 必須（recurringジョブはtrue）・one-shotには付かない場合あり",
+    "lastFiredAt": "A: 発火済みジョブのみ・epoch ms・reconcileは既存値を保持",
+    "createdAt": "B: 再生成可能・epoch ms・reconcile新規生成時は now_ms を設定",
+    "createdBySessionId": "B: CC側由来・reconcile新規生成時は省略（捏造禁止・CCが寛容かは本番適用時に確認）",
+    "createdByPid": "B: 同上・省略",
+    "createdByProcStart": "B: 同上・省略"
+  },
+  "absent_fields": "durable フィールドは存在しない（json永続化=durableの意・Task 5の_def_to_entry設計を訂正: durableキーを書かない）",
+  "format": "json.dumps(d, ensure_ascii=False, indent=2)（本観測時のCC書込み形式）"
+}
