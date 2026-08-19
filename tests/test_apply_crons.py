@@ -152,3 +152,18 @@ def test_match_id8_with_marker():
     )
     task = {"cron": "0 0 1 * *", "prompt": "melody prompt\n[cron-id:8]"}
     assert apply_crons._match(defn, task)
+
+
+# ============================================================================
+# Task 2: one_shot 属性（reconcile準備）
+# ============================================================================
+
+def test_parse_one_shot_true():
+    text = '# @cron id=99 name="tmp" schedule="7 9 20 8 *" health="none" one_shot=true\n#   tmp prompt\n'
+    defs = apply_crons.parse_definitions(text)
+    assert defs[0].one_shot is True
+
+def test_parse_one_shot_default_false():
+    text = '# @cron id=99 name="tmp" schedule="7 9 20 8 *" health="none"\n#   tmp prompt\n'
+    defs = apply_crons.parse_definitions(text)
+    assert defs[0].one_shot is False
