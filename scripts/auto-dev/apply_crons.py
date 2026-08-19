@@ -85,7 +85,7 @@ def cmd_reconcile(definitions: list[CronDefinition], force: bool = False) -> int
         return EXIT_FAIL
     tasks = load_tasks()
     enabled = [d for d in definitions if d.enabled]
-    create_n = len(diff(definitions, tasks))
+    create_n = sum(1 for a in diff(definitions, tasks) if a.kind == "create")
     ghost_n = len([t for t in tasks if not any(_match(d, t) for d in enabled)])
     mismatch = bool(create_n or ghost_n)
     if should_apply(stamp_today(), mismatch, force):
@@ -93,7 +93,7 @@ def cmd_reconcile(definitions: list[CronDefinition], force: bool = False) -> int
             print(result_line("error", reason="write-validate"))
             return EXIT_FAIL
         after = load_tasks()
-        if not diff(definitions, after):
+        if not any(a.kind == "create" for a in diff(definitions, after)):
             write_stamp()
             _log(APPLY_LOG, f"reconcile done tasks={len(after)}")
             print(result_line("done"))
@@ -370,6 +370,8 @@ def desired_entries(definitions: list[CronDefinition], current: list[dict]) -> l
             continue
         base = next((t for t in current if _match(d, t)), None)
         if base is None:
+            if d.one_shot:
+                continue  # 許可one-shotは存在時のみ保持（発火済み消滅を再生成しない）
             entry = _def_to_entry(d)
         else:
             entry = dict(base)

@@ -274,3 +274,17 @@ def test_stamp_should_apply(tmp_path, monkeypatch):
     assert apply_crons.should_apply(stamp_ok=True, mismatch=False, force=False) is False  # 省略
     assert apply_crons.should_apply(stamp_ok=True, mismatch=True, force=False) is True    # 不一致→常にapply
     assert apply_crons.should_apply(stamp_ok=False, mismatch=False, force=False) is True  # 未記録→apply
+
+
+def test_one_shot_kept_if_present_not_recreated():
+    """許可one-shot: 存在すれば保持・不在でも再生成しない（発火済み消滅を尊重）。"""
+    defs = _defs() + [apply_crons.CronDefinition(
+        id=15, name="kpi", schedule="7 9 20 8 *", health="none",
+        prompt=apply_crons._append_cron_id_marker("dev-knowledge KPI", 15), one_shot=True)]
+    # 存在する場合→保持
+    cur = [{"id": "z", "prompt": "dev-knowledge KPI\n[cron-id:15]", "cron": "7 9 20 8 *"}]
+    out = apply_crons.desired_entries(defs, cur)
+    assert sum(1 for e in out if "cron-id:15" in e["prompt"]) == 1
+    # 不在の場合→作らない
+    out2 = apply_crons.desired_entries(defs, [])
+    assert not any("cron-id:15" in e["prompt"] for e in out2)
