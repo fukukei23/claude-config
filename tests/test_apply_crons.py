@@ -334,3 +334,25 @@ def test_reconcile_broken_source_error(tmp_path, monkeypatch):
     monkeypatch.setattr(apply_crons, "version_gate", lambda: True)
     r = apply_crons.cmd_reconcile(_defs(), force=True)
     assert r == 20 and fake.read_text() == "{broken"
+
+
+def test_version_gate_unknown_fail_closed(tmp_path, monkeypatch):
+    """CCバージョン取得不能(unknown/空)はfail-closed（書換え拒否）。"""
+    monkeypatch.setattr(apply_crons, "VERSION_GATE_PATH", str(tmp_path / "v"))
+    assert apply_crons.version_gate(current="unknown") is False
+    assert apply_crons.version_gate(current="") is False
+    assert not (tmp_path / "v").exists()  # unknownを記録しない
+
+
+def test_reconcile_unexpected_exception_reported(tmp_path, monkeypatch, capsys):
+    """予期しない例外も[RESULT]=errorで終わる（沈黙事故防止）。"""
+    fake = tmp_path / "tasks.json"
+    fake.write_text(_json.dumps({"tasks": []}))
+    monkeypatch.setattr(apply_crons, "TASKS_PATH", str(fake))
+    monkeypatch.setattr(apply_crons, "LOCK_PATH", str(tmp_path / "l"))
+    monkeypatch.setattr(apply_crons, "version_gate", lambda: True)
+    def boom():
+        raise RuntimeError("boom")
+    monkeypatch.setattr(apply_crons, "stamp_today", boom)
+    r = apply_crons.cmd_reconcile(_defs(), force=True)
+    assert r == 20 and "[RESULT]=error reason=unexpected" in capsys.readouterr().out

@@ -42,6 +42,9 @@ def version_gate(current: str | None = None) -> bool:
     ゲートファイルが無い初回は現在値を記録してTrue（破損時も記録し直してTrue）。
     """
     cur = current if current is not None else _cc_version()
+    if cur in ("", "unknown"):
+        _log(APPLY_LOG, "version_gate: ccバージョン取得不能のためfail-closed")
+        return False
     g = Path(VERSION_GATE_PATH)
     try:
         saved = g.read_text(encoding="utf-8").strip() if g.exists() else ""
@@ -73,39 +76,51 @@ def should_apply(stamp_ok: bool, mismatch: bool, force: bool) -> bool:
 
 
 def cmd_reconcile(definitions: list[CronDefinition], force: bool = False) -> int:
-    """reconcileサブコマンド: check→apply→check（1プロセス・flock・スタンプ・[RESULT]）。"""
-    lock = open(LOCK_PATH, "w")
+    """reconcileサブコマンド: check→apply→check（1プロセス・flock・スタンプ・[RESULT]）。
+
+    いかなる例外でも[RESULT]行を出して終わる（[RESULT]なしのクラッシュ=沈黙事故を防ぐ）。
+    """
+    lock = open(LOCK_PATH, "a")
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        print(result_line("skip", reason="flock"))
-        return EXIT_OK
-    if not version_gate():
-        print(result_line("error", reason="cc-version-changed"))
-        return EXIT_FAIL
-    try:
-        tasks = load_tasks()
-    except (json.JSONDecodeError, OSError):
-        print(result_line("error", reason="source-invalid"))
-        return EXIT_FAIL
-    enabled = [d for d in definitions if d.enabled]
-    create_n = sum(1 for a in diff(definitions, tasks) if a.kind == "create")
-    ghost_n = len([t for t in tasks if not any(_match(d, t) for d in enabled)])
-    mismatch = bool(create_n or ghost_n)
-    if should_apply(stamp_today(), mismatch, force):
-        if write_tasks(desired_entries(definitions, tasks)) != "done":
-            print(result_line("error", reason="write-validate"))
-            return EXIT_FAIL
-        after = load_tasks()
-        if not any(a.kind == "create" for a in diff(definitions, after)):
-            write_stamp()
-            _log(APPLY_LOG, f"reconcile done tasks={len(after)}")
-            print(result_line("done"))
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as e:
+            _log(APPLY_LOG, f"reconcile flock busy: {e}")
+            print(result_line("skip", reason="flock"))
             return EXIT_OK
-        print(result_line("error", reason="postcheck"))
+        if not version_gate():
+            print(result_line("error", reason="cc-version-changed"))
+            return EXIT_FAIL
+        try:
+            tasks = load_tasks()
+        except (json.JSONDecodeError, OSError):
+            print(result_line("error", reason="source-invalid"))
+            return EXIT_FAIL
+        enabled = [d for d in definitions if d.enabled]
+        create_n = sum(1 for a in diff(definitions, tasks) if a.kind == "create")
+        ghost_n = len([t for t in tasks if not any(_match(d, t) for d in enabled)])
+        mismatch = bool(create_n or ghost_n)
+        if should_apply(stamp_today(), mismatch, force):
+            if write_tasks(desired_entries(definitions, tasks)) != "done":
+                print(result_line("error", reason="write-validate"))
+                return EXIT_FAIL
+            after = load_tasks()
+            if not any(a.kind == "create" for a in diff(definitions, after)):
+                write_stamp()
+                _log(APPLY_LOG, f"reconcile done tasks={len(after)}")
+                print(result_line("done"))
+                return EXIT_OK
+            print(result_line("error", reason="postcheck"))
+            return EXIT_FAIL
+        print(result_line("skip", reason="stamp"))
+        return EXIT_OK
+    except Exception as e:  # 予期しない例外も[RESULT]で報告（沈黙防止）
+        _log(APPLY_LOG, f"reconcile unexpected: {e!r}")
+        print(result_line("error", reason="unexpected"))
         return EXIT_FAIL
-    print(result_line("skip", reason="stamp"))
-    return EXIT_OK
+    finally:
+        lock.close()
+
 
 
 EXIT_OK = 0
@@ -342,13 +357,14 @@ def write_tasks(new_tasks: list[dict], path: str | None = None) -> str:
         except OSError:
             return "error"
     tmp = fp.with_suffix(fp.suffix + ".tmp")
-    tmp.write_text(json.dumps({"tasks": new_tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
     try:
+        tmp.write_text(json.dumps({"tasks": new_tasks}, ensure_ascii=False, indent=2), encoding="utf-8")
         json.loads(tmp.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        tmp.unlink(missing_ok=True)
+        tmp.replace(fp)
+    except (json.JSONDecodeError, OSError) as e:
+        tmp.unlink(missing_ok=True)  # 書込み失敗時の残骸除去
+        _log(APPLY_LOG, f"write_tasks failed: {e!r}")
         return "error"
-    tmp.replace(fp)
     return "done"
 
 
