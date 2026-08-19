@@ -21,6 +21,15 @@ from pathlib import Path
 from typing import Iterable
 
 
+EXIT_OK = 0
+EXIT_FAIL = 20
+
+
+def result_line(status: str, reason: str = "") -> str:
+    """reconcileのstdout末尾構造化行。status: done|skip|error"""
+    return f"[RESULT]={status} reason={reason}" if reason else f"[RESULT]={status}"
+
+
 class ParseError(Exception):
     """定義ファイルの書式エラー。"""
 

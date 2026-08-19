@@ -167,3 +167,17 @@ def test_parse_one_shot_default_false():
     text = '# @cron id=99 name="tmp" schedule="7 9 20 8 *" health="none"\n#   tmp prompt\n'
     defs = apply_crons.parse_definitions(text)
     assert defs[0].one_shot is False
+
+
+# ============================================================================
+# Task 3: [RESULT] シグナルヘルパー
+# ============================================================================
+
+def test_result_line_done():
+    assert apply_crons.result_line("done") == "[RESULT]=done"
+
+def test_result_line_skip_with_reason():
+    assert apply_crons.result_line("skip", reason="stamp") == "[RESULT]=skip reason=stamp"
+
+def test_result_line_error_exit_code():
+    assert apply_crons.EXIT_FAIL == 20 and apply_crons.EXIT_OK == 0
