@@ -82,13 +82,31 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 **縮退判定**: 呼出成功LLM数 M ≥ 2 で続行。M < 2 は中止（多様性が保証できないため）。
 
+### 自動フォールバック（lite から移植・2026-08-22）
+
+これまで lite にしか無かった自動フォールバックを本スキルにも入れる（lite `SKILL.md` の「失敗時」節と同一挙動）:
+
+| 状況 | 挙動 |
+|---|---|
+| **401** | 永続スキップ（鍵の問題なのでモデルを替えても直らない）。`source ~/.secrets.env` の失敗も疑う |
+| **429 / 空応答 / タイムアウト** | **フォールバックモデルへ自動切替して1回だけ再実行**（OpenRouter は `cohere/north-mini-code:free`・別プロバイダを選び多様性も確保）。フォールバック先でも失敗したら観点を絞って再実行を案内 |
+| **`content` が空で `finish_reason: length`** | 思考枠切れ（`thinking_overflow`）。`reasoning:{enabled:false}` の付け忘れをまず疑う。付けても再発するならプロンプト短縮 |
+
+> **フォールバックを使った round は `round_id` の先頭に `fb-` を付ける**（例: `fb-20260822-031500`）。移植直後に異常が出た時、「フォールバックの実挙動」なのか「記録側のバグ」なのかを切り分けるための目印（spec §9）。
+> attempt（llm単位の連番）は `mlr-log.sh annotate` が自動採番するので手で数えなくてよい。**モデルが替わってもリセットしない**（1回目=本命モデル / 2回目=フォールバック先）。
+
 ## 外部LLM呼出手段（経路分岐表）
 
 | LLM | 通信方式 | 認証 | 備考 |
 |---|---|---|---|
 | MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨 |
 | Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
-| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（purpose別選定）・`max_tokens=2000`（思考モデルでないので8000不要）・既存 lite のcurl手順を流用 |
+| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（purpose別選定）・`max_tokens=2000`＋**`"reasoning": {"enabled": false}` 必須**（下記⚠️）・既存 lite のcurl手順を流用 |
+
+> ⚠️ **OpenRouter には `"reasoning": {"enabled": false}` を必ず付ける（2026-08-21 実測・付けないと5連敗する）**
+> free枠モデル（`cohere/north-mini-code:free` / `openai/gpt-oss-20b:free` 等）は**思考を `content` ではなく `reasoning` フィールドへ出力**し、思考が `max_tokens` を食い尽くして `content: null` / `finish_reason: length` のまま終わる。抽出コードが読む `message.content` は常に空になり、「200が返っているのに指摘0件」という**原因の見えない全滅**を起こす。
+> かつて本表に「思考モデルでないので8000不要」と書いていたのは**誤り**（実測で否定済み）。
+> 診断手順: `30_RESEARCH/LLMモデル/2026-08-21_思考出力の落とし穴-reasoning-thinkによる本文欠落.md`
 | Windows版 GLM | glm-rate-proxy or MCP経由 | プロキシ設定 | WSL版ホスト=GLM自身は呼ばない |
 
 ## 実装手順（Claude Code環境・2段階ファイル経由・必須）
@@ -102,6 +120,8 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
    - MiniMax: `mcp__minimax__minimax_ask`（prompt に同一プロンプトを指定）
    - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
    - OpenRouter（triple時のみ）: Bash で `set -a; source ~/.secrets.env 2>/dev/null; set +a; curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authorization: Bearer $OPENROUTER_API_KEY" -H "Content-Type: application/json" -d @/tmp/req_or.json`（プロンプトはPROMPT環境変数経由でpython3に渡してペイロード生成・liteと同一手順）
+     - **ペイロードに `"reasoning": {"enabled": false}` を必ず含める**（上記⚠️・欠落すると `content: null` で全モデル全滅する）:
+       `{"model": <slug>, "messages": [...], "max_tokens": 2000, "reasoning": {"enabled": false}}`
 3. **JSON抽出**: 結果から**文字種ステートマシン**でJSON配列を再構成（下記「JSON抽出」参照）
 
 > python3 でペイロード生成する例:
@@ -324,6 +344,57 @@ overturned_by_measurement: <実測で覆した数>
 - **「## 実測証跡」セクション必須**: 覆した件ごとに `### 証跡N`（検証コマンド1行+出力抜粋）を列記。**frontmatter の `overturned_by_measurement` は `0 < overturned ≤ 証跡項目数` を満たすこと**（証跡には「確認系」も含まれるため一致は不要・2026-08-18実測で1<3・1<5の正当な不一致を確認し「一致」から修正）→ LLMによる数値の盛り・架空証跡を機械的に封じる
 - **引用制約**: 実行していないコマンド・ユーザーが提供していない実行結果の引用は禁止
 - **集約（判断収束台帳）**: 本frontmatterは `claude-config/scripts/obsidian/aggregate_judgment_ledger.py` により `00_SYSTEM/判断収束台帳_計測.md` に自動集約される（手書き追記禁止・`0 < overturned ≤ 証跡数` のクロス検証付き・違反行は「要修正」表示・2026-08-18実装）
+
+## 失敗ログ（呼び出せなかったLLMを残す・2026-08-22実装）
+
+`review_log.md` は「採用/却下した指摘」の記録であって「**呼び出せなかったLLM**」の記録ではない。失敗が どこにも残らないため、2026-08-18 と 2026-08-21 に**同じ OpenRouter 障害を別タスクとして2回バックログ起票**した。これを防ぐ機構。
+
+**記録先**: `~/.claude/state/multi-llm-review.jsonl`（1行1レコード）
+
+| 誰が | 何を | どうやって |
+|---|---|---|
+| **hook（自動）** | 呼出事実・llm・model・生の成否 | `log-mlr-calls.sh`（PostToolUse）が1行 append。ホストが忘れても必ず残る |
+| **ホスト（あなた）** | `round_id`・`topic`・`attempt`・`findings` | **round終了時に `mlr-log.sh annotate` を1回**だけ実行 |
+
+### ① round 終了時に1回だけ実行する（必須・これだけ）
+
+```bash
+~/bin/mlr-log.sh annotate <round_id> "<topic>" [--findings <llm>=<件数>,...]
+```
+
+- `round_id` は `YYYYMMDD-HHMMSS`（フォールバックを使った round は `fb-` prefix）
+- `--findings` は任意（指標A/Bの算出には不要）。付けるなら各LLMの指摘件数
+- 直近6時間の `status=raw` 行がまとめて `annotated` になる。**attempt は自動採番**なので数えなくてよい
+- 対象0件なら警告して非0で終わる（無言で握り潰さない）。**レビュー本体は続行してよい**——ログ書込の失敗でレビューを人質にしない
+
+> `status=raw` のまま残った行が「補記し忘れ」の可視化そのもの。件数は `~/bin/mlr-log.sh --self-test` で分かる。
+
+### ② 失敗をバックログに起票する前に必ず引く（二重起票の防止）
+
+**検索キーは `reason` × `model` の2軸に固定する**（軸がバラバラだと互いに「新規」と誤判定して同じ失敗を何度も起票する）:
+
+```bash
+grep '"model": "<対象モデル>"' ~/.claude/state/multi-llm-review.jsonl | grep '"reason": "<対象reason>"'
+```
+
+- `backlogged: true` の行があれば**起票済み**。新規に起票しない（既存タスクに追記する）
+- 新規に起票したら、その行の `backlogged` を true にする
+
+`reason` の値: `thinking_overflow`（思考が枠を食い尽くし本文が空）/ `empty_body_keepalive_only`（200だが本文空）/ `truncated` / `no_parseable_findings` / `timeout` / `auth_401` / `rate_limited_429` / `payment_required_402` / `partial_rescued`（一部救出＝ok側）/ `other`
+
+### ③ 慢性的に失敗しているモデルの見分け方
+
+| 指標 | 定義 | 答える問い |
+|---|---|---|
+| **A: 初回成功率** | `attempt=1` の ok件数 ÷ `attempt=1` の全件数 | 「素で呼んで通るか？」 |
+| **B: 機体確保率** | okが1件以上出た round数 ÷ そのllmを呼んだ round数 | 「実際に多様性を確保できたか？」 |
+
+- 指標Aを `attempt=1` に限るのは、「毎回初回timeout・再試行で必ず成功」と「初回から半分成功」を同値にしないため
+- 集計対象は `status=annotated` の行のみ（`raw` は補記漏れなので分母に入れない）
+- **フォールバック運用下で `attempt=1` のモデルが低いのは設計通り**であって慢性故障ではない
+
+> spec: `obsidian-ssot/docs/superpowers/specs/2026-08-21-multi-llm-review-failure-log-design.md`
+> 撤退基準（§10）: 導入1週間後に `status=raw` 残存が減らなければホスト補記は機能していないと判定し、curl系のラッパー化（D案）へ移行する。
 
 ## コスト・レート制限
 
