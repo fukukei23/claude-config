@@ -539,6 +539,47 @@ def test_call_openrouter_ok():
     assert err == ""
 
 
+def test_secrets_env_candidates_includes_repo_relative_path():
+    """`.secrets.env` の探索候補に「ファイル位置から解決したパス」が含まれる。
+
+    Path.home() だけに頼ると、Windows Desktop から WSL 上のリポジトリを操作する構成で
+    C:\\Users\\<user> を指してしまい、3キーとも空 → 全ベンダー error-auth → abort する
+    （2026-08-22 実測）。post-commit hook の「$HOME 参照廃止・自身の位置で解決」方針に揃える。
+    """
+    import review_lib
+
+    cands = review_lib._secrets_env_candidates()
+    assert len(cands) >= 2, "Path.home() 由来に加えてファイル位置由来の候補が必要"
+    assert all(c.name == ".secrets.env" for c in cands)
+    assert len(set(cands)) == len(cands), "候補は重複排除されていること"
+
+    # ファイル位置由来の候補が「リポジトリの2階層上(=WSLホーム)」を指していること。
+    # review_lib.py を移動するとこの前提が静かに壊れるため、テストで固定する。
+    repo_root = Path(review_lib.__file__).resolve().parents[2]  # claude-config
+    expected = repo_root.parent.parent / ".secrets.env"          # <home>/.secrets.env
+    assert expected in cands, f"想定候補 {expected} が探索対象に含まれていない"
+
+
+def test_load_secret_reads_from_file_position_when_home_is_wrong(tmp_path, monkeypatch):
+    """Path.home() が誤った場所を指しても、ファイル位置由来の候補から読める。"""
+    import review_lib
+
+    monkeypatch.delenv("DUMMY_TEST_KEY", raising=False)
+    wrong_home = tmp_path / "wrong-home"
+    wrong_home.mkdir()
+    monkeypatch.setattr(review_lib.Path, "home", staticmethod(lambda: wrong_home))
+
+    fallback = tmp_path / "real-home" / ".secrets.env"
+    fallback.parent.mkdir()
+    fallback.write_text('export DUMMY_TEST_KEY="value-from-fallback"\n', encoding="utf-8")
+    monkeypatch.setattr(
+        review_lib, "_secrets_env_candidates",
+        lambda: [wrong_home / ".secrets.env", fallback],
+    )
+
+    assert review_lib._load_secret("DUMMY_TEST_KEY") == "value-from-fallback"
+
+
 def test_call_openrouter_payload_disables_reasoning():
     """payload に reasoning 無効化が入る（思考枯渇で content:null になる事故の再発防止）。
 

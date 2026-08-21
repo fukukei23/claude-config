@@ -233,8 +233,36 @@ NO_ISSUE_MARKERS = (
 # --- APIキー/シークレット ---
 
 
+def _secrets_env_candidates() -> list[Path]:
+    """`.secrets.env` の探索候補（先頭から順に試す）。
+
+    `Path.home()` だけに頼らない理由（2026-08-22 実測）:
+        Windows Desktop 版 Claude Code から WSL 上のリポジトリを操作する構成では
+        `Path.home()` が `C:\\Users\\<user>` を返し、WSL 側の `~/.secrets.env` に
+        到達できない（実測: `.secrets.env 存在 = False` → 3キーとも空 →
+        Gemini/MiniMax/OpenRouter が揃って error-auth になり review が abort する）。
+        そこで本ファイル自身の位置からも解決する。これは同リポジトリの
+        post-commit hook が「$HOME 参照廃止・フック自身のディレクトリで解決」
+        （S1修正）としているのと同じ方針。
+
+    Returns:
+        重複を除いた候補パスのリスト。
+    """
+    cands = [Path.home() / ".secrets.env"]
+    # <home>/projects/claude-config/scripts/auto-dev/review_lib.py → parents[4] == <home>
+    try:
+        cands.append(Path(__file__).resolve().parents[4] / ".secrets.env")
+    except IndexError:  # 想定外の階層に置かれた場合は候補を増やさないだけ
+        pass
+    uniq: list[Path] = []
+    for c in cands:
+        if c not in uniq:
+            uniq.append(c)
+    return uniq
+
+
 def _load_secret(name: str) -> str:
-    """環境変数 → ~/.secrets.env の順で APIキー値を取得。
+    """環境変数 → `.secrets.env`（複数候補）の順で APIキー値を取得。
 
     Returns:
         キー値文字列（未設定時は空文字）。
@@ -242,8 +270,9 @@ def _load_secret(name: str) -> str:
     val = os.environ.get(name, "")
     if val:
         return val
-    secrets = Path.home() / ".secrets.env"
-    if secrets.exists():
+    for secrets in _secrets_env_candidates():
+        if not secrets.exists():
+            continue
         for line in secrets.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line.startswith("export ") and "=" in line:
