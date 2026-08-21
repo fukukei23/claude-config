@@ -482,8 +482,15 @@ def test_run_multi_llm_review_gemini_empty_truncate_retry():
     assert call_count[0] >= 2
 
 
-def test_run_multi_llm_review_aggregates_by_severity():
-    """指摘が severity 別に集約される（task_logger review_result 形式）。"""
+def test_run_multi_llm_review_aggregates_by_severity(monkeypatch):
+    """指摘が severity 別に集約される（task_logger review_result 形式）。
+
+    OPENROUTER_API_KEY を注入するのは、実認証情報の有無でテスト結果が変わるのを防ぐため。
+    _load_secret は環境変数→`Path.home()/.secrets.env` の順に探すが、Path.home() は
+    実行環境で変わる（Windows Desktop では WSL 側の .secrets.env に到達できず未設定扱いになり
+    openrouter が error-auth に短絡して本テストが落ちていた・2026-08-21 実測）。
+    """
+    monkeypatch.setenv("OPENROUTER_API_KEY", "fake-key-for-test")
     g = '[{"issue":"g1","severity":"critical","quote":"q","suggestion":"s"},{"issue":"g2","severity":"low","quote":"q","suggestion":"s"}]'
     m = '[{"issue":"m1","severity":"high","quote":"q","suggestion":"s"}]'
     o = '[{"issue":"o1","severity":"low","quote":"q","suggestion":"s"}]'
@@ -530,6 +537,24 @@ def test_call_openrouter_ok():
     assert status == "ok"
     assert model == "cohere/north-mini-code:free"
     assert err == ""
+
+
+def test_call_openrouter_payload_disables_reasoning():
+    """payload に reasoning 無効化が入る（思考枯渇で content:null になる事故の再発防止）。
+
+    2026-08-21 実測: free 枠モデルは思考を content と別の reasoning フィールドへ出力し、
+    思考が max_tokens を食い尽くして content: null / finish_reason: length で終わる。
+    その結果 OpenRouter が常に空応答扱いで脱落し、3社化の可用性マージンが失われていた。
+    """
+    captured = {}
+
+    def post(url, headers, json, timeout):
+        captured.update(json)
+        return _or_ok('[{"issue":"a","severity":"low","quote":"q","suggestion":"s"}]')
+
+    _, _, status, _ = _call_openrouter("p", "fake-key", requester=post)
+    assert status == "ok"
+    assert captured.get("reasoning") == {"enabled": False}
 
 
 def test_call_openrouter_401_no_retry():

@@ -513,7 +513,14 @@ def _call_openrouter(
     for model in _openrouter_models():
         payload = {
             "model": model,
-            "max_tokens": 2000,  # 思考モデルでないので 8000 不要
+            "max_tokens": 2000,
+            # free 枠モデルは思考を content と別の reasoning フィールドへ出力し、
+            # 思考が max_tokens を食い尽くして content: null / finish_reason: length で
+            # 終わる（2026-08-21 実測: cohere/north-mini-code:free・openai/gpt-oss-20b:free
+            # の両方で再現。以前の「思考モデルでないので 8000 不要」は誤った前提だった）。
+            # reasoning を無効化すると content が返る（同日実測で確認）。
+            # 詳細: 30_RESEARCH/LLMモデル/2026-08-21_思考出力の落とし穴-reasoning-thinkによる本文欠落.md
+            "reasoning": {"enabled": False},
             "messages": [{"role": "user", "content": prompt}],
         }
         try:
