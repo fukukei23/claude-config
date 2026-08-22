@@ -549,9 +549,14 @@ def test_secrets_env_candidates_includes_repo_relative_path():
     import review_lib
 
     cands = review_lib._secrets_env_candidates()
-    assert len(cands) >= 2, "Path.home() 由来に加えてファイル位置由来の候補が必要"
     assert all(c.name == ".secrets.env" for c in cands)
     assert len(set(cands)) == len(cands), "候補は重複排除されていること"
+    assert Path.home() / ".secrets.env" in cands, "Path.home() 由来の候補が必要"
+    # ※ 件数は固定しない。WSL 上では Path.home() 由来とファイル位置由来が
+    #   同一パス（/home/yn4416/.secrets.env）になり重複排除で1件になるため、
+    #   `len(cands) >= 2` は Windows でしか成立しない（＝auto-loop の本番環境
+    #   である WSL/cron では必ず落ちるテストになっていた・2026-08-22 修正）。
+    #   検証したいのは「ファイル位置由来が含まれること」なので下記で足りる。
 
     # ファイル位置由来の候補が「リポジトリの2階層上(=WSLホーム)」を指していること。
     # review_lib.py を移動するとこの前提が静かに壊れるため、テストで固定する。

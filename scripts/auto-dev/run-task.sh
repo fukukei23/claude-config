@@ -122,7 +122,7 @@ fi
 
 # Phase 2: 計画レビュー（別ベンダーLLM・backend_kind必須・目的ホールド・2026-08-12有効化）
 echo "[$(date '+%F %T')] Phase 2: 計画レビュー（別LLM・Gemini+MiniMax）" >> "$LOG"
-python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/plan.md" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/plan_review.json" >> "$LOG" 2>&1
+python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/plan.md" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/plan_review.json" --round-id "al-${TASK_ID}-plan" --topic "$TASK_ID plan" >> "$LOG" 2>&1
 PLAN_REVIEW_RC=$?
 echo "[$(date '+%F %T')] plan_review rc=$PLAN_REVIEW_RC (0=ok/1=ng/2=abort)" >> "$LOG"
 # ②で abort(2) は多様性保証不能・即停止（plan改訂ループはTask4品質ゲート拡張で別途）
@@ -204,7 +204,7 @@ VERIFY_RC=$?
 # Phase 5: 実装後レビュー（別ベンダーLLM・git diff対象・⑤拒否権・2026-08-12有効化）
 echo "[$(date '+%F %T')] Phase 5: 実装後レビュー（別LLM・git diff）" >> "$LOG"
 git diff "$HEAD_BEFORE"..HEAD > "$TASK_DIR/impl_diff.txt" 2>/dev/null || git diff >> "$TASK_DIR/impl_diff.txt"
-python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/impl_diff.txt" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/impl_review.json" >> "$LOG" 2>&1
+python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/impl_diff.txt" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/impl_review.json" --round-id "al-${TASK_ID}-impl" --topic "$TASK_ID impl" >> "$LOG" 2>&1
 IMPL_REVIEW_RC=$?
 echo "[$(date '+%F %T')] impl_review rc=$IMPL_REVIEW_RC (0=ok/1=ng/2=abort)" >> "$LOG"
 # ⑤ verdict で VERIFY に追記（G3追記式・④結果を上書きしない・次ループ実装AIが修正可能）
