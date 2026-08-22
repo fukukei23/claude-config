@@ -49,7 +49,7 @@ def call_minimax(prompt, max_tokens=2000):
             'Content-Type': 'application/json'
         }
     )
-    with urllib.request.urlopen(req, timeout=300) as res:
+    with urllib.request.urlopen(req, timeout=600) as res:
         r = json.loads(res.read())
     for block in r.get('content', []):
         if block.get('type') == 'text':
