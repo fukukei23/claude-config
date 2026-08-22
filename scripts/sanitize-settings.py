@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""settings.json のシークレットをマスクして出力"""
+"""settings.json のシークレットをマスクして出力
+
+⚠️ マスクは値を一切残さない（2026-08-22 修正）。
+以前は `v[:4]`（キー名一致）/ `v[:6]`（パターン一致）で**先頭数文字を残して**おり、
+その結果 claude-config/settings.example.json に 5 箇所の先頭4文字が git 追跡され
+GitHub へ push されていた（2026-08-14 に決めた方針「生値の git 混入経路遮断」に反する）。
+キーの種類が特定できる情報を残す利点より、方針違反のコストが上回るため完全マスクにした。
+"""
 import json, sys, re
 
 src = sys.argv[1]
@@ -30,13 +37,16 @@ SECRET_PATTERNS = [
 ]
 
 
+MASK = '***MASKED***'
+
+
 def mask_value(v):
     """値がシークレットパターンにマッチしたらマスク"""
     if not isinstance(v, str) or len(v) < 15:
         return v
     for pat in SECRET_PATTERNS:
         if pat.search(v):
-            return v[:6] + '***MASKED***'
+            return MASK
     return v
 
 
@@ -45,7 +55,7 @@ def mask_secrets(obj):
         result = {}
         for k, v in obj.items():
             if k in SECRET_KEYS and isinstance(v, str) and len(v) > 4:
-                result[k] = v[:4] + '***MASKED***'
+                result[k] = MASK
             else:
                 result[k] = mask_secrets(v)
         return result
