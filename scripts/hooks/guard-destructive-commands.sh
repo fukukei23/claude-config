@@ -13,7 +13,16 @@ INPUT=$(cat)
 tool_name=$(printf '%s' "$INPUT" | grep -oE '"tool_name" *: *"[^"]*"' | head -1 | sed 's/^"tool_name" *: *"//;s/"$//')
 
 # command を抽出: "command":"..." → ...
-cmd=$(printf '%s' "$INPUT" | sed -n 's/.*"command" *: *"\(.*\)".*/\1/p' | head -1)
+# ⚠️ 貪欲マッチ（`.*"`）は使わないこと（2026-08-22）。実入力では command の後ろに
+#    description / tool_use_id 等が続くため、値がそこまで飲み込まれて
+#    「description に危険語が書かれているだけで誤ブロック」する。
+#    `(\\.|[^"\\])*` で JSON 文字列の正しい終端（エスケープされていない "）まで取る。
+cmd=$(printf '%s' "$INPUT" \
+  | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' \
+  | head -1 \
+  | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//')
+# JSON エスケープを戻す（表示と照合の両方を実コマンドに近づける）
+cmd=$(printf '%s' "$cmd" | sed 's/\\"/"/g; s/\\\\/\\/g')
 
 # tool_name が取れた上で Bash 以外なら対象外。
 # 取れなかった場合（未知の入力形）は fail-closed で走査を続ける——

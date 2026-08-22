@@ -132,6 +132,31 @@ else
 fi
 
 echo ""
+echo "=== command の値だけを取り出すか（後続フィールドを飲み込まない）==="
+# 2026-08-22: 貪欲マッチだと command の後ろの description まで飲み込み、
+# 「説明文に危険語を書いただけで誤ブロック」する実害が出た（実セッションで確認）。
+b=$(printf '%s' '{"tool_name": "Bash", "tool_input": {"command": "ls -la", "description": "git reset --hard を試す前の確認"}}' | bash "$GUARD" 2>/dev/null | blocked_p)
+if [ "$b" -eq 0 ]; then
+  echo "PASS [allow] description の危険語では誤ブロックしない"; PASSES=$((PASSES+1))
+else
+  echo "FAIL [allow] description の危険語で誤ブロックした"; FAILS=$((FAILS+1))
+fi
+# 後続フィールドがあっても command 自体の危険は拾うこと
+b=$(printf '%s' '{"tool_name": "Bash", "tool_input": {"command": "git reset --hard HEAD~1", "description": "安全な説明"}}' | bash "$GUARD" 2>/dev/null | blocked_p)
+if [ "$b" -eq 1 ]; then
+  echo "PASS [block] 後続フィールドがあっても command の危険は検出"; PASSES=$((PASSES+1))
+else
+  echo "FAIL [block] command の危険を取りこぼした"; FAILS=$((FAILS+1))
+fi
+# エスケープされた引用符を含むコマンドで値が途中で切れないこと
+out=$(printf '%s' '{"tool_name": "Bash", "tool_input": {"command": "echo \"DROP DATABASE t\"", "description": "x"}}' | bash "$GUARD" 2>/dev/null)
+if printf '%s' "$out" | grep -q '"decision": "block"' && ! printf '%s' "$out" | grep -q 'description'; then
+  echo "PASS [block] エスケープ引用符を含む値を正しく終端"; PASSES=$((PASSES+1))
+else
+  echo "FAIL [block] エスケープ引用符の扱いが不正 — 実際: $out"; FAILS=$((FAILS+1))
+fi
+
+echo ""
 echo "=== ブロック機構: stdout に decision:block を出すか（Windows Desktop 版はこれしか見ない）==="
 out=$(json_real "rm -rf /" | bash "$GUARD" 2>/dev/null)
 if printf '%s' "$out" | grep -q '"decision": "block"'; then
