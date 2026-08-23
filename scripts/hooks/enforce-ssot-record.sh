@@ -33,18 +33,28 @@ except Exception:
 " 2>/dev/null || echo "")
 
 # フラグ判定（スキル経由か・TTL=6時間でstale扱い）
+# セキュリティ強化（2026-08-23 security review対応）:
+#   - SID あり分岐: mtime を now で cap（未来日付改ざん対策）+ 所有者チェック
+#   - SID なし分岐: 個別ファイルTTL判定で生きているもの1個以上が必要
 is_skill_active() {
     local TTL_SECONDS=$((6 * 3600))
+    local now
+    now=$(date +%s)
+
     if [ -n "$SID" ]; then
         # セッションID別フラグ（自分のセッションのみ参照・並行セッション隔離）
         local flag="$STATE_DIR/ssot-record-active-$SID"
         if [ ! -f "$flag" ]; then
             return 1
         fi
-        # TTL判定（2026-08-23 L26追加: 古いフラグは無効扱い）
-        local mtime now age
+        # 所有者チェック（symlink-to-other-user bypass 対策）
+        if [ ! -O "$flag" ]; then
+            return 1
+        fi
+        # TTL判定（mtime を now で cap → 未来日付は now 扱い → TTL超過）
+        local mtime age
         mtime=$(stat -c %Y "$flag" 2>/dev/null || echo 0)
-        now=$(date +%s)
+        mtime=$((mtime > now ? now : mtime))  # fail-open-state-drift 対策
         age=$((now - mtime))
         if [ "$age" -ge "$TTL_SECONDS" ]; then
             # 古いフラグを削除してブロック
@@ -53,8 +63,22 @@ is_skill_active() {
         fi
         return 0
     else
-        # SESSION_ID未取得時フォールバック: いずれかのフラグ存在で許可（案1相当）
-        compgen -G "$STATE_DIR/ssot-record-active-*" >/dev/null 2>&1
+        # SESSION_ID未取得時フォールバック（sibling-path-gate-parity 対策）:
+        # いずれかのフラグが生きていれば許可、全部staleなら不許可
+        local flag mtime age any_alive=1
+        for flag in "$STATE_DIR"/ssot-record-active-*; do
+            [ -f "$flag" ] || continue
+            # 所有者チェック
+            [ -O "$flag" ] || continue
+            mtime=$(stat -c %Y "$flag" 2>/dev/null || echo 0)
+            mtime=$((mtime > now ? now : mtime))
+            age=$((now - mtime))
+            if [ "$age" -lt "$TTL_SECONDS" ]; then
+                any_alive=0
+                break
+            fi
+        done
+        return $any_alive
     fi
 }
 
