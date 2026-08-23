@@ -21,6 +21,17 @@ MAX_FILES = 80                       # rg_search の第1段フィルタ上限
 LOW_EXTRACTION_THRESHOLD = 0.05      # 抽出率5%未満で ⚠️ → 🚨 に強化
 NEXT_CANDIDATE_MULTIPLIER = 2        # 次点候補 = top_n × 2 位まで
 
+# 版の自己申告（2026-08-23 追加）
+# 本スクリプトは v1（字句検索）。主経路は v2（ベクトル意味検索・ruri-v3-310m + ChromaDB）。
+# 出力に版を書かなかったため「v1 を実行して RAG を実測した」と誤認する事故が起きた。
+# 呼び出し経路が複数ある以上、正典（SKILL.md）だけでは防げない。実行結果自身に名乗らせる。
+VERSION_BANNER = (
+    "\n⚙️ これは ssot-search **v1**（字句検索: ripgrep 前置フィルタ + rerank）です。"
+    "**ベクトル意味検索(RAG)ではありません**。\n"
+    "   語彙が違うと前置フィルタで落ちます。意味検索が要るなら主経路の v2 を使うこと:\n"
+    '   cd ~/projects/ssot-search-v2 && .venv/bin/python3 cli.py "<クエリ>" --top 5'
+)
+
 LAYER_LABELS = {
     "00_SYSTEM":    "🔧 SYSTEM",
     "01_DECISIONS": "📋 DECISIONS",
@@ -184,7 +195,7 @@ def _render_coverage(coverage: dict, top_n: int, zero_hit: bool) -> str:
     filtered = coverage["filtered"]
     excluded = coverage["excluded"]
     warn = "🚨" if coverage["low_extraction"] else "⚠️"
-    lines = []
+    lines = [VERSION_BANNER]
 
     if zero_hit:
         lines.append(f"\n📊 カバレッジ: SSOT全体 {total:,} .mdファイル中、ripgrep で{filtered}ファイル抽出")
@@ -204,6 +215,7 @@ def _render_coverage(coverage: dict, top_n: int, zero_hit: bool) -> str:
 def display(query: str, results: list[dict], coverage: dict | None = None,
             top_n: int = 5, no_coverage: bool = False) -> None:
     """検索結果とカバレッジを表示。coverage=None で従来動作（後方互換）"""
+    print(VERSION_BANNER)   # 先頭（`| head` 対策・末尾にも同じものを出す）
     zero_hit = not results
     if zero_hit:
         print(f"🔍 「{query}」に一致するファイルは見つかりませんでした。")
@@ -219,8 +231,13 @@ def display(query: str, results: list[dict], coverage: dict | None = None,
                 print(f"   > {snippet[:120]}")
         print("\n" + "=" * 60)
 
+    # 末尾（`| tail` 対策）。先頭にも出しているのは `| head` 対策（2026-08-23 実測で
+    # head -12 だと末尾バナーが見えないことを確認したため両端に出す）。
     if coverage is not None and not no_coverage:
         print(_render_coverage(coverage, top_n, zero_hit))
+    else:
+        # --no-coverage でも版だけは必ず名乗る（誤認事故の再発防止・2026-08-23）
+        print(VERSION_BANNER)
 
 
 def main():

@@ -168,9 +168,16 @@ L1出力の直後に、LLMが**自問1回**「既存案とは違う軸・視点�
 
 ### 動作
 ```
-1. ssot-search スキル（または search.py）で 01_DECISIONS/ から類似判断を検索
-   python3 /home/yn4416/projects/claude-config/scripts/ssot/search.py "<トピック>" --ssot-dir /home/yn4416/projects/obsidian-ssot/01_DECISIONS --top 5
-   （実体パス直接指定。`~/.claude/scripts/...`はWSL側シンボリックリンクでWindows DesktopのUNCアクセスでは解決できないため・2026-07-11修正。WSL-CLIでは同一実体のため挙動不変）
+1. 01_DECISIONS/ から類似判断を検索する。**主経路は v2（ベクトル意味検索）**:
+   cd /home/yn4416/projects/ssot-search-v2 && .venv/bin/python3 cli.py "<トピック>" --top 5
+   ※ 過去判断の照合は「語彙が違っても意味で当てる」ことが要件なので v2 を使う。
+   ※ 型番・エラー文の完全一致など字句検索がしたい時だけ v1:
+     python3 /home/yn4416/projects/claude-config/scripts/ssot/search.py "<トピック>" --ssot-dir /home/yn4416/projects/obsidian-ssot/01_DECISIONS --top 5
+     （実体パス直接指定。`~/.claude/scripts/...`はWSL側シンボリックリンクでWindows DesktopのUNCアクセスでは解決できないため・2026-07-11修正）
+
+   🚨 **v1 は ripgrep 前置フィルタ + rerank であって RAG ではない**（2026-08-23 追記）。
+   本節が v1 のパスだけをハードコードしていたため、**「RAG を実測した」と誤認したまま
+   設計判断の根拠にする事故**が起きた。使い分けの正典は `ssot-search` SKILL.md。
 2. 過去の決定・理由・結果を抽出
 3. 現在の比較に「過去判断との整合性」軸を追加
 4. 矛盾があれば明示:
