@@ -71,6 +71,14 @@ date +%Y-%m-%d > ~/.claude/state/ssot-check-last-run
 - **禁止操作**: `guard-destructive-commands.sh` と一致しているか
 - **Tier1参照**: `共通ルール/ルール.md` への参照があるか
 
+### 6. ssot-search v1/v2 取り違え防止（2026-08-23 L21 追加）
+- **検出対象**: v1 パス（`scripts/ssot/search.py`）が **「v1 字句完全一致用」等の明示なし** に手順書/ガイドに記載されていないか
+- **真因**: 2026-08-22 「RAG を実測した」と誤報告した事故（実際は v1=ripgrep+rerank）・v2 は意味検索で Recall@5=0.744・v1 は 0.026
+- **除外**: 01_DECISIONS/, handoff/, マルチLLMレビュー/, docs/ は経緯記録のため除外
+- **実行**: `bash ~/projects/claude-config/scripts/obsidian/check-ssot-search-v1-hardcoded.sh`
+- **exit 0 = 検出なし（または全ファイル明示済）**, **exit 1 = 検出あり**
+- **auto 時**: 高重要度（手順書/ガイド）として自動修正提案。中（記録引用）は提案のみ
+
 ---
 
 ## フェーズ1: 調査
