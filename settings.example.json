@@ -409,6 +409,15 @@
             "command": "~/.claude/scripts/hooks/guard-settings-snapshot-init.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/cleanup-stale-ssot-record-flags.sh",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "Stop": [
