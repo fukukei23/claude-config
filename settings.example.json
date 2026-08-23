@@ -110,6 +110,9 @@
     "defaultMode": "bypassPermissions"
   },
   "model": "opus",
+  "skillOverrides": {
+    "record-decision": "off"
+  },
   "hooks": {
     "Notification": [
       {
@@ -548,7 +551,5 @@
     "intervalHours": 24
   },
   "claudeInChromeDefaultEnabled": false,
-  "skillOverrides": {
-    "record-decision": "off"
-  }
+  "tui": "fullscreen"
 }
