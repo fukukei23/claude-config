@@ -32,11 +32,26 @@ except Exception:
     print('')
 " 2>/dev/null || echo "")
 
-# フラグ判定（スキル経由か）
+# フラグ判定（スキル経由か・TTL=6時間でstale扱い）
 is_skill_active() {
+    local TTL_SECONDS=$((6 * 3600))
     if [ -n "$SID" ]; then
         # セッションID別フラグ（自分のセッションのみ参照・並行セッション隔離）
-        test -f "$STATE_DIR/ssot-record-active-$SID"
+        local flag="$STATE_DIR/ssot-record-active-$SID"
+        if [ ! -f "$flag" ]; then
+            return 1
+        fi
+        # TTL判定（2026-08-23 L26追加: 古いフラグは無効扱い）
+        local mtime now age
+        mtime=$(stat -c %Y "$flag" 2>/dev/null || echo 0)
+        now=$(date +%s)
+        age=$((now - mtime))
+        if [ "$age" -ge "$TTL_SECONDS" ]; then
+            # 古いフラグを削除してブロック
+            rm -f "$flag"
+            return 1
+        fi
+        return 0
     else
         # SESSION_ID未取得時フォールバック: いずれかのフラグ存在で許可（案1相当）
         compgen -G "$STATE_DIR/ssot-record-active-*" >/dev/null 2>&1
