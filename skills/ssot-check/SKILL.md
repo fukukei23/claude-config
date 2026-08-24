@@ -97,8 +97,8 @@ for event, hooks in d.get('hooks', {}).items():
         print(f'{event}: {cmd[:80]}')
 "
 
-# 2. GitHubリポ数確認
-gh repo list fukukei23 --limit 50 --json name,visibility --jq '.[] | .name' | wc -l
+# 2. GitHubリポ数確認（--limit 200 で取りこぼし防止・2026-08-24 教訓）
+gh repo list fukukei23 --limit 200 --json name,visibility --jq '.[] | .name' | wc -l
 
 # 3. 01_DECISIONS プロジェクト一覧
 ls /home/yn4416/projects/obsidian-ssot/01_DECISIONS/
@@ -114,6 +114,11 @@ bash ~/bin/apply-crons.sh check 2>&1 | tail -4
 # →「整合: ✅」なら正常。「⚠️ create/ghost」またはコマンド自体が失敗する場合は
 #   reconcileまたは定義が壊れている可能性→高重要度として記録（reconcileは*/6hで自己修復するが、
 #   この検視はreconcile自体の死亡を検知する独立層）
+
+# 7. repo-index.yaml repositories: 節カウント（relationship_groups: 節は数えない・2026-08-24 教訓）
+# ⚠️ `^  - name:` 全体マッチは groups 定義を混入させる（誤って53件と数えた事例あり）。
+#    repositories: 行から relationship_groups: 行の間のみを awk で抽出してカウントする。
+awk '/^repositories:/{f=1;next}/^relationship_groups:/{f=0}f && /^  - name:/' /home/yn4416/projects/obsidian-ssot/00_SYSTEM/repo-index.yaml | wc -l
 ```
 
 ---
