@@ -50,6 +50,21 @@ if [ -f "$DAILY_LOG" ]; then
   fi
 fi
 
+# --- バージョン表示（2026-08-25 L67統合: .bashrc の __claude_banner から移植）---
+version_line=""
+if command -v claude >/dev/null 2>&1; then
+  cur_ver=$(timeout 3 claude --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+  if [ -n "$cur_ver" ]; then
+    # Hookが書いたstatusファイルがあれば「最新版」フラグを拾う
+    vf="$STATUS_DIR/version.status"
+    latest_flag=""
+    if [ -f "$vf" ] && grep -q '最新版' "$vf" 2>/dev/null; then
+      latest_flag=" ✅最新版！"
+    fi
+    version_line=" ✅ Claude Code ${cur_ver}${latest_flag}"
+  fi
+fi
+
 # --- バナー生成 ---
 SEP="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -65,6 +80,9 @@ fi
 banner=""
 banner+="$(printf '%s\n' "$SEP")"$'\n'
 banner+="$(printf ' 🚀 Claude Code セッション開始\n')"$'\n'
+if [ -n "$version_line" ]; then
+  banner+="$version_line"$'\n'
+fi
 banner+="$(printf '%s\n' "$hook_summary")"$'\n'
 
 if [ "$warn_count" -gt 0 ]; then
