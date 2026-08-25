@@ -157,3 +157,105 @@ def test_cli_no_args_returns_2():
 def test_cli_invalid_subcommand_returns_2():
     """不正サブコマンドは終了コード2。"""
     assert _cli(["unknown"]) == 2
+
+
+# ============================================================================
+# L61（2026-08-25）: ゲート自動再検証 + 発火済みone-shot誤カウント修正
+# ============================================================================
+
+_ONE_SHOT_DEFS = '''# @cron id=1 name="定期" schedule="3 3 * * 0,2,4" health="commit:obsidian-ssot:3"
+#   定期: bash run.sh
+# @cron id=15 name="単発" schedule="0 6 20 8 *" health="file:.claude/state/x:30" one_shot=true
+#   単発: echo done
+'''
+
+
+def _recurring_task() -> dict:
+    """id=1 定期定義と照合できる実体エントリ。"""
+    return {
+        "id": "aaaa1111",
+        "cron": "3 3 * * 0,2,4",
+        "prompt": "定期: bash run.sh\n[cron-id:1]",
+        "recurring": True,
+    }
+
+
+def _ghost_task() -> dict:
+    """どの定義とも照合不能なゴースト。"""
+    return {
+        "id": "gggg9999",
+        "cron": "0 0 1 1 *",
+        "prompt": "ゴースト zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "recurring": True,
+    }
+
+
+def _setup_reconcile_env(monkeypatch, tmp_path, tasks: list[dict],
+                         gate_version: str, cc_version: str) -> None:
+    """cmd_reconcile の実ファイル依存を tmp_path へ隔離。"""
+    import apply_crons
+    tasks_path = tmp_path / "scheduled_tasks.json"
+    tasks_path.write_text(json.dumps({"tasks": tasks}, ensure_ascii=False), encoding="utf-8")
+    gate_path = tmp_path / ".cron-cc-version"
+    if gate_version is not None:
+        gate_path.write_text(gate_version + "\n", encoding="utf-8")
+    monkeypatch.setattr(apply_crons, "TASKS_PATH", str(tasks_path))
+    monkeypatch.setattr(apply_crons, "VERSION_GATE_PATH", str(gate_path))
+    monkeypatch.setattr(apply_crons, "STAMP_PATH", str(tmp_path / ".reconcile-stamp"))
+    monkeypatch.setattr(apply_crons, "LOCK_PATH", str(tmp_path / ".reconcile.lock"))
+    monkeypatch.setattr(apply_crons, "APPLY_LOG", str(tmp_path / "cron-apply.log"))
+    monkeypatch.setattr(apply_crons, "_cc_version", lambda: cc_version)
+
+
+def test_diff_fired_one_shot_is_not_create():
+    """修正②: 発火済み(実体に無い)one-shot定義はcreateと数えずskip扱い。"""
+    defs = parse_definitions(_ONE_SHOT_DEFS)
+    actions = diff(defs, [_recurring_task()])
+    kinds = {a.def_id: a.kind for a in actions}
+    assert kinds == {1: "skip", 15: "skip"}, "発火済みone-shotがcreateになる誤カウント"
+
+
+def test_reconcile_done_with_fired_one_shot(monkeypatch, tmp_path, capsys):
+    """テスト系統1: one-shot発火済みの状態で reconcile は done（postcheck誤errorしない）。"""
+    import apply_crons
+    _setup_reconcile_env(monkeypatch, tmp_path, [_recurring_task()],
+                         gate_version="2.0.0", cc_version="2.0.0")
+    defs = parse_definitions(_ONE_SHOT_DEFS)
+    rc = apply_crons.cmd_reconcile(defs)
+    out = capsys.readouterr().out
+    assert rc == apply_crons.EXIT_OK
+    assert "[RESULT]=done" in out
+    # one-shotは再登録されない（実体は定期1件のまま）
+    after = json.loads((tmp_path / "scheduled_tasks.json").read_text())["tasks"]
+    assert len(after) == 1
+    assert "[cron-id:15]" not in json.dumps(after)
+
+
+def test_reconcile_gate_auto_reverify_ok(monkeypatch, tmp_path, capsys):
+    """テスト系統2: バージョン乖離+機械検証OK→ゲート自動更新+done。"""
+    import apply_crons
+    _setup_reconcile_env(monkeypatch, tmp_path, [_recurring_task()],
+                         gate_version="1.0.0-old", cc_version="2.0.0-new")
+    defs = parse_definitions(_ONE_SHOT_DEFS)
+    rc = apply_crons.cmd_reconcile(defs)
+    out = capsys.readouterr().out
+    assert rc == apply_crons.EXIT_OK
+    assert "[RESULT]=done" in out
+    # ゲートが新バージョンへ自動更新されている
+    gate = (tmp_path / ".cron-cc-version").read_text().strip()
+    assert gate == "2.0.0-new"
+
+
+def test_reconcile_gate_auto_reverify_ng(monkeypatch, tmp_path, capsys):
+    """テスト系統3: バージョン乖離+機械検証NG（ghost混入）→error・ゲートは更新しない。"""
+    import apply_crons
+    _setup_reconcile_env(monkeypatch, tmp_path, [_recurring_task(), _ghost_task()],
+                         gate_version="1.0.0-old", cc_version="2.0.0-new")
+    defs = parse_definitions(_ONE_SHOT_DEFS)
+    rc = apply_crons.cmd_reconcile(defs)
+    out = capsys.readouterr().out
+    assert rc == apply_crons.EXIT_FAIL
+    assert "[RESULT]=error reason=cc-version-changed" in out
+    # ゲートは旧バージョンのまま（スキーマ破壊時は停止が正）
+    gate = (tmp_path / ".cron-cc-version").read_text().strip()
+    assert gate == "1.0.0-old"

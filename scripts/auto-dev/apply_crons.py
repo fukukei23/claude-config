@@ -17,10 +17,8 @@ import fcntl
 import time
 import uuid
 from dataclasses import dataclass as _dc
-from dataclasses import field
 from enum import Enum
 from pathlib import Path
-from typing import Iterable
 
 
 VERSION_GATE_PATH = str(Path(__file__).parent / ".cron-cc-version")
@@ -54,6 +52,29 @@ def version_gate(current: str | None = None) -> bool:
         g.write_text(cur + "\n", encoding="utf-8")
         return True
     return saved == cur
+
+
+def update_version_gate(current: str) -> None:
+    """ゲート値を現在のCCバージョンへ更新（機械検証OK時のみ呼ぶ・案1・2026-08-25）。"""
+    Path(VERSION_GATE_PATH).write_text(current + "\n", encoding="utf-8")
+
+
+def verify_schema_health(definitions: list[CronDefinition], tasks: list[dict]) -> tuple[bool, str]:
+    """CCバージョン乖離時の軽量機械検証（案1・2026-08-25）: スキーマ破壊でなければTrue.
+
+    ゲート本来の目的（スキーマ変更事故の検知）はこの数秒の検証で達成できる
+    （golden master観測は初回用）。検証内容:
+    - 全タスクが必須フィールド(cron/prompt)を持つ
+    - ghost=0（全タスクが定義と照合でき、マッチング構造が生きている）
+    """
+    enabled = [d for d in definitions if d.enabled]
+    for t in tasks:
+        if "cron" not in t or "prompt" not in t:
+            return False, f"必須フィールド欠落({sorted(t.keys())[:5]})"
+    ghosts = [t for t in tasks if not any(_match(d, t) for d in enabled)]
+    if ghosts:
+        return False, f"ghost={len(ghosts)}"
+    return True, "ok"
 
 STAMP_PATH = str(Path(__file__).parent / ".reconcile-stamp")
 LOCK_PATH = str(Path(__file__).parent / ".reconcile.lock")
@@ -89,8 +110,21 @@ def cmd_reconcile(definitions: list[CronDefinition], force: bool = False) -> int
             print(result_line("skip", reason="flock"))
             return EXIT_OK
         if not version_gate():
-            print(result_line("error", reason="cc-version-changed"))
-            return EXIT_FAIL
+            # 案1（2026-08-25）: 乖離時は即errorでなく軽量機械検証を自動実行。
+            # OK→ゲートを新バージョンで書き換えて続行 / NG→従来どおりerror停止。
+            try:
+                tasks = load_tasks()
+            except (json.JSONDecodeError, OSError):
+                _log(APPLY_LOG, "version_gate: 検証中のload失敗により停止")
+                print(result_line("error", reason="cc-version-changed"))
+                return EXIT_FAIL
+            ok, detail = verify_schema_health(definitions, tasks)
+            if not ok:
+                _log(APPLY_LOG, f"version_gate: 機械検証NG({detail})により停止")
+                print(result_line("error", reason="cc-version-changed"))
+                return EXIT_FAIL
+            update_version_gate(_cc_version())
+            _log(APPLY_LOG, "version_gate: 機械検証OK・ゲートを自動更新して続行")
         try:
             tasks = load_tasks()
         except (json.JSONDecodeError, OSError):
@@ -459,6 +493,11 @@ def diff(definitions: list[CronDefinition], tasks: list[dict]) -> list[Action]:
         matched = next((t for t in tasks if _match(defn, t)), None)
         if matched:
             actions.append(Action(kind="skip", def_id=defn.id, name=defn.name, reason="既存同一"))
+        elif defn.one_shot:
+            # 発火済みone-shot（実体に無い）はcreateと数えない（2026-08-25 誤カウント修正）。
+            # desired_entries L393-394「存在時のみ保持・再生成しない」と同じ判断。
+            actions.append(Action(kind="skip", def_id=defn.id, name=defn.name,
+                                  reason="発火済みone-shot(再生成しない)"))
         else:
             actions.append(Action(kind="create", def_id=defn.id, name=defn.name,
                                   schedule=defn.schedule, prompt=defn.prompt))
