@@ -91,7 +91,7 @@ LLM（ホスト自身含む）のサボり（省略/楽観/迎合/検証回避�
 並行セッションが「共通ファイル」を同時に触る競合を防ぐため、`obsidian-ssot/00_SYSTEM/active-sessions.md` で作業を宣言・確認すること。
 
 **共通ファイル（触る前に必ず active-sessions.md で被り確認）**:
-- `~/.claude/settings.json` / `~/.claude/CLAUDE.md`
+- `~/.claude/settings.json` / `~/.claude/CLAUDE.md` / **`~/.claude/rules/_shared/*.md`（層1原本・CLAUDE.md が @include・毎セッション全タブが読む）**
 - `SKILL.md`群 / hook群（scripts/hooks・scripts/obsidian）
 - `00_SYSTEM/` の `自動化.md` / `全体マップ_MOC.md` / `repo-index.yaml` / `リポジトリ索引.md` / `MCPツール使い分けガイド.md` / `リンク運用方針.md`
 
