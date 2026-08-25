@@ -20,8 +20,7 @@
 @rules/_shared/LLMルーティング.md
 
 ## glm-rate-proxy
-- 経路: Claude Code → localhost:8787 → ZAI / MiniMax
-- 自動起動: systemd userサービス（`glm-rate-proxy.service`・enabled）がWSL起動時に自動起動・異常時も自動復帰（詳細は下記警告ゲート）。SessionStart hook（`check-proxy-compat.sh`）は互換性検証・停止検知のみで**起動はしない**（2026-08-25実測）
+- 経路: Claude Code → localhost:8787 → ZAI / MiniMax（SessionStart hookで自動起動）
 - トラブル時: SSOT `01_DECISIONS/claude-code/` 配下を参照
 - **⚠️ プロキシ操作時の警告ゲート（厳格・2026-07-03事故対策）**:
   - プロキシの**再起動・kill・設定変更**は **全Claude Code CLIセッション（並行含む）を最大数秒〜数分停止**させる
