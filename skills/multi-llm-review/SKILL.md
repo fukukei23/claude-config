@@ -1,6 +1,6 @@
 ---
 name: multi-llm-review
-description: 設計・コード・文章を複数の異なるLLMに並列独立レビューさせ、ホストLLMが当初目的を基準に取捨統合して改訂案を作る。デフォルト2機（WSL CLI版: MiniMax+Gemini）・triple指定で3機（MiniMax+Gemini+OpenRouter無料枠1機）。ユーザーが「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「3つのLLMで」「3機でしっかり」「panel review」「jury review」「クロスLLMレビュー」などと依頼した時に使う。改訂案が欲しい時は本スキル（ツッコミ箇条書きで良い時は multi-llm-review-lite）。
+description: 設計・コード・文章を複数の異なるLLMに並列独立レビューさせ、ホストLLMが当初目的を基準に取捨統合して改訂案を作る。デフォルト2機（WSL CLI版: MiniMax+Gemini）・triple指定で3機（MiniMax+Gemini+OpenRouter無料枠1機）。「各LLMに/でレビューして」は常にtriple（2026-08-27ユーザー指示）。ユーザーが「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「3つのLLMで」「3機でしっかり」「panel review」「jury review」「クロスLLMレビュー」などと依頼した時に使う。改訂案が欲しい時は本スキル（ツッコミ箇条書きで良い時は multi-llm-review-lite）。
 ---
 
 # multi-llm-review
@@ -13,8 +13,8 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 ## トリガーワード（自然言語・スラッシュコマンド両方可）
 
-- 「マルチLLMレビューして」「複数LLMでレビュー」「各LLMにレビューして」「各LLMでレビューして」
-- 「3つのLLMで」「3機でしっかり」「しっかりレビューして」→ **triple モード**（3機・後述）
+- 「マルチLLMレビューして」「複数LLMでレビュー」
+- 「各LLMにレビューして」「各LLMでレビューして」「3つのLLMで」「3機でしっかり」「しっかりレビューして」→ **triple モード**（3機・後述・2026-08-27 ユーザー指示で「各LLM〜」は常に3機に昇格）
 - 「panel review」「jury review」「クロスLLMレビュー」
 - `/multi-llm-review` / `/multi-llm-review --triple`
 
@@ -27,8 +27,8 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 | 実装前・選択肢なし（単一案を叩く） | `doubt-driven-development` |
 | 既存案 A/B/C から選ぶ | `sentaku` L3 |
 | **ツッコミをサクッと（1〜2LLM・箇条書き・会話内完結・OpenRouter・改訂案なし）** 「軽く」「サクッと」 | `multi-llm-review-lite`（軽量版） |
-| **改訂案が欲しい・既存案を改良（多LLM独立レビュー→統合・ファイル出力）** 「各LLMにレビュー」「しっかり」 | **multi-llm-review（本）** |
-| **3機でしっかり批評（MiniMax+Gemini+OpenRouter free）→ 改訂案** 「3つのLLMで」「3機で」 | **multi-llm-review（本）`--triple`** |
+| **改訂案が欲しい・既存案を改良（多LLM独立レビュー→統合・ファイル出力）** 「マルチLLMレビュー」「複数LLMでレビュー」 | **multi-llm-review（本）** |
+| **3機でしっかり批評（MiniMax+Gemini+OpenRouter free）→ 改訂案** 「各LLMに/でレビュー」「3つのLLMで」「3機で」「しっかり」 | **multi-llm-review（本）`--triple`** |
 | 「〜して」と作業依頼 | スキル不起動 |
 
 曖昧な場合はユーザーに確認する。
