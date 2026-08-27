@@ -74,7 +74,9 @@ ls ~/projects/obsidian-ssot/40_CAREER/リフレクション/weekly/$WEEK.md 2>/d
 未承認状態は既にcommit済み。therefore:
 
 - 同一セッションにユーザーがいる場合: Top3の3行ドラフトを表示 → `y`/修正指示を待つ
-- **承認時**: `_INDEX.md` の「気づきTop3」を差替 + `pending_top3` を削除 + `top3_last_updated: $WEEK` を更新 → 別commit & push（`reflection: $WEEK Top3承認反映`）
+- **承認時**: `_INDEX.md` の「気づきTop3」を差替 + `pending_top3` を削除 + `top3_last_updated: $WEEK` を更新 + **`weekly/_気づきアーカイブ.md` に確定Top3を3行追記（B′案・2026-08-27採用・累積の正典）** → 別commit & push（`reflection: $WEEK Top3承認反映`）
+  - アーカイブ行形式: `- [W34](2026-W34.md) (08/17-23): <気づき1行>` ×3・状態列なし・追記のみ（差し替え禁止）
+  - **年次分割**: 年が変わる最初の承認で既存ファイルを `_気づきアーカイブ_<年>.md` にリネームし、新規 `_気づきアーカイブ.md` を開始する
 - ユーザーが反応しなければ**そのまま終了**（何もしなくてよい — 次回 resume-session が検知して再依頼する）
 
 ## Phase 7: 品質レビュー（3機・恒久・2026-08-27W34実績の恒久化）
