@@ -12,6 +12,11 @@ set -a
 set +a
 set -u
 
+# === PATH（cron非ログイン環境に ~/bin 無し・2026-08-27実測）===
+# _update_index が subprocess.run(["generate-decision-indexes"]) をbareコマンド名で呼ぶため、
+# cron PATH(/usr/bin:/bin)ではFileNotFound→INDEX:FAIL→早期return→_mark_full_sync未到達(sync28停滞)
+export PATH="$HOME/bin:$PATH"
+
 # === 環境変数（実行時に決定）===
 SSOT_ROOT="$HOME/projects/obsidian-ssot"
 CLAUDE_CONFIG="$HOME/projects/claude-config"
