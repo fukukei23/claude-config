@@ -505,6 +505,10 @@
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/session/check-plain-explanation.sh"
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-yagi-output.sh"
           }
         ]
       },
