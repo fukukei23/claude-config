@@ -626,11 +626,6 @@
     },
     "minimax-official": {
       "timeout": 900
-    },
-    "glm": {
-      "env": {
-        "GLM_API_KEY": "***MASKED***"
-      }
     }
   },
   "autoDream": {
