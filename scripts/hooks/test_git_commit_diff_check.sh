@@ -252,5 +252,22 @@ test_git_dash_c
 test_cd_form
 test_cd_staged_empty
 
+# Case 14: 空白+tool_inputネスト形(Windows Desktop版実入力形式・08-22実測) → exit 2（旧: 沈黙exit 0）
+test_spaced_nested_input() {
+  setup
+  seq 1 50 > big.txt
+  git add big.txt
+  local rc
+  printf '{"tool_name": "Bash", "tool_input": {"command": "git commit -m test"}}' | bash "$HOOK" 2>/dev/null
+  rc=$?
+  if [ "$rc" -ne 2 ]; then
+    echo "FAIL Case14: expected exit 2 (spaced nested input) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+test_spaced_nested_input
+
 echo "All cases done. FAILS=$FAILS"
 [ "$FAILS" -eq 0 ] || exit 1

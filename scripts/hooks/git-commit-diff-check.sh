@@ -23,8 +23,8 @@ log_append() {
 
 INPUT=$(cat)
 
-# tool_name 抽出（純bash）
-tool_name=$(printf '%s' "$INPUT" | grep -o '"tool_name":"[^"]*"' | head -1 | sed 's/^"tool_name":"//;s/"$//')
+# tool_name 抽出（純bash・コロンの前後空白を許容: Windows Desktop版実入力は空白+tool_inputネスト形・08-22実測）
+tool_name=$(printf '%s' "$INPUT" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/^"tool_name"[[:space:]]*:[[:space:]]*"//;s/"$//')
 
 if [[ "$tool_name" != "Bash" ]]; then
   exit 0
