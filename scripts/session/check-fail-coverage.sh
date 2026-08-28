@@ -19,7 +19,7 @@ if [ "${CLAUDE_DISABLE_FC_CHECK:-}" = "1" ]; then
 fi
 PAYLOAD_JSON="$(cat)"
 exec env PAYLOAD_JSON="$PAYLOAD_JSON" GUARD_DIR="$GUARD_DIR" python3 - <<'PYEOF'
-import json, os, hashlib, datetime, re
+import json, os, hashlib, datetime, re, sys
 
 payload = json.loads(os.environ['PAYLOAD_JSON'])
 guard = os.environ['GUARD_DIR']
@@ -117,10 +117,10 @@ try:
 except Exception:
     pass
 reason = '、'.join(errs[:3])
-print(f"⚠️ 検証網羅性ゲート: 検証系完了宣言に以下が不足 → {reason}")
-print("　(a)fail条件ケースと検証有無 (b)tool実行結果からの生ログ引用(実際に実行した結果のみ有効)")
-print("　(c)不合格閾値(事前固定参照値と突合・恒真閾値禁止) (d)環境指紋[fp:時刻/l1]")
-print(f"　差戻し{cnt + 1}回目。誤検知なら要点を添えて終了可 / 本当に通す必要がある時はユーザーの「承認」入力で通過")
+print(f"⚠️ 検証網羅性ゲート: 検証系完了宣言に以下が不足 → {reason}", file=sys.stderr)
+print("　(a)fail条件ケースと検証有無 (b)tool実行結果からの生ログ引用(実際に実行した結果のみ有効)", file=sys.stderr)
+print("　(c)不合格閾値(事前固定参照値と突合・恒真閾値禁止) (d)環境指紋[fp:時刻/l1]", file=sys.stderr)
+print(f"　差戻し{cnt + 1}回目。誤検知なら要点を添えて終了可 / 本当に通す必要がある時はユーザーの「承認」入力で通過", file=sys.stderr)
 dispatch(f"blocked:{errs[0][:30]}")
 exit(2)
 PYEOF
