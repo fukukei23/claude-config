@@ -198,5 +198,59 @@ test_log_fallback
 test_log_rotation
 test_log_status
 
+# === cwd対応改善（バックログL260①・2026-08-29） ===
+# Case 11: git -C <repo> commit 形式・hookのcwdは対象repo外 → exit 2（旧: 見逃し exit 0）
+test_git_dash_c() {
+  setup
+  seq 1 50 > big.txt
+  git add big.txt
+  local outer
+  outer=$(mktemp -d)
+  ( cd "$outer" && send_hook "git -C $TMP_REPO commit -m test" )
+  local rc=$?
+  rm -rf "$outer"
+  if [ "$rc" -ne 2 ]; then
+    echo "FAIL Case11: expected exit 2 (git -C detection) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 12: cd <repo> && git commit 形式・hookのcwdは対象repo外 → exit 2
+test_cd_form() {
+  setup
+  seq 1 50 > big.txt
+  git add big.txt
+  local outer
+  outer=$(mktemp -d)
+  ( cd "$outer" && send_hook "cd $TMP_REPO && git commit -m test" )
+  local rc=$?
+  rm -rf "$outer"
+  if [ "$rc" -ne 2 ]; then
+    echo "FAIL Case12: expected exit 2 (cd detection) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 13: cd後に相対git -C無し・対象repoのstagedが空 → exit 0（誤検知なし回帰）
+test_cd_staged_empty() {
+  setup
+  local outer
+  outer=$(mktemp -d)
+  ( cd "$outer" && send_hook "cd $TMP_REPO && git commit -m test" )
+  local rc=$?
+  rm -rf "$outer"
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case13: expected exit 0 (cd + staged empty) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+test_git_dash_c
+test_cd_form
+test_cd_staged_empty
+
 echo "All cases done. FAILS=$FAILS"
 [ "$FAILS" -eq 0 ] || exit 1

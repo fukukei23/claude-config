@@ -33,8 +33,8 @@ fi
 # command 抽出
 cmd=$(printf '%s' "$INPUT" | sed -n 's/.*"command" *: *"\(.*\)".*/\1/p' | head -1)
 
-# git commit 以外は対象外
-if ! echo "$cmd" | grep -qE 'git[[:space:]]+commit'; then
+# git commit 以外は対象外（cwd対応: git -C <path> commit 形式も検出・L260①）
+if ! echo "$cmd" | grep -qE 'git([[:space:]]+-C[[:space:]]+("[^"]*"|[^ ;&|]+))*[[:space:]]+commit([[:space:]]|$)'; then
   exit 0
 fi
 
@@ -43,8 +43,34 @@ if [[ "${SSOT_AUTO_SYNC:-}" == "1" ]]; then
   exit 0
 fi
 
+# cwd対応（バックログL260①・2026-08-29）: コマンド文字列から対象repoを解決
+# "cd <path> && git commit" / "git -C <path> commit" 形式でhookのcwd≠対象repoでも
+# staged diff を正しく見る。近似: 最後のcd→その後のgit -C を優先（シェル完全再現は非目標）
+# 限制: クォート付き空白パス("my repo")は非対応・解決失敗時は従来どおりcwdで検査
+resolve_path() {
+  # $1=パス文字列($2=基準dir) → ~展開+相対解決 → stdout
+  local p="$1" base="$2"
+  if [[ "$p" == "~" || "$p" == "~/"* ]]; then
+    printf '%s\n' "$HOME${p#\~}"
+  elif [[ "$p" == /* ]]; then
+    printf '%s\n' "$p"
+  else
+    printf '%s\n' "$base/${p#./}"
+  fi
+}
+TARGET_DIR="$PWD"
+_cd_path=$(printf '%s' "$cmd" | grep -oE '\bcd[[:space:]]+("[^"]*"|[^ ;&|]+)' | tail -1 | sed -E 's/^cd[[:space:]]+//; s/^"//; s/"$//')
+if [ -n "$_cd_path" ]; then
+  TARGET_DIR=$(resolve_path "$_cd_path" "$PWD")
+fi
+_gc_path=$(printf '%s' "$cmd" | grep -oE '\bgit[[:space:]]+-C[[:space:]]+("[^"]*"|[^ ;&|]+)' | tail -1 | sed -E 's/^git[[:space:]]+-C[[:space:]]+//; s/^"//; s/"$//')
+if [ -n "$_gc_path" ]; then
+  TARGET_DIR=$(resolve_path "$_gc_path" "$TARGET_DIR")
+fi
+unset _cd_path _gc_path
+
 # staged diff の行数取得
-numstat=$(git diff --cached --numstat 2>/dev/null)
+numstat=$(git -C "$TARGET_DIR" diff --cached --numstat 2>/dev/null)
 if [ -z "$numstat" ]; then
   exit 0  # staged empty or not a git repo
 fi
@@ -65,7 +91,7 @@ done <<< "$numstat"
 # max_file の status 判定（A=新規/M=修正/R=リネーム・doubt-driven #7 正規/非正規タグ基盤）
 file_status="?"
 if [ -n "$max_file" ]; then
-  ns_line=$(git diff --cached --name-status -- "$max_file" 2>/dev/null | head -1 | cut -f1)
+  ns_line=$(git -C "$TARGET_DIR" diff --cached --name-status -- "$max_file" 2>/dev/null | head -1 | cut -f1)
   [ -n "$ns_line" ] && file_status="${ns_line:0:1}"
 fi
 
