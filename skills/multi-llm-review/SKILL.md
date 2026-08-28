@@ -114,8 +114,9 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 直接 curl はクォート/改行エスケープが破綻するため、**2段階ファイル経由**を標準手順とする:
 
 1. **各LLMのAPIリクエストJSONペイロードを一時ファイルに書出**（Write ツール or python3）:
-   - `/tmp/req_gemini.json`（Windows Desktop は環境に応じた一時パス）
-   - triple時: `/tmp/req_or.json`（OpenRouter用）も生成
+   - `/tmp/req_gemini_<sessionsuffix>.json`（Windows Desktop は環境に応じた一時パス）
+   - triple時: `/tmp/req_or_<sessionsuffix>.json`（OpenRouter用）も生成
+   - **`<sessionsuffix>` は必須（d′・2026-08-28）**: 並行セッションとの衝突防止（`CLAUDE_CODE_SESSION_ID` 先頭8桁等・例: `req_gemini_c56c356b.json`）。同日2回の衝突事故（他セッションの古いペイロードを踏む）の再発防止。読み取り側も同名で読むこと
 2. **並列送信**（同一メッセージでツール呼出・triple時は3ツール同時）:
    - MiniMax: `mcp__minimax__minimax_ask`（prompt に同一プロンプトを指定）
    - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
@@ -170,6 +171,7 @@ Gemini 思考モデル（2.5 Pro / 3.1 Pro 等）は `maxOutputTokens=8000` 設�
 ※ 【サボりバイアス防止・Phase0拡張（2026-07-26）】省略方向だけでなく**全レビュー共通**で以下も出力義務（個別LLMの単独サボりも形式で捕捉・ホスト単独レビューでも有効）:
     (4) **反証シナリオ1つ**: 元案を支える前提が崩れるケース（確証バイアス対策）
     (5) **最悪ケース1つ**: "問題ない"とする場合の最悪の影響（楽観バイアス対策）
+    (6) **fail条件の提案（d′・2026-08-28）**: 元案の検証計画・完了判定について、**実装者が想定していない「一番壊れうる経路（fail条件）」を最低1つ提案**すること（実装者=検証者で検証範囲が成功側に偏る対策・偽陰性テスト型の再発防止）
    ※ 詳細: `@rules/_shared/LLMサボりバイアス防止.md`（13類型カタログ）
 ```
 
@@ -301,6 +303,7 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
    - メタ指摘がなければ Step 7 へ直行
 7. **競合調停**: 相反指摘（A「削除」vs B「詳細化」等）は当初目的基準でトレードオフ評価・採用理由を明記
 8. **統合**: 採用指摘を**元案の構造を保持し指摘箇所のみ置換/追記**→改訂案。末尾に「**却下サマリ（リスト・各1行理由）**」＋「当初目的: X / 改訂案が満たす根拠: Y」を強制記載
+   - **集約ルール（d′・2026-08-28）**: レビュー指摘のうち「**判定自体への critical/high**」を却下して元の判定・結論を維持する場合、却下サマリへの明記に加え**ユーザーの明示承認を必須**とする（自己の判定を守る方向の却下は「実装者=検証者」バイアスの温床のため）
 
 > ※Step6（pre-flight）は統合内の**中断フェーズ**。メタ指摘がなければ Step5 → Step7 へ直行する（spec v3 整合）。
 
