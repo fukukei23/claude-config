@@ -37,6 +37,27 @@ date +%Y-%m-%d > ~/.claude/state/ssot-check-last-run
 ```
 **高0件で commit をスキップした場合でも last-run は更新すること**（更新忘れが state 古残り→翌セッション再発火の無限ループの原因。04:39実行の再発原因）。
 
+### auto 実行ロック（2026-08-28 追加・並行セッション同時実行の封止）
+durable cron は各並行セッションが独立発火する（2026-08-28 07:27+07:33 並行発火で
+MCPガイド再是正ロールバック3回の実害）。**auto 開始直後（フェーズ1の前）に acquire、
+終了時（last-run 更新と同時）に release** すること（LLM駆動のため flock でなく
+stamp+年齢方式・`scripts/obsidian/ssot-check-auto-lock.sh`・停滞30分で次回が強制取得）:
+
+```bash
+# auto 開始直後:
+if ! bash ~/.claude/scripts/obsidian/ssot-check-auto-lock.sh acquire; then
+  # BUSY = 他セッションが実行中 → 日記に1行だけ残して即終了（調査もしない）
+  cat >> ~/projects/obsidian-ssot/10_DAILY/$(date +%F).md << 'EOF'
+
+## SSOT整合性チェック[auto] (HH:MM)
+- ⏭️ 他セッションが ssot-check auto 実行中のためスキップ（実行ロック BUSY）
+EOF
+  exit 0
+fi
+# auto 終了時（last-run 更新と同時に・異常終了時も release 必須）:
+bash ~/.claude/scripts/obsidian/ssot-check-auto-lock.sh release
+```
+
 ### 安全装置（auto 時の厳格な制限）
 - 「高」でも**削除系**（リポ消失・フォルダ消失等の記述削除）は自動修正せず検知のみ。誤削除防止。
 - commit 前に `git diff --stat` で変更範囲を確認。**5ファイル超 または 100行超**の大規模変更時は commit 中止 → 日記に「要手動確認: 変更規模が想定外」と記録して終了。
