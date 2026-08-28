@@ -41,11 +41,11 @@ date +%Y-%m-%d > ~/.claude/state/ssot-check-last-run
 durable cron は各並行セッションが独立発火する（2026-08-28 07:27+07:33 並行発火で
 MCPガイド再是正ロールバック3回の実害）。**auto 開始直後（フェーズ1の前）に acquire、
 終了時（last-run 更新と同時）に release** すること（LLM駆動のため flock でなく
-stamp+年齢方式・`scripts/obsidian/ssot-check-auto-lock.sh`・停滞30分で次回が強制取得）:
+stamp+年齢方式・汎用 `scripts/obsidian/stamp-lock.sh`・停滞30分で次回が強制取得）:
 
 ```bash
 # auto 開始直後:
-if ! bash ~/.claude/scripts/obsidian/ssot-check-auto-lock.sh acquire; then
+if ! bash ~/.claude/scripts/obsidian/stamp-lock.sh ssot-check-auto acquire; then
   # BUSY = 他セッションが実行中 → 日記に1行だけ残して即終了（調査もしない）
   cat >> ~/projects/obsidian-ssot/10_DAILY/$(date +%F).md << 'EOF'
 
@@ -55,7 +55,7 @@ EOF
   exit 0
 fi
 # auto 終了時（last-run 更新と同時に・異常終了時も release 必須）:
-bash ~/.claude/scripts/obsidian/ssot-check-auto-lock.sh release
+bash ~/.claude/scripts/obsidian/stamp-lock.sh ssot-check-auto release
 ```
 
 ### 安全装置（auto 時の厳格な制限）

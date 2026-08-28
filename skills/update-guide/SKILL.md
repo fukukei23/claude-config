@@ -35,6 +35,23 @@ docs/chapters/*.html  (生成物 — commit対象だが手編集禁止)
 
 ## 実行手順
 
+### 実行ロック（2026-08-28 追加・cron発火と手動実行の同時進行封止）
+
+cron（durable id=60f6e05e・月曜9:03）は各並行セッションが独立発火する。LLM駆動スキルのため
+flockで包めず、stamp+年齢方式の汎用ロックを使う。**STEP 0 の前に acquire、STEP 9 完了後
+（または `--dry-run` 終了時・エラー中断時も）に必ず release** すること（停滞30分で次回が強制取得）:
+
+```bash
+# 開始直後（STEP 0 の前）:
+if ! bash ~/.claude/scripts/obsidian/stamp-lock.sh update-guide acquire; then
+  # BUSY = 他セッションが実行中 → ユーザーに1行報告して終了
+  echo "⏭️ 他セッションが update-guide 実行中のためスキップ（実行ロック BUSY）"
+  exit 0
+fi
+# 終了時（成功・dry-run・異常終了の全ケースで）:
+bash ~/.claude/scripts/obsidian/stamp-lock.sh update-guide release
+```
+
 ### STEP 0: SSOTマスターからの同期（CCガイドページ）
 
 ssot-record等で `00_SYSTEM/Claude-Codeガイド/` が更新された場合、マスターを公開版 source にコピーする:
