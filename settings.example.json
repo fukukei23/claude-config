@@ -500,6 +500,14 @@
     ],
     "Stop": [
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-fail-coverage.sh"
+          }
+        ]
+      },
+      {
         "matcher": "",
         "hooks": [
           {
