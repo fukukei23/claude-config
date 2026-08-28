@@ -99,7 +99,7 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 | LLM | 通信方式 | 認証 | 備考 |
 |---|---|---|---|
-| MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨 |
+| MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨・**⚠️レビュー対象（コード/文章）は本文インライン渡し必須・ファイルパス渡し禁止**（下記⚠️⚠️参照・2026-08-28実証） |
 | Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
 | OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（purpose別選定）・`max_tokens=2000`＋**`"reasoning": {"enabled": false}` 必須**（下記⚠️）・既存 lite のcurl手順を流用 |
 
@@ -119,6 +119,8 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
    - **`<sessionsuffix>` は必須（d′・2026-08-28）**: 並行セッションとの衝突防止（`CLAUDE_CODE_SESSION_ID` 先頭8桁等・例: `req_gemini_c56c356b.json`）。同日2回の衝突事故（他セッションの古いペイロードを踏む）の再発防止。読み取り側も同名で読むこと
 2. **並列送信**（同一メッセージでツール呼出・triple時は3ツール同時）:
    - MiniMax: `mcp__minimax__minimax_ask`（prompt に同一プロンプトを指定）
+     - **⚠️⚠️ MiniMaxへのレビュー対象は必ずプロンプト本文にインラインで貼る（ファイルパスを渡す禁止・2026-08-28実証）**
+       MCPのMiniMaxは**ファイル読み取り能力を持たない**ため、「`/path/to/code.py` を読んでレビューしてください」とパスだけ渡すと、読めない代わりに**存在しない実装（pandas・tkinter・GUI等）を想像してレビューする**。実例: 2026-08-28リハーサル納品レビューで39指摘中大多数がハルシネーション（`quote`が元案と不一致=Fact Checkで機械排除・有効指摘は4件のみ）。Gemini/ORはcurlでペイロード本文に必ず含むため発生しない。**ペイロード生成ファイル（Gemini/OR用）とMiniMaxのpromptで「同一本文インライン」を維持すること**（3機同一プロンプトの独立性の前提でもある）
    - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
    - OpenRouter（triple時のみ）: Bash で `set -a; source ~/.secrets.env 2>/dev/null; set +a; curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authorization: Bearer $OPENROUTER_API_KEY" -H "Content-Type: application/json" -d @/tmp/req_or.json`（プロンプトはPROMPT環境変数経由でpython3に渡してペイロード生成・liteと同一手順）
      - **ペイロードに `"reasoning": {"enabled": false}` を必ず含める**（上記⚠️・欠落すると `content: null` で全モデル全滅する）:
