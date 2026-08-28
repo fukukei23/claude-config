@@ -238,14 +238,9 @@ WT4=${EFFECTIVE_WT:0:4}; echo "WT4=$WT4"
 ```bash
 # ID照合ガード: 現セッションWT4 = 🟢行ID 確認（不一致は書込拒否・spec §4.4）
 WT4=${EFFECTIVE_WT:0:4}
-# paths.json に WT4 エントリ追記（python非接触編集・既存entries保持・git pathspec互換）
-python3 -c "
-import json
-p='$HOME/.claude/state/active-sessions-paths.json'
-d=json.load(open(p))
-d.setdefault('entries',{})['$WT4']=['<触るファイル実パス1>','<触るファイル実パス2>']  # 文脈/ユーザーから特定・obsidian-ssot repo相対
-json.dump(d,open(p,'w'),indent=2,ensure_ascii=False)
-"
+# paths.json に WT4 エントリ追記（v3・ヘルパー書込・rename原子性+世代backup+ID_COLLISION/DEGRADED対応）
+# 既存entries保持・git pathspec互換・並列5本でも破損ゼロ検証済(revised_proposal_v3_final.md Case21)
+paths-json-update.py "$WT4" "<触るファイル実パス1>" "<触るファイル実パス2>"  # ~/.claude/scripts/session/paths-json-update.py
 ```
 
 ⚠️ **ID照合ガード（spec §4.4）**: `$WT4` が🟢行IDと一致すること必須（不一致は paths.json 書込拒否）。**🟢行→paths.json の順で必ず両方書く**（paths.jsonだけ書いて🟢行が無いと、監査が🟢宣言を拾えず誤検出になる）。

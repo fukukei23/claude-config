@@ -269,5 +269,162 @@ test_spaced_nested_input() {
 
 test_spaced_nested_input
 
+# === 宣言ベース判定（v3・2026-08-29・Case15-21） ===
+# env分離: PATHS_JSON_FILE/HEARTBEAT_DIR/PATHS_BOARD_FILE でテスト用隔离
+PATHS_ENV() {
+  printf '%s\n' "$1" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); json.dump(d, open('$2','w'), indent=2)"
+}
+
+# Case 15: 他タブ活性宣言一致+自タブ宣言外 → enforce時 exit 2
+test_other_active_block() {
+  setup
+  echo hello > f.txt; git add f.txt
+  local pj hb
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV "{\"entries\":{\"othr\":[\"$TMP_REPO/f.txt\"]}}" "$pj/paths.json"
+  : > "$hb/othr"  # 活性heartbeat
+  local rc
+  rc=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=enforce DRY_RUN=1 bash "$HOOK" >/dev/null 2>&1; echo $? )
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 2 ]; then
+    echo "FAIL Case15: expected exit 2 (other active declared) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 16: 自タブ宣言内+過大diff(50行) → blockされない(exit 0・理由付きwarn)
+test_self_declared_free() {
+  setup
+  seq 1 50 > big.txt; git add big.txt
+  local pj hb
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV "{\"entries\":{\"zzzz\":[\"$TMP_REPO/big.txt\"]}}" "$pj/paths.json"
+  local rc out
+  out=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzzzzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=enforce DRY_RUN=1 bash "$HOOK" 2>&1; echo "rc=$?" )
+  rc=${out##*rc=}
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case16: expected exit 0 (self declared) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 17: 未宣言+delta±20超 → enforce時 exit 2
+test_undeclared_block() {
+  setup
+  seq 1 25 > u.txt; git add u.txt
+  local pj hb
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV '{"entries":{}}' "$pj/paths.json"
+  local rc
+  rc=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=enforce DRY_RUN=1 bash "$HOOK" >/dev/null 2>&1; echo $? )
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 2 ]; then
+    echo "FAIL Case17: expected exit 2 (undeclared +25 lines) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 18: paths.json破損 → DEGRADEDでexit 0(通す)+警告
+test_paths_json_broken() {
+  setup
+  echo x > f.txt; git add f.txt
+  local pj hb rc out
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  printf 'THIS IS NOT JSON{{{}}}' > "$pj/paths.json"
+  out=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=enforce bash "$HOOK" 2>&1; echo "rc=$?" )
+  rc=${out##*rc=}
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 0 ] || ! echo "$out" | grep -q 'DEGRADED'; then
+    echo "FAIL Case18: expected exit 0 + DEGRADED warn got rc=$rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 19: stale宣言(12h超) → warnのみ・enforceでもblockしない
+test_stale_declared_warn() {
+  setup
+  echo hello > f.txt; git add f.txt
+  local pj hb rc out
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV "{\"entries\":{\"othr\":[\"$TMP_REPO/f.txt\"]}}" "$pj/paths.json"
+  touch -d '2 days ago' "$hb/othr"  # stale
+  out=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=enforce DRY_RUN=1 bash "$HOOK" 2>&1; echo "rc=$?" )
+  rc=${out##*rc=}
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 0 ] || ! echo "$out" | grep -q 'stale'; then
+    echo "FAIL Case19: expected exit 0 + stale warn got rc=$rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 20: 1000ファイル大repoで実行時間2秒以内
+test_perf_1000_files() {
+  setup
+  local i pj hb start end elapsed_ns
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV "{\"entries\":{\"zzzz\":[\"$TMP_REPO/f0001.txt\"]}}" "$pj/paths.json"
+  for i in $(seq -w 1 1000); do echo "line$i" > "f$i.txt"; done
+  git add f*.txt
+  start=$(date +%s%N)
+  ( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzzzzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=shadow DRY_RUN=1 bash "$HOOK" >/dev/null 2>&1 )
+  end=$(date +%s%N)
+  elapsed_ns=$(( end - start ))
+  rm -rf "$pj" "$hb"
+  if [ "$elapsed_ns" -gt 2000000000 ]; then
+    echo "FAIL Case20: elapsed ${elapsed_ns}ns > 2s (1000 files)"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 21: 書込ヘルパー並列5本でpaths.json破損ゼロ・全エントリ反映
+test_helper_parallel() {
+  local pj i ok
+  pj=$(mktemp -d)
+  export PATHS_JSON_FILE="$pj/paths.json"
+  for i in 1 2 3 4 5; do
+    python3 "$HOME/projects/claude-config/scripts/session/paths-json-update.py" "tab$i" "$pj/f$i.txt" >/dev/null 2>&1 &
+  done
+  wait
+  ok=$(python3 -c "
+import json, os
+d = json.load(open('$pj/paths.json'))
+e = d.get('entries', {})
+print(1 if all(f'tab{i}' in e for i in range(1, 6)) else 0)
+" 2>/dev/null || echo 0)
+  unset PATHS_JSON_FILE
+  rm -rf "$pj"
+  if [ "$ok" -ne 1 ]; then
+    echo "FAIL Case21: parallel writes lost entries or JSON broken"
+    FAILS=$((FAILS+1))
+  fi
+}
+
+test_other_active_block
+test_self_declared_free
+test_undeclared_block
+test_paths_json_broken
+test_stale_declared_warn
+test_perf_1000_files
+test_helper_parallel
+
 echo "All cases done. FAILS=$FAILS"
 [ "$FAILS" -eq 0 ] || exit 1

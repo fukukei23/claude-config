@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
-# git-commit-diff-check.sh — git commit の stage 内容を行数ベースで検査するPreToolUse Hook
-# ±10行超=warn(stderr/exit0)・±20行超=block(exit2)・DRY_RUN=1で全warn・SSOT_AUTO_SYNC=1で除外
-# 8/4型(他タブ48行巻き込み)事故の再発防止・spec §1
+# git-commit-diff-check.sh — git commit の stage 内容を検査するPreToolUse Hook
+# 行数判定: ±10行超=warn(stderr/exit0)・±20行超=block(exit2)・DRY_RUN=1でblock無効・SSOT_AUTO_SYNC=1で除外
+# 宣言ベース判定(v3・2026-08-29): paths.json宣言との突合
+#   (a) 他🟢タブ活性宣言一致+自タブ宣言外 → block候補
+#   (b) 全宣言外+delta>閾値(通常±20/自ID不明時±5) → block候補
+#   自タブ宣言内はblockしない(±20超は理由付きwarn)・stale宣言は案内warn
+#   PATHS_BLOCK_MODE=shadow(既定・SHADOW_BLOCKログのみ)|enforce(block発動)
+#   判定不能時はDEGRADED(通す+緊急警告) — 静かな失敗にしない
+# 守備範囲: Claude Code経由commitのみ(--no-verify/worktree/IDE/CIは監査層が担当)
+# 8/4型(他タブ48行巻き込み)事故の再発防止・spec §1 + revised_proposal_v3_final.md
 set -uo pipefail
 
 # 観測ロガー(F案・spec §1.6) — flock排他・|| true fallback・1MB rotation
@@ -127,6 +134,225 @@ REQUIRED_ACTION=git diff --cached --stat で内容確認推奨（block無・comm
 ---
 EOF
   log_append "WARN delta=${max_delta} file=${max_file} status=${file_status} exit=0"
+fi
+
+# === 宣言ベース判定（v3・revised_proposal_v3_final.md） ===
+PATHS_BLOCK_MODE="${PATHS_BLOCK_MODE:-shadow}"
+
+# 自タブID（WT_SESSION優先→CLAUDE_CODE_SESSION_ID・resume-sessionと同一フォールバック式）
+SELF_WT="${WT_SESSION:-unknown}"
+SELF_ID="${SELF_WT}"
+[ "$SELF_ID" = "unknown" ] && SELF_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
+SELF_WT4=""
+if [ "$SELF_ID" != "unknown" ]; then
+  SELF_WT4="${SELF_ID:0:4}"
+  # heartbeat自己修復touch（hookが動いた=自タブ活性の自己証明・登録漏れSPOF対策）
+  HB_DIR="${HEARTBEAT_DIR:-$HOME/.claude/state/heartbeat}"
+  ( mkdir -p "$HB_DIR" 2>/dev/null && : > "$HB_DIR/$SELF_WT4" 2>/dev/null ) || true
+fi
+
+# ID衝突検知（同一WT4で🟢行が複数=衝突疑い・ボードが一次情報源）
+ID_COLLISION=0
+BOARD_FILE="${PATHS_BOARD_FILE:-$HOME/projects/obsidian-ssot/00_SYSTEM/active-sessions.md}"
+if [ -n "$SELF_WT4" ] && [ -f "$BOARD_FILE" ]; then
+  _n=$(grep -c "^| $SELF_WT4 |.*🟢" "$BOARD_FILE" 2>/dev/null || echo 0)
+  [ "${_n:-0}" -ge 2 ] && ID_COLLISION=1
+fi
+
+# 宣言エンジン（python3・1回呼出）: paths.json parse+活性判定+突合
+# 入力: 環境変数NUMSTAT_DATAに"ins\tdel\tpath"行・argvに(self_wt4, target_dir)
+#        ※heredocがpython3のstdinを占有するためstagedデータはenv経由(R/Dは旧path・numstatの"old => new"から旧側抽出)
+# 出力: "ENGINE_STATUS=OK|JSON_ERROR|NO_ID" + 分類行 "SELF|OTHER_ACTIVE|OTHER_STALE|UNDECL\tdelta\tpath"
+engine_out=$(NUMSTAT_DATA="$numstat" python3 - "$SELF_WT4" "$TARGET_DIR" 2>/dev/null <<'PYEOF'
+import json, os, sys, time, re
+
+self_wt4 = sys.argv[1] if len(sys.argv) > 1 else ""
+target_dir = sys.argv[2] if len(sys.argv) > 2 else os.getcwd()
+paths_json = os.environ.get("PATHS_JSON_FILE") or os.path.join(
+    os.path.expanduser("~"), ".claude", "state", "active-sessions-paths.json")
+hb_dir = os.environ.get("HEARTBEAT_DIR") or os.path.join(
+    os.path.expanduser("~"), ".claude", "state", "heartbeat")
+STALE_SEC = 12 * 3600
+
+def norm(p):
+    return os.path.realpath(os.path.abspath(os.path.expanduser(p)))
+
+# staged行 → (delta, old_path) 抽出（renameの"{a => b}"/"a => b"は旧側）
+rows = []
+for line in os.environ.get("NUMSTAT_DATA", "").splitlines():
+    parts = line.rstrip("\n").split("\t")
+    if len(parts) < 3:
+        continue
+    ins, dele, path = parts[0], parts[1], parts[2]
+    if ins == "-" or dele == "-":
+        continue
+    try:
+        delta = max(int(ins), int(dele))
+    except ValueError:
+        continue
+    if "=>" in path:
+        old = path.split("=>")[0]
+        old = old.replace("{", "").replace("}", "").strip()
+        path = old
+    rows.append((delta, path))
+
+repo_root = norm(target_dir)
+
+# repoルートはgitから正確に取る(fallback: target_dir)
+import subprocess
+try:
+    repo_root = norm(subprocess.run(
+        ["git", "-C", target_dir, "rev-parse", "--show-toplevel"],
+        capture_output=True, text=True, timeout=5).stdout.strip())
+except Exception:
+    repo_root = norm(target_dir)
+
+if not self_wt4:
+    print("ENGINE_STATUS=NO_ID")
+    for d, p in rows:
+        print(f"UNDECL\t{d}\t{p}")
+    sys.exit(0)
+
+try:
+    with open(paths_json) as f:
+        data = json.load(f)
+    entries = data.get("entries", {})
+    if not isinstance(entries, dict):
+        raise ValueError("entries not dict")
+except Exception:
+    print("ENGINE_STATUS=JSON_ERROR")
+    for d, p in rows:
+        print(f"UNDECL\t{d}\t{p}")
+    sys.exit(0)
+
+now = time.time()
+
+def is_active(tab):
+    hb = os.path.join(hb_dir, tab)
+    try:
+        return (now - os.path.getmtime(hb)) < STALE_SEC
+    except OSError:
+        return False
+
+def matches(declared, abspath):
+    """完全一致 or 宣言dir配下（repoルート/全域宣言はdir展開しない・広域宣言ガード）"""
+    d = norm(declared)
+    if d in ("/", os.path.expanduser("~")) or d == repo_root:
+        return d == abspath
+    if d == abspath:
+        return True
+    return abspath.startswith(d.rstrip(os.sep) + os.sep)
+
+other_active, other_stale, self_set = set(), set(), set()
+for tab, plist in entries.items():
+    if not isinstance(plist, list):
+        continue
+    if tab == self_wt4:
+        for p in plist:
+            if isinstance(p, str):
+                self_set.add(norm(p))
+    elif is_active(tab):
+        for p in plist:
+            if isinstance(p, str):
+                other_active.add(norm(p))
+    else:
+        for p in plist:
+            if isinstance(p, str):
+                other_stale.add(norm(p))
+
+print("ENGINE_STATUS=OK")
+for d, p in rows:
+    ab = norm(os.path.join(repo_root, p))
+    if any(matches(x, ab) for x in self_set):
+        print(f"SELF\t{d}\t{p}")
+    elif any(matches(x, ab) for x in other_active):
+        print(f"OTHER_ACTIVE\t{d}\t{p}")
+    elif any(matches(x, ab) for x in other_stale):
+        print(f"OTHER_STALE\t{d}\t{p}")
+    else:
+        print(f"UNDECL\t{d}\t{p}")
+PYEOF
+)
+engine_rc=$?
+
+# DEGRADED判定: python3失敗/JSON_ERROR → 従来ヒューリスティックで既にwarn済みなので
+# 緊急警告+カウンタのみ（通す=DEGRADED・v3でfail-closed撤回）
+engine_status=$(printf '%s\n' "$engine_out" | grep -o 'ENGINE_STATUS=[A-Z_]*' | head -1 | cut -d= -f2)
+[ -z "$engine_status" ] && engine_status="ENGINE_FAIL"
+
+if [ "$engine_status" = "JSON_ERROR" ] || [ "$engine_status" = "ENGINE_FAIL" ]; then
+  _today=$(date '+%F')
+  _deg_count=$(grep -c "\[${_today}.*DEGRADED" "$LOG_FILE" 2>/dev/null || echo 0)
+  echo "[PATHS-BLOCK DEGRADED] 宣言判定エンジンが${engine_status}のため判定不能・commitは通します(要注意)" >&2
+  log_append "DEGRADED engine=${engine_status} count=$(( ${_deg_count:-0} + 1 ))"
+  if [ "${_deg_count:-0}" -ge 10 ]; then
+    echo "[PATHS-BLOCK DEGRADED] 本日${_deg_count}回超の判定不能。paths.json/python3環境を点検してください" >&2
+  fi
+  exit 0
+fi
+
+# 分類集計
+block_a=""  # 他タブ活性宣言一致+自タブ宣言外
+block_b=""  # 全宣言外+delta>閾値
+self_big="" # 自タブ宣言内+delta>20(理由付きwarn)
+stale_hit=""
+B_THRESHOLD=20
+[ "$engine_status" = "NO_ID" ] && B_THRESHOLD=5
+[ "$ID_COLLISION" -eq 1 ] && B_THRESHOLD=5
+
+while IFS=$'\t' read -r cls delta path; do
+  [ -z "$cls" ] && continue
+  case "$cls" in
+    OTHER_ACTIVE) block_a="$block_a$path " ;;
+    OTHER_STALE)  stale_hit="$stale_hit$path " ;;
+    SELF)         [ "$delta" -gt 20 ] && self_big="$self_big$path(${delta}) " ;;
+    UNDECL)       [ "$delta" -gt "$B_THRESHOLD" ] && block_b="$block_b$path(${delta}) " ;;
+  esac
+done <<< "$(printf '%s\n' "$engine_out" | grep -v 'ENGINE_STATUS')"
+
+# shadow/enforce 共通のshadowログ記録
+[ -n "$block_a" ] && log_append "SHADOW_BLOCK type=a files=${block_a% } self=${SELF_WT4:-unknown} mode=$PATHS_BLOCK_MODE collision=$ID_COLLISION"
+[ -n "$block_b" ] && log_append "SHADOW_BLOCK type=b thresh=$B_THRESHOLD files=${block_b% } self=${SELF_WT4:-unknown} mode=$PATHS_BLOCK_MODE collision=$ID_COLLISION"
+[ -n "$stale_hit" ] && log_append "SHADOW_BLOCK_STALE files=${stale_hit% } self=${SELF_WT4:-unknown}"
+
+# 自タブ宣言内の過大diff(理由付きwarn・git add .型大量混入の見える化)
+if [ -n "$self_big" ]; then
+  echo "[GIT-COMMIT-DIFF-CHECK] WARN: 自タブ宣言内の過大diff: ${self_big% }・意図した変更か確認推奨" >&2
+fi
+
+# stale宣言の案内warn
+if [ -n "$stale_hit" ]; then
+  echo "[GIT-COMMIT-DIFF-CHECK] WARN(stale): ${stale_hit% } はstale宣言(12h無活動)タブの宣言 path・占有タブの確認または🟢行✅化後に再commit推奨" >&2
+fi
+
+# ID衝突疑いの常時警告
+if [ "$ID_COLLISION" -eq 1 ]; then
+  echo "[GIT-COMMIT-DIFF-CHECK] WARN: 自タブID(${SELF_WT4})に衝突疑い(ボードに同ID🟢複数)・閾値を±5に安全側倒し" >&2
+  log_append "ID_COLLISION self=${SELF_WT4}"
+fi
+
+# block発動(enforce時のみ・shadowはログのみ)
+if [ "$PATHS_BLOCK_MODE" = "enforce" ]; then
+  if [ -n "$block_a" ] || [ -n "$block_b" ]; then
+    cat >&2 <<EOF
+[GIT-COMMIT-DIFF-CHECK]
+EXIT_CODE=2
+REASON=PATHS_BLOCK: 宣言ベースblock候補を検出
+BLOCK_REASON=他タブ活性宣言との衝突 or 未宣言+delta>${B_THRESHOLD}
+FILES_A=${block_a:-なし}
+FILES_B=${block_b:-なし}
+SELF_ID=${SELF_WT4:-unknown} MODE=$PATHS_BLOCK_MODE COLLISION=$ID_COLLISION
+REQUIRED_ACTION=(1) paths.jsonの自タブ宣言に該当pathを追加して再commit (2) 占有タブの作業完了なら🟢行を✅化 (3) それ以外は git restore --staged <file> で除外
+---
+EOF
+    log_append "BLOCK paths type=a[${block_a:-}]b[${block_b:-}] self=${SELF_WT4:-unknown} exit=2"
+    exit 2
+  fi
+fi
+
+# git commit -a 系の巻込み注意(1行)
+if printf '%s' "$cmd" | grep -qE 'git[[:space:]]+(-C[[:space:]]+("[^"]*"|[^ ;&|]+))*[[:space:]]+commit[[:space:]]+(-[a-zA-Z]*a[a-zA-Z]*|--all)'; then
+  echo "[GIT-COMMIT-DIFF-CHECK] note: -a/--all 使用時は追跡ファイル全変更がstageに乗ります・巻込み注意" >&2
 fi
 
 exit 0
