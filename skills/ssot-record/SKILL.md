@@ -540,6 +540,16 @@ PY
 
 ## フェーズ3: ファイル作成・更新
 
+### 呼称チェック（2026-08-29 spec）
+
+記録本文に「私」「ユーザー（人間を指す文脈）」が無いか生成後に確認すること:
+- 人間の行動・発言 → 「ふくけい」
+- LLMの実装・判断 → 「CC」（一人称禁止）
+- 変換は主体判定方式（「私→ふくけい」単純置換禁止）
+- 人間の発言の直接引用ブロック内の「私」は例外として残す
+- 詳細: `~/.claude/rules/_shared/呼称.md`（層1）
+
+
 > **先頭作業（必須）**: 本フェーズ開始時にフラグを作成すること。PreToolUse hook(`enforce-ssot-record.sh`)がこのフラグで「スキル経由」を判定し `01_DECISIONS/` Write を許可する。フラグなしだと手動Write扱いでブロックされる。
 > ```bash
 > mkdir -p ~/.claude/state
@@ -557,6 +567,7 @@ PY
 ---
 project: <project>
 date: YYYY-MM-DD
+writer_model: <実行中バックエンドモデル名（GLM/MiniMax等・2026-08-29 spec §6）>
 tags: [tag1, tag2, tag3]
 tech_tags: [解決課題の抽象化キーワード1, キーワード2]  # 技術実装を含む場合のみ・後述
 root_cause:
