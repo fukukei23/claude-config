@@ -109,7 +109,7 @@
     ],
     "defaultMode": "bypassPermissions"
   },
-  "model": "opus",
+  "model": "sonnet",
   "skillOverrides": {
     "record-decision": "off",
     "ab-testing": "off",
@@ -621,6 +621,7 @@
   },
   "language": "japanese",
   "effortLevel": "medium",
+  "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "theme": "auto",
   "editorMode": "normal",
@@ -652,6 +653,5 @@
     "enabled": true,
     "intervalHours": 24
   },
-  "claudeInChromeDefaultEnabled": false,
-  "tui": "fullscreen"
+  "claudeInChromeDefaultEnabled": false
 }
