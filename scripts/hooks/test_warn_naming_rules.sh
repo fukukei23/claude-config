@@ -23,4 +23,14 @@ check "end-user" 0 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/
 check "external" 0 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/20_PUBLISHING/x.md","new_string":"私が作りました"}}'
 # 7: SSOT外のファイル → 対象外（警告なし）
 check "outside" 0 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/atelier/x.md","new_string":"私が直した"}}'
+# 8: 「私は」助詞は → 警告（r2レビューGemini#1・最頻出形式）
+check "watakushi-wa" 1 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/10_DAILY/x.md","new_string":"私は実装した"}}'
+# 9: 「ユーザーは」→ 警告（r2レビューGemini#1）
+check "user-wa" 1 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/10_DAILY/x.md","new_string":"ユーザーは承認した"}}'
+# 10: MultiEdit edits配列のnew_string → 警告（r2レビューGemini#2）
+check "multiedit" 1 '{"tool_name":"MultiEdit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/10_DAILY/x.md","edits":[{"old_string":"a","new_string":"私が直した"}]}}'
+# 11: 層1ルール配下 → 対象（警告あり・r2レビューGemini#4）
+check "rules-path" 1 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/.claude/rules/_shared/呼称.md","new_string":"ユーザーが確認"}}'
+# 12: APIユーザー（第三者・r2レビューOR#4の除外ワード拡張）→ 警告なし
+check "api-user" 0 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/30_RESEARCH/x.md","new_string":"APIユーザーが増えた"}}'
 echo "PASS=$pass FAIL=$fail"; [ $fail -eq 0 ]
