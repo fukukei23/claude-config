@@ -109,6 +109,7 @@
     ],
     "defaultMode": "bypassPermissions"
   },
+  "model": "sonnet",
   "skillOverrides": {
     "record-decision": "off",
     "ab-testing": "off",
