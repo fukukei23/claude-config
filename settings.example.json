@@ -517,6 +517,10 @@
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/session/check-yagi-output.sh"
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-template-recommended.sh"
           }
         ]
       },
