@@ -36,7 +36,9 @@ DEFAULTS = {
         "model": "MiniMax-M3",
     },
     "peak_hours": {
-        "enabled": True,
+        # 2026-08-29: peak_blockは廃止ポリシー(flash 3倍クォータ)のため既定False
+        # (config喪失時に旧15-19時MiniMax強制が黙って復活するのを防止)
+        "enabled": False,
         "start_hour": 15,
         "end_hour": 19,
         "timezone_offset": 9,
