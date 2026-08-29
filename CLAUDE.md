@@ -78,6 +78,8 @@ LLM（ホスト自身含む）のサボり（省略/楽観/迎合/検証回避�
 
 @rules/_shared/LLMサボりバイアス防止.md
 
+@rules/_shared/呼称.md
+
 ## SSOT（共通知識ベース）
 - 場所: `//wsl.localhost/Ubuntu/home/yn4416/projects/obsidian-ssot/`
 - **SSOTを参照する時はまず `00_SYSTEM/全体マップ_MOC.md` から入ること**
