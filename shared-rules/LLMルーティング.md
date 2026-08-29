@@ -1,5 +1,19 @@
-# このファイルの実体はSSOTにあります
-実体: /home/yn441611/vaults/SSOT/00_SYSTEM/shared-rules/LLMルーティング.md
+# LLMルーティング（共通）
 
-GitHub: https://github.com/fukukei23/claude-config/blob/main/shared-rules/LLMルーティング.md
-※ Obsidianで管理。編集はSSOTで行うこと。
+## 優先順位
+| 優先 | モデル | バッジ | いつ |
+|---|---|---|---|
+| 1（デフォルト）| GLM | 🟡[GLM] | 全般タスク |
+| 2（フォールバック）| MiniMax | 🟠[MiniMax] | GLM失敗・大量処理 |
+| 3（最終）| Sonnet | 🔵[Sonnet] | ふくけい許可時のみ |
+
+## 環境別の核心（厳守）
+- **WSL CLI版**: セッション自体がGLM動作中。外部LLM（glm_ask等）の呼び出しは不要・不可
+- **Windows デスクトップアプリ版**: 常にSonnet動作（LLM変更不可）。GLM/MiniMaxはMCP経由の外部LLM
+
+## 共通厳守
+- Sonnet直接使用は事前ふくけい許可必須
+- バッジを毎レスポンスの冒頭・末尾に表示
+
+## 参照
+- 詳細: `00_SYSTEM/共通ルール/LLMルーティング.md`
