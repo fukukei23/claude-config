@@ -343,6 +343,10 @@
           {
             "type": "command",
             "command": "~/.claude/scripts/hooks/guard-config-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/scripts/hooks/warn-naming-rules.sh"
           }
         ]
       },
