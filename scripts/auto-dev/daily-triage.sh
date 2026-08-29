@@ -103,4 +103,34 @@ if [ "$rc" -eq 124 ]; then
   echo "[daily-triage] 全体タイムアウト(${PY_TIMEOUT}s)で停止しました。" >&2
   log_rescue "TIMEOUT 全体${PY_TIMEOUT}s超過で停止"
 fi
+
+# === 期限付き先送りリマインダー整合チェック（層2機械検証・2026-08-29 revised_proposal_v4） ===
+# バックログの期限付き[ ]行について「cron ID未記載」「due日超過」を警告しtoday-tasks.md末尾に追記。
+# LLMが層1ルール(記録.md)を読んでもCronCreateを実行し忘れた場合の翌朝検知が目的。
+BACKLOG="${DAILY_TRIAGE_BACKLOG:-$HOME/projects/obsidian-ssot/00_SYSTEM/バックログ.md}"
+TODAY_TASKS="${TODAY_TASKS:-$HOME/.claude/state/today-tasks.md}"
+if [ -f "$BACKLOG" ] && [ "$rc" -eq 0 ] && [ "${DAILY_TRIAGE_SKIP_REMINDER_CHECK:-0}" != "1" ]; then
+  _warn=""
+  _today=$(date '+%F')
+  # 期限表現を含む[ ]行 + その直後2行(進捗メモ)にcron ID(8桁hex)が無ければ警告
+  while IFS= read -r line; do
+    _ln=${line%%:*}
+    _body=${line#*:}
+    _ctx=$(sed -n "$((_ln+1)),$((_ln+2))p" "$BACKLOG" 2>/dev/null)
+    if ! printf '%s\n%s\n' "$_body" "$_ctx" | grep -qE 'cron [0-9a-f]{8}|cb7e1200'; then
+      if printf '%s' "$_body" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}'; then
+        _due=$(printf '%s' "$_body" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+        if [ "$_due" \< "$_today" ]; then
+          _warn="${_warn}- ⏰ 期限超過+cron未記載: L${_ln} (due=${_due}) $(printf '%s' "$_body" | cut -c1-60)\n"
+        fi
+      fi
+    fi
+  done < <(grep -nE '^- \[ \].*(期限|満了|[0-9]+日後|観察期間)' "$BACKLOG" 2>/dev/null)
+  if [ -n "$_warn" ] && [ -f "$TODAY_TASKS" ]; then
+    printf '\n## ⏰ 期限付き先送りリマインダー整合チェック[auto]\n' >> "$TODAY_TASKS"
+    printf "$_warn" >> "$TODAY_TASKS"
+    printf '%s\n' "$_warn" >&2
+  fi
+fi
+
 exit "$rc"
