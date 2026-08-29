@@ -28,9 +28,9 @@ user-invocable: true
 ### 2. モデル選定（全用途 nemotron・2026-07-25 ベンチマーク反映）
 | purpose | モデル |
 |---|---|
-| `code` / `design` / `general`（全用途同一） | `nvidia/nemotron-3-super-120b-a12b:free`（ベンチマーク3審査員一致で全軍首位・詳細: `30_RESEARCH/llm-models/snapshots/2026-07-25_OpenRouter-freeモデル性能比較ベンチマーク.md`） |
+| `code` / `design` / `general`（全用途同一） | `bash ~/bin/openrouter-free-pick.sh` のstdout（JSON契約 `{model, cost_tier, params}`）・`params`のみAPIペイロードへマージ。モデルslugはハードコード禁止（自動検知cronが日次更新・spec: `docs/superpowers/specs/2026-08-28-OpenRouter無料モデル自動検知-pick設計-design.md`） |
 
-> **2026-07-25 改修（合成案A′）**: 用途別選定を廃止（旧 code=north-mini-code/design=gpt-oss-20b はベンチで否定・gpt-oss-20bは思考トークン汚染+3倍遅・north-mini-codeはセキュリティ検出率最低）。`--purpose` は将来の新型追加用にパラメータ残置（現状は全て同一モデルにフォールバック）。`--model <slug>` で上書き可・`--mode dual` で2機並列・**退役時は `/api/v1/models` で最新 slug 確認**。
+> **2026-07-25 改修（合成案A′）**: 用途別選定を廃止（旧 code=north-mini-code/design=gpt-oss-20b はベンチで否定・gpt-oss-20bは思考トークン汚染+3倍遅・north-mini-codeはセキュリティ検出率最低）。`--purpose` は将来の新型追加用にパラメータ残置（現状は全て同一モデルにフォールバック）。`--model <slug>` で上書き可・`--mode dual` で2機並列。2026-08-29: モデル選定はpick.sh契約へ移行（--purpose由来の選定は廃止）。実呼出失敗時は --exclude で次候補へ1回再試行し、log-resultで成否記録
 
 ### 3. OpenRouter curl 直叩き（モデル数分・並列）
 ```bash
@@ -71,7 +71,7 @@ curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authoriz
 
 ## 失敗時
 - **401**: `source ~/.secrets.env` 失敗 → 中断・手順案内
-- **429 / 空応答 / タイムアウト**: **自動でフォールバックモデル `cohere/north-mini-code:free` に切替し再実行**（合成案A′・品質は落ちるがレビューは届く・nemotron と別プロバイダで多様性も確保）。フォールバック先でも失敗なら「観点絞りで再実行」を案内
+- **429 / 空応答 / タイムアウト**: **`bash ~/bin/openrouter-free-pick.sh --exclude <失敗model>` で次候補へ切替し再実行**（同じ死んだモデルへ再試行しない・r3レビュー契約）。呼出後 `bash ~/bin/openrouter-free-pick.sh log-result <model> ok|fail <reason>` で成否記録。フォールバック先でも失敗なら「観点絞りで再実行」を案内
 - **dual で 1/2 失敗**: 残りの指摘のみで A′（縮退）
 
 ## 棲み分け

@@ -44,7 +44,7 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 - ホスト自身はレビュアーに含めない（自己レビューは多様性ゼロ）
 - ホスト以外の利用可能LLM全部を自動呼出（利用不能LLMは discover で検知してスキップ）
-- **triple 時の OpenRouter 機選定**: purpose 別（`code`=cohere/north-mini-code:free / `design`=openai/gpt-oss-20b:free / `general`=nvidia/nemotron-3-super-120b-a12b:free・liteと共通）。退役時は `/api/v1/models` で最新 slug 確認
+- **triple 時の OpenRouter 機選定（spec v3契約・2026-08-29）**: `bash ~/bin/openrouter-free-pick.sh` のstdout（JSON契約 `{model, cost_tier, params}`）を使用。**`params` キーのみを抽出してAPIペイロードへマージ**（reasoning無効化忘れの構造的封じ）。モデルslugはハードコード禁止（自動検知cronが候補リストを日次更新・spec: `docs/superpowers/specs/2026-08-28-OpenRouter無料モデル自動検知-pick設計-design.md`）。実呼出失敗（429/空応答/タイムアウト）時は `bash ~/bin/openrouter-free-pick.sh --exclude <失敗model>` で次候補を1回だけ再試行し、呼出後に `bash ~/bin/openrouter-free-pick.sh log-result <model> ok|fail <reason>` を必ず実行（2位昇格の実績データ）
 
 ## 🔐 機密情報の取り扱い（必須・冒頭確認）
 
@@ -89,7 +89,7 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 | 状況 | 挙動 |
 |---|---|
 | **401** | 永続スキップ（鍵の問題なのでモデルを替えても直らない）。`source ~/.secrets.env` の失敗も疑う |
-| **429 / 空応答 / タイムアウト** | **フォールバックモデルへ自動切替して1回だけ再実行**（OpenRouter は `cohere/north-mini-code:free`・別プロバイダを選び多様性も確保）。フォールバック先でも失敗したら観点を絞って再実行を案内 |
+| **429 / 空応答 / タイムアウト** | **`openrouter-free-pick.sh --exclude <失敗model>` で次候補へ自動切替して1回だけ再実行**（同じ死んだモデルへ再試行しない・r3レビュー契約）。呼出後 `log-result` で成否を記録。フォールバック先でも失敗したら観点を絞って再実行を案内 |
 | **`content` が空で `finish_reason: length`** | 思考枠切れ（`thinking_overflow`）。`reasoning:{enabled:false}` の付け忘れをまず疑う。付けても再発するならプロンプト短縮 |
 
 > **フォールバックを使った round は `round_id` の先頭に `fb-` を付ける**（例: `fb-20260822-031500`）。移植直後に異常が出た時、「フォールバックの実挙動」なのか「記録側のバグ」なのかを切り分けるための目印（spec §9）。
@@ -101,10 +101,10 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 |---|---|---|---|
 | MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨・**⚠️レビュー対象（コード/文章）は本文インライン渡し必須・ファイルパス渡し禁止**（テキスト生成APIはローカルファイルを読めないため・下記⚠️⚠️参照・2026-08-28実証） |
 | Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
-| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（purpose別選定）・`max_tokens=2000`＋**`"reasoning": {"enabled": false}` 必須**（下記⚠️）・既存 lite のcurl手順を流用 |
+| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（`openrouter-free-pick.sh` の戻り値JSON契約・paramsのみマージ）・`max_tokens=2000`＋**`"reasoning": {"enabled": false}` 必須**（下記⚠️）・既存 lite のcurl手順を流用 |
 
 > ⚠️ **OpenRouter には `"reasoning": {"enabled": false}` を必ず付ける（2026-08-21 実測・付けないと5連敗する）**
-> free枠モデル（`cohere/north-mini-code:free` / `openai/gpt-oss-20b:free` 等）は**思考を `content` ではなく `reasoning` フィールドへ出力**し、思考が `max_tokens` を食い尽くして `content: null` / `finish_reason: length` のまま終わる。抽出コードが読む `message.content` は常に空になり、「200が返っているのに指摘0件」という**原因の見えない全滅**を起こす。
+> free枠の思考系モデル（cohere系・openai gpt-oss系等・具体slugはpick.shの戻り値参照）は**思考を `content` ではなく `reasoning` フィールドへ出力**し、思考が `max_tokens` を食い尽くして `content: null` / `finish_reason: length` のまま終わる。抽出コードが読む `message.content` は常に空になり、「200が返っているのに指摘0件」という**原因の見えない全滅**を起こす。
 > かつて本表に「思考モデルでないので8000不要」と書いていたのは**誤り**（実測で否定済み）。
 > 診断手順: `30_RESEARCH/LLMモデル/2026-08-21_思考出力の落とし穴-reasoning-thinkによる本文欠落.md`
 | Windows版 GLM | glm-rate-proxy or MCP経由 | プロキシ設定 | WSL版ホスト=GLM自身は呼ばない |
