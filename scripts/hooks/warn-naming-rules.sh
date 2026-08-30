@@ -16,7 +16,7 @@ try:
 except Exception:
     print(""); sys.exit(0)
 ti = d.get("tool_input", {})
-fp = ti.get("file_path", "") or ""
+fp = (ti.get("file_path", "") or "").replace("\\", "/")  # Windows Desktop版のパス区切り正規化(2026-08-30)
 # 対象パス判定（obsidian-ssot / .claude/rules / claude-config）
 if not ("obsidian-ssot" in fp or "/.claude/rules" in fp or fp.startswith(".claude/rules") or "claude-config" in fp):
     print(""); sys.exit(0)

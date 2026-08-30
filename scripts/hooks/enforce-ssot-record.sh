@@ -82,6 +82,11 @@ is_skill_active() {
     fi
 }
 
+# Windows Desktop版のパス区切り正規化（2026-08-30）
+# Windows Desktop版は file_path を "\\\\wsl.localhost\\Ubuntu\\..." と
+# バックスラッシュ区切りで渡すため、下の *01_DECISIONS/* に一致せず素通りしていた。
+FILE_PATH=$(printf '%s' "$FILE_PATH" | tr '\\' '/')
+
 # 01_DECISIONS 配下でなければ許可
 case "$FILE_PATH" in
     *01_DECISIONS/*)

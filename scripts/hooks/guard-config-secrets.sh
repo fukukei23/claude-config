@@ -26,7 +26,7 @@ except Exception:
     sys.exit(0)  # パース不能は許可（他hookに任せる）
 
 ti = d.get("tool_input", d)
-fp = ti.get("file_path", "") or ""
+fp = (ti.get("file_path", "") or "").replace("\\", "/")  # Windows Desktop版のパス区切り正規化(2026-08-30)
 
 # 対象外は許可
 if "01_DECISIONS/claude-code/設定ファイル/" not in fp:
