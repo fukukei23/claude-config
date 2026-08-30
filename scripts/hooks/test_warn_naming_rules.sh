@@ -33,4 +33,6 @@ check "multiedit" 1 '{"tool_name":"MultiEdit","tool_input":{"file_path":"/home/y
 check "rules-path" 1 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/.claude/rules/_shared/呼称.md","new_string":"ユーザーが確認"}}'
 # 12: APIユーザー（第三者・r2レビューOR#4の除外ワード拡張）→ 警告なし
 check "api-user" 0 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/30_RESEARCH/x.md","new_string":"APIユーザーが増えた"}}'
+# 13: 同行混在（エンドユーザー＋私が）→ 警告あり（r3レビューGemini#1 criticalの回帰テスト）
+check "mixed-line" 1 '{"tool_name":"Edit","tool_input":{"file_path":"/home/yn4416/projects/obsidian-ssot/10_DAILY/x.md","new_string":"エンドユーザーの要件を確認し、私が実装しました"}}'
 echo "PASS=$pass FAIL=$fail"; [ $fail -eq 0 ]

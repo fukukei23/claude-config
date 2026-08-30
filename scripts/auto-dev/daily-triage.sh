@@ -128,7 +128,7 @@ if [ -f "$BACKLOG" ] && [ "$rc" -eq 0 ] && [ "${DAILY_TRIAGE_SKIP_REMINDER_CHECK
   done < <(grep -nE '^- \[ \].*(期限|満了|[0-9]+日後|観察期間)' "$BACKLOG" 2>/dev/null)
   if [ -n "$_warn" ] && [ -f "$TODAY_TASKS" ]; then
     printf '\n## ⏰ 期限付き先送りリマインダー整合チェック[auto]\n' >> "$TODAY_TASKS"
-    printf "$_warn" >> "$TODAY_TASKS"
+    printf '%b' "$_warn" >> "$TODAY_TASKS"
     printf '%s\n' "$_warn" >&2
   fi
 fi
