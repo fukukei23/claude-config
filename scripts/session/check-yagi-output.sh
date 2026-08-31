@@ -3,8 +3,11 @@
 # sentaku等の推奨案を含む応答で、サボりバイアス防止4項目（反証シナリオ/最悪ケース/
 # 見送った案の再評価点/省略デメリット）のいずれかが欠けている場合、
 # 1回だけstopを差戻して併記を促す（rules/_shared/LLMサボりバイアス防止.md 実行前チェックの機械的担保・2026-08-27新設）。
+# 2026-08-31追加: 重み付き工数軸（「工数…(×N)」形式）の検知も差戻し対象
+#   （sentaku L2「⛔工数系軸は既定で0」節の機械的担保・LLM自身の作業工数はふくけいが被らない不利益のため）
 # 誤検知対策: ①同一メッセージへの差戻しは1回限定(hashガード) ②推奨案を含まない応答は無視
 #   ③理由文に「誤検知ならそのまま終了可」を明記（check-plain-explanation.sh と同形式）
+#   ④工数検知は「重み付き(×N)形式」に限定（通常文中の工数言及・高/中/低表記は対象外）
 # 層構造（平易解説hook準拠）:
 #   H層=CLAUDE_DISABLE_YAGI_CHECK=1 で無条件exit（明示オプトアウト・機械呼び出し側が申告）
 #   F層=実userメッセージが1個以下のtranscriptは機械呼び出し(claude --print)と判定して素通り
@@ -27,7 +30,18 @@ fi
 PAYLOAD_JSON="$(cat)"
 
 exec env PAYLOAD_JSON="$PAYLOAD_JSON" MIN_LEN="$MIN_LEN" GUARD_DIR="$GUARD_DIR" python3 - <<'PYEOF'
-import sys, json, os, hashlib
+import sys, json, os, hashlib, re
+
+# 重み付き工数軸検知（sentaku L2「⛔工数系軸は既定で0」節・2026-08-31 ふくけい指示）:
+# 「工数少なさ(×2)」「工数(×1)」等のマトリクス軸行形式のみ対象。
+# 2026-08-31 第2指示: 「即効性」「所要時間」等への語彙替えは挙動同一のため同様に検知対象
+# （「工数行を即効性に差替して重みを足せば同じ」との指摘で確定）。
+# 「工数がかかる」等の通常言及は対象外。ユーザー明示の例外（×1上限）は機械判別不能のため
+# 差戻しメッセージに「例外なら要点添付で終了可」を明記して運用で回収。
+_EFFORT_WORDS = (r'工数|即効性|所要時間|作業コスト')
+EFFORT_AXIS_RE = re.compile(
+    rf'({_EFFORT_WORDS})[^\n|()（）]*[（(]\s*×\s*[0-9]'
+)
 
 payload = json.loads(os.environ['PAYLOAD_JSON'])
 min_len = int(os.environ['MIN_LEN'])
@@ -108,9 +122,10 @@ if not any(m in last_text for m in trigger_markers):
     sys.exit(0)  # 推奨案を含まない応答は対象外
 
 missing = [label for label, kw in required_markers.items() if kw not in last_text]
-if not missing:
+effort_hit = EFFORT_AXIS_RE.search(last_text)
+if not missing and not effort_hit:
     _dispatch('all-markers-present')
-    sys.exit(0)  # 4項目すべてあり
+    sys.exit(0)  # 4項目すべてあり・重み付き工数軸なし
 
 # F層（副防御）: 実user 1個以下 = 機械呼び出し(claude --print)と判定して素通り。
 # 誤判定（人間の単発初回ターン）の実害は「指摘が1回付かない」のみ（hook導入前と同じ・機能破壊でない）。
@@ -127,14 +142,31 @@ if os.path.exists(guard_file) and open(guard_file).read().strip() == h:
 with open(guard_file, 'w') as f:
     f.write(h)
 
-reason = (
-    '推奨案へのサボりバイアス防止項目の欠落可能性: 推奨案を含む応答ですが '
-    '次の項目が見つかりません: ' + '・'.join(missing) + '。'
-    'sentaku SKILL.md「禁止事項」および rules/_shared/LLMサボりバイアス防止.md「実行前チェック」に従い、'
-    '推奨には「反証シナリオ1つ＋最悪ケース＋見送った案の再評価点＋省略デメリット」を併記してください。'
+parts = []
+if missing:
+    parts.append(
+        '推奨案へのサボりバイアス防止項目の欠落可能性: 推奨案を含む応答ですが '
+        '次の項目が見つかりません: ' + '・'.join(missing) + '。'
+        'sentaku SKILL.md「禁止事項」および rules/_shared/LLMサボりバイアス防止.md「実行前チェック」に従い、'
+        '推奨には「反証シナリオ1つ＋最悪ケース＋見送った案の再評価点＋省略デメリット」を併記してください。'
+    )
+if effort_hit:
+    parts.append(
+        '工数系軸（語彙替え含む: 工数/即効性/所要時間/作業コスト）の重み付き使用の可能性: '
+        '推奨案の応答で「工数系…(×N)」形式の評価軸が検出されました。'
+        'sentaku SKILL.md L2「⛔工数系軸は既定で0」節に従い、工数系軸とその語彙替えは既定で立てません'
+        '（LLM自身の作業負担はふくけいが被らない不利益・「今日終わるか」は即効性軸でなくスコープ分割の前段処理で扱う）。'
+        'ユーザーが明示要求した例外（重み×1上限）の場合は、その旨を要点に添えてそのまま終了して構いません。'
+    )
+reason = ' '.join(parts) + (
     '（比較や推奨でない応答等の誤検知なら、そのまま終了して構いません・この差戻しは1回だけです）'
 )
-_dispatch('blocked:' + ','.join(missing))
+blocked_tag = 'blocked:' + (
+    (('missing:' + ','.join(missing)) if missing else '') +
+    ('+' if (missing and effort_hit) else '') +
+    ('effort-axis' if effort_hit else '')
+)
+_dispatch(blocked_tag)
 print(json.dumps({'decision': 'block', 'reason': reason}, ensure_ascii=False))
 sys.exit(0)
 PYEOF
