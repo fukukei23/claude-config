@@ -10,7 +10,11 @@ TITLE="${1:-}"
 STATE="/home/yn4416/.claude/scripts/auto-dev/state.json"
 LOG="/home/yn4416/.claude/scripts/auto-dev/loop.log"
 VERIFY_FBACK="/home/yn4416/.claude/scripts/auto-dev/verify-result.txt"  # フォールバック(current.task_id無し時)
+# claude CLI解決: fnm旧パス→nvm現行→PATH（daily_triage.py _resolve_claude_binと同方針・2026-08-31 rot対策）
 CLAUDE="/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/claude"
+[ -x "$CLAUDE" ] || CLAUDE="/home/yn4416/.nvm/versions/node/v24.16.0/bin/claude"
+[ -x "$CLAUDE" ] || CLAUDE="$(command -v claude)"
+[ -n "$CLAUDE" ] || { echo "[run-task] claude CLIが見つかりません" >> "$LOG"; exit 1; }
 SS="/home/yn4416/.claude/scripts/auto-dev/state_store.py"
 SS_PYSPATH="/home/yn4416/.claude/scripts/auto-dev"
 

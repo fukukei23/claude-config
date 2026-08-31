@@ -110,6 +110,21 @@ else
     fi
   fi
 fi
+# 自己駆動ループ状態（Step 4a-2で使用・2026-08-31追加）
+python3 -c "
+import json
+s = json.load(open('/home/yn4416/.claude/scripts/auto-dev/state.json'))
+print('LOOP: active=%s mode=%s running=%s pending=%d current=%s blocked=%d completed=%d' % (
+    s.get('active'), s.get('mode'), s.get('running'), len(s.get('pending', [])),
+    bool(s.get('current')), len(s.get('blocked', [])), len(s.get('completed', []))))"
+TODAY_TASKS="$HOME/.claude/state/today-tasks.md"
+if [ -f "$TODAY_TASKS" ]; then
+  GEN=$(grep -oP '^<!-- generated_at: \K[^\s>]+' "$TODAY_TASKS" | head -1)
+  CNT=$(grep -cE '^[0-9]+\. \*\*' "$TODAY_TASKS")
+  echo "TRIAGE: today-tasks あり（生成: ${GEN:-不明}・候補${CNT}件）"
+else
+  echo "TRIAGE: today-tasks なし（Daily Triage未実行・bash ~/.claude/scripts/auto-dev/daily-triage.sh で生成可）"
+fi
 ```
 
 ---
@@ -160,6 +175,7 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 ℹ️ 他候補: バックログ.md 参照（P1: N件 / P2: M件）
 📝 WIP構想: <直近handoffの「WIP構想一覧」欄・バックログ.md実体と突合>
 📝 リフレクション検知: <Step1 の RFL_PENDING / RFL_STALE / RFL_ESC1〜3 / RFL_OK_NEW 出力に応じて表示: RFL_PENDING=最優先で承認要求・RFL_ESC3=3択強制提示・RFL_ESC2=サマリー冒頭で再提示・RFL_ESC1=選択肢先頭・RFL_OK_NEW=1行提案・出力なしゲート通過時は表示しない（alert fatigue回避）・RFL:停止宣言済みなら「リフレクション再開」選択肢のみ>
+🔁 自己駆動ループ: <Step1 の LOOP/TRIAGE 出力を1行で表示（例: 「待機中（active=False）・今日のTriage候補5件」）。**active=True で稼働中の場合はサマリー冒頭に目立たせて表示**（「⚠️ 自己駆動ループ稼働中・current=<タスク名>」）・TRIAGE なしなら「Daily Triage未実行（生成可）」>
 
 > ⚠️ 候補は handoff ではなく**バックログ.md が正典**。handoffの「次タスク候補」は廃止済み（完了済みが混入するため）。
 
@@ -198,6 +214,52 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 
 - 続ける → そのタスクを占有
 - 別タスク → 占有せず（前回タスクはバックログに残置）
+
+### 4a-2. 自己駆動ループの起動確認（2026-08-31 追加・auto連続既定）
+
+Step1で取得した `LOOP:` / `TRIAGE:` 出力を使い、タスク選択の流れの中で**1回だけ**確認する。
+「毎朝の Daily Triage が Discord 通知だけで終わる」問題の解消導線（Triage→承認→自動実行までを朝の挨拶で完結させる）。
+
+**表示**:
+> 🔁 自己駆動ループ: 今日のTriage候補（N件）から自動実行するタスクをキューに入れられます
+> （実装→**別コンテキスト検証**→次タスク自動起動・**最大3件で自動停止**）。回しますか？
+> - **番号指定**（例: `1,3`）でキュー投入
+> - **スキップ**（既定・何もしない）
+
+**yes の場合の実行手順（全て必須・省略しない）**:
+
+1. **稼働中チェック**: Step1の LOOP 出力で `running=True` または `current=True` なら**起動せず中止して報告**する
+   （根拠: `approve.py` の `_init_state` は state.json を**無条件再構築**するため・稼働中の再承認は実行中タスクを破壊する）
+2. **鮮度チェック**: TRIAGE の生成日が**当日**でなければ「today-tasks が古い（<日付> 生成）」と警告し、
+   `bash ~/.claude/scripts/auto-dev/daily-triage.sh` の再実行を提案してから承認を取る
+3. **テスト方針ドラフト（CCがドラフト・2026-08-31ふくけい決定）**: 指定番号の各タスクについて方針をドラフトして一括提示する
+   （`1=テスト追加 / 2=既存テストで網羅 / 3=該当なし+理由20字以上`・ドキュメント/設定/調査系は「3=該当なし: <理由>」を提案）。ふくけいが修正可・**空白は起票不可**（F層）
+4. **非対話実行**: 番号と方針を stdin で渡して起動する。（手動）タスク・repo実在なしは approve.py が自動除外する旨も伝える:
+   ```bash
+   printf '<番号,区切り>\n<方針1>\n<方針2>\n' | python3 ~/.claude/scripts/auto-dev/approve.py
+   ```
+   ⚠️ **パイプで繋がない**（`approve.py | tail` 等・2026-08-31実測でハング: setsid切り離し子がstdoutパイプを握りtailがEOF待ち・2分タイムアウト）。出力を絞りたい場合はリダイレクトで
+5. **連続実行への切替（既定auto・2026-08-31ふくけい決定）**: approve.py 単体は mode=manual で**1件だけ**起動する
+   （`next_issue.py` の Stop hook 連鎖は mode=auto でしか働かない・next_issue.py:121/130/193）。
+   **キュー全体を自動消化するには起動直後に必ず実行**:
+   ```bash
+   bash ~/.claude/scripts/auto-dev/set-mode.sh auto
+   ```
+   ⚠️ 1件ずつ人間承認したい場合のみ mode=manual のままにする
+6. **完了監視ワンショットcronの発行（必須・2026-08-31追加）**: 「終わったらまた話しかけてね」を禁止し、CCが自分で確認しに行く予約を仕掛ける。
+   - **発行タイミング**: 手順5の直後（報告を出す前に発行まで完了させる）
+   - **発火時刻**: 投入タスクの想定コスト目安 + 余白（S=15分後・M=30分後・L=60分後・:00/:30回避）
+   - **prompt必須5要素（冪等に書く）**: ①状態確認コマンド（`state.json` の running/completed/blocked + `loop.log` 末尾 + `ps -p <run-task PID>`）②判定基準（running=False=完了 / True=待機継続）③達成時の次アクション（成果物実測→state整合確認→バックログ反映提案→ssot-record）④背景1行 ⑤正典リンク（loop.log・TASK_DIR）
+   - **待機継続時**: 進捗ログ1行を確認してふくけいに簡報告→**同様のワンショットcronを再発行**（延長はmax 3回・以降はDiscord完了通知頼み）
+   - **限界の明示**: 発行するcronは session-only（セッションを閉じると消える）。ふくけいに1行伝える:「本セッションを閉じると監視予約は消える（ループ完了のDiscord通知は別途飛ぶ）」
+7. **停止方法の常時表示**: 報告に1行添える —
+   「止める: `bash ~/.claude/scripts/auto-dev/set-mode.sh manual`（実行中タスクは完了待ち・max 3件/キュー空で自動停止）」
+
+**安全装置（実測根拠つき・省略禁止）**:
+- `approve.py` `_init_state` は pending/completed/blocked を**全て初期化** → 手順1の稼働中チェックは省略禁止
+- `max_tasks_per_session: 3`（auto-loop-config.yaml）で自動停止・検証NGは blocked 停止＝無限ループ構造なし
+- TDDゲート（tdd_gate）は `test_gate_repos`（NexusCore/atelier）のみ有効・他repoは run-task.sh の別コンテキスト検証のみ
+- 実行先repoが他セッション🟢行と重なる場合、着手前に active-sessions.md で soft 警告（通常のタスク占有ルール準拠）
 
 ### 4b-0. stale🟢警告の確認（SessionStart hook 経由・2026-07-25 L98）
 
@@ -298,6 +360,7 @@ handoffファイルはWSL CLI版が`~/projects/...`形式のWSLパスで書く�
 | Step 2 (Read) | Readツール | LLM不要 |
 | Step 3 (復元サマリー生成) | 🟡[GLM] | テキスト生成 |
 | Step 4 (ボード宣言+タスク占有) | 🟡[GLM] | 🟢行追加(単一表)・続きやる？・✅行GC・即push |
+| Step 4a-2 (自己駆動ループ起動確認) | 🟡[GLM] | LOOP/TRIAGE表示・稼働中チェック→鮮度チェック→方針ドラフト→approve.py非対話実行→set-mode.sh auto・停止法表示（2026-08-31追加） |
 
 ## 関連
 
