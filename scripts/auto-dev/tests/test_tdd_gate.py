@@ -408,3 +408,11 @@ def test_evaluate_gate_モック含有率高は警告のみで合格():
     )
     assert result["passed"] is True
     assert any("モック含有率" in r for r in result["warnings"])
+
+
+def test_extract_test_category_with_bold_decoration():
+    """2026-09-01 Q5実発: LLMが**太字**装飾を付けてもテスト区分を抽出できる。"""
+    from tdd_gate import extract_test_category
+    assert extract_test_category("テスト区分: **新規追加**（既存への小幅修正を伴う）") == "新規追加"
+    assert extract_test_category("テスト区分:**既存修正**") == "既存修正"
+    assert extract_test_category("テスト区分: 対象外") == "対象外"

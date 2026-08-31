@@ -26,7 +26,7 @@ TEST_CATEGORIES = ("新規追加", "既存修正", "対象外")
 # テストファイル判定: test_*.py / *_test.py / tests(s)_ ディレクトリ配下
 _TEST_BASE_RE = re.compile(r"^test_|^test$|_test$|^test\b")
 GREEN_RE = re.compile(r"(\d+)\s+passed")
-CATEGORY_RE = re.compile(r"テスト区分[:：]\s*(新規追加|既存修正|対象外)")
+CATEGORY_RE = re.compile(r"テスト区分[:：]\s*\**\s*(新規追加|既存修正|対象外)")  # **太字**装飾許容（2026-09-01 Q5実発: LLMが装飾付き出力し機械検証誤NG）
 COVERAGE_100_RE = re.compile(r"coverage[^0-9]{0,6}100", re.IGNORECASE)
 
 
