@@ -333,8 +333,11 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 
 ## 出力（2ファイル・デフォルトパス）
 
-- **報告時の平易な解説併記（必須）**: 統合結果をユーザーに提示する時は、専門説明の後に素人にもわかる一言（💡一言でいうと）を必ず併記する（CLAUDE.md平易解説ルール）
-- **デフォルト出力先**: `./multi-llm-review_<timestamp>/`
+- **報告時の平易な解説併記（必須）**: 統合結果をふくけいに提示する時は、専門説明の後に素人にもわかる一言（💡一言でいうと）を必ず併記する（CLAUDE.md平易解説ルール）
+- **デフォルト出力先（2026-08-31正典化・厳格）**: `~/projects/obsidian-ssot/00_SYSTEM/マルチLLMレビュー/YYYY-MM-DD_<トピック>/`
+  - **カレントディレクトリ（プロジェクトrepo内等）への出力は台帳集計対象外**（2026-08-31 x-automation r1/r2ですり抜けた実例・ふくけい指摘で正典化）。プロジェクトrepo側に置きたい場合は副本扱いとし、正典側にも必ず保存
+  - **review終了時に集計スクリプトを実行する（Step 9・省略不可）**: `python3 ~/projects/claude-config/scripts/obsidian/aggregate_judgment_ledger.py`
+  - **機械強制（2026-08-31）**: Stop hook `check-mlr-ledger-coverage.sh` が「本日の minimax/gemini 呼出があるのに台帳に本日行が無い」状態を差戻す（lite等の例外は免除フラグ `~/.claude/state/mlr-ledger-exempt-YYYY-MM-DD` で通す）
 - **改訂案**（`revised_proposal.md`）: 本文（元案構造保持）＋**却下サマリ**＋「根拠 Y」。Step6.5成立時は冒頭に**集団サボりバイアス疑義の行動可能警告**（反証シナリオ+再確認推奨）を機械挿入
 - **review_log.md**: 全指摘の `{LLM, issue, severity(正規化), quote, decision(採用/却下/保留), reason}`（重要度順・上位Nを本体・残りは折りたたみ/参照リンク）。**decision 行のフォーマット例**: `decision: 採用 / reason: [当初目的:X]の要件R3を満たすため・quote Yが該当`（判断が目的から演繹であることを追跡可能に・spec尊重却下も理由1行で明記）
 

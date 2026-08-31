@@ -7,8 +7,8 @@
     "API_TIMEOUT_MS": "1200000",
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787",
-    "ANTHROPIC_AUTH_TOKEN": "***MASKED***",
-    "BRAVE_API_KEY": "***MASKED***",
+    "ANTHROPIC_AUTH_TOKEN": "",
+    "BRAVE_API_KEY": "",
     "MCP_TOOL_TIMEOUT": "300000",
     "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
     "DISABLE_AUTO_COMPACT": "1"
@@ -641,8 +641,9 @@
         "/home/yn4416/.claude/scripts/mcp/start-brave-search.sh"
       ],
       "env": {
-        "BRAVE_API_KEY": "***MASKED***"
-      }
+        "BRAVE_API_KEY": ""
+      },
+      "headers": {}
     },
     "minimax": {
       "command": "bash",
@@ -650,12 +651,15 @@
         "/home/yn4416/.claude/scripts/mcp/start-minimax-mcp.sh"
       ],
       "env": {
-        "MINIMAX_API_KEY": "***MASKED***"
+        "MINIMAX_API_KEY": ""
       },
-      "timeout": 600
+      "timeout": 600,
+      "headers": {}
     },
     "minimax-official": {
-      "timeout": 900
+      "timeout": 900,
+      "env": {},
+      "headers": {}
     }
   },
   "autoDream": {
