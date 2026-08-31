@@ -340,6 +340,7 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
   - **機械強制（2026-08-31）**: Stop hook `check-mlr-ledger-coverage.sh` が「本日の minimax/gemini 呼出があるのに台帳に本日行が無い」状態を差戻す（lite等の例外は免除フラグ `~/.claude/state/mlr-ledger-exempt-YYYY-MM-DD` で通す）
 - **改訂案**（`revised_proposal.md`）: 本文（元案構造保持）＋**却下サマリ**＋「根拠 Y」。Step6.5成立時は冒頭に**集団サボりバイアス疑義の行動可能警告**（反証シナリオ+再確認推奨）を機械挿入
 - **review_log.md**: 全指摘の `{LLM, issue, severity(正規化), quote, decision(採用/却下/保留), reason}`（重要度順・上位Nを本体・残りは折りたたみ/参照リンク）。**decision 行のフォーマット例**: `decision: 採用 / reason: [当初目的:X]の要件R3を満たすため・quote Yが該当`（判断が目的から演繹であることを追跡可能に・spec尊重却下も理由1行で明記）
+- **ラウンド番号の記録（厳格・2026-09-01 ふくけい指示）**: 同一トピックで複数回レビューした場合は、review_log.md の frontmatter に `rounds_total: N` と各ラウンド（`round_N: {id, date, reviewers, findings, target}`）を必ず集約記録する。本文の各ラウンドセクション見出しにも「第N回（rN）」を付ける。**「何回目のレビューか」がfrontmatterを見ただけで分かること**が要件（見出し埋め込みだけでは埋もれるため）
 
 ### 実測証跡と計測frontmatter（2026-08-17追加・判断収束ループ計測用）
 
