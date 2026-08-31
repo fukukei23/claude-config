@@ -77,8 +77,17 @@ def read_verify_result(path: Path) -> bool:
     """
     if not path.exists():
         return True
-    first = path.read_text(encoding="utf-8").strip().splitlines()
-    return bool(first) and first[0].upper().startswith("OK")
+    lines = path.read_text(encoding="utf-8").strip().splitlines()
+    # 先頭3行以内で最初に OK/NG を返した行を採用（2026-09-01 Q7実発:
+    # claude CLIの "[claude-code:unrecognized_model]" 警告行が1行目に混入し
+    # 検証実OKなのにNG誤判定→全タスク誤blocked。警告行は読み飛ばす）
+    for line in lines[:3]:
+        s = line.strip().upper()
+        if s.startswith("OK"):
+            return True
+        if s.startswith("NG"):
+            return False
+    return False  # 判定行なし=NG扱い（安全側）
 
 
 def advance_state(state: dict, verify_ok: bool) -> dict:

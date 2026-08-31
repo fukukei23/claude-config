@@ -250,3 +250,17 @@ def test_main_clears_stale_running_pid(tmp_path, monkeypatch):
     after = json.loads(state_file.read_text(encoding="utf-8"))
     assert after["running"] is False, "stale running がクリアされなかった"
     assert after["running_pid"] is None
+
+
+def test_read_verify_result_tolerates_warning_line(tmp_path):
+    """2026-09-01 Q7実発: 1行目のclaude CLI警告行をスキップしOK/NGを正しく判定。"""
+    from next_issue import read_verify_result
+    ok_file = tmp_path / "ok.txt"
+    ok_file.write_text('[claude-code:unrecognized_model] {"model":"x"}\nOK\n\n## 審査結果\n', encoding="utf-8")
+    assert read_verify_result(ok_file) is True
+    ng_file = tmp_path / "ng.txt"
+    ng_file.write_text('[claude-code:unrecognized_model] {"model":"x"}\nNG\n\n## issues\n', encoding="utf-8")
+    assert read_verify_result(ng_file) is False
+    none_file = tmp_path / "none.txt"
+    none_file.write_text('判定行なし\n', encoding="utf-8")
+    assert read_verify_result(none_file) is False  # 安全側
