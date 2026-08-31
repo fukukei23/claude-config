@@ -103,7 +103,8 @@ echo "[$(date '+%F %T')] objective=${OBJECTIVE:0:80} kpi=${KPI_JSON:-なし}" >>
 
 # Phase 1: 計画立案（claude --print で plan.md を生成・A層AC必須化をプロンプトで義務付け）
 echo "[$(date '+%F %T')] Phase 1: 計画立案" >> "$LOG"
-PLAN_PROMPT="タスク: $OBJECTIVE
+PLAN_PROMPT="【重要】あなたは計画立案専用フェーズのLLMである。ファイル変更・実装・git commit・テスト実行は一切禁止する（実装はPhase 3の別プロセスが行う。ここで実装するとPhase 3が空振りblockedになる）。テキストの計画のみを出力せよ。
+タスク: $OBJECTIVE
 KPI: ${KPI_JSON:-なし}
 テスト方針(起票時宣言・F層): ${TEST_POLICY:-{}}
 
