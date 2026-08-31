@@ -96,7 +96,7 @@ C:\Users\<ユーザー名>\AppData\Roaming\Claude\
     │
     ├── [外部LLM直接呼び出し]
     │   ├── ask-grok.py              # Grok (xAI)、X投稿検索付き
-    │   ├── ask-perplexity.py        # Perplexity、Web検索＋引用付き
+    │   （ask-perplexity.py は PERPLEXITY_API_KEY 401のまま引退・2026-09-01）
     │   ├── ask-minimax.py
     │   （Geminiは scripts/api/gemini.py へ統合移行・2026-06-17・YouTube真正解析）
     │
