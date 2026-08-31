@@ -529,6 +529,15 @@
         ]
       },
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-mlr-ledger-coverage.sh",
+            "timeout": 30
+          }
+        ]
+      },
+      {
         "matcher": "",
         "hooks": [
           {

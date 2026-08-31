@@ -12,6 +12,8 @@
 # 2026-07-08 改修: /tmp(一時領域・sandbox で Bash 呼出間に消滅し機能不全) →
 #                  ~/.claude/state/(永続領域) + セッションID分離。
 #                  SESSION_ID 未取得時は glob フォールバック（いずれかのフラグ存在で許可・案1相当）。
+# 2026-08-31 追加: 01_DECISIONS判定時に SID 有無を ~/.claude/state/ssot-record-sid-observe.jsonl へ
+#                  観測記録（2026-07-08記録 L70-71 の残課題「取得実績の蓄積」「頻発なら別経路」の判定材料）。
 
 set -euo pipefail
 
@@ -82,6 +84,25 @@ is_skill_active() {
     fi
 }
 
+# SID取得実績の観測ログ（2026-08-31 追加）
+# 2026-07-08記録 L70-71 の残課題「稼働後ログで SESSION_ID 取得実績を蓄積」
+#   「globフォールバック（案1相当）が頻発するようなら SESSION_ID 取得を別経路で担保」
+# の判定材料を貯める。判定が確定する 01_DECISIONS 分岐でのみ呼ぶ（他パスでは書かない＝肥大防止）。
+# 追記失敗（state読取専用・ディスクフル等）で hook 本体を止めない（2026-07-08 の機能不全再発防止）。
+SID_LOG="$STATE_DIR/ssot-record-sid-observe.jsonl"
+log_sid_observation() {
+    local decision="$1" present branch
+    if [ -n "$SID" ]; then
+        present=true
+        branch=exact
+    else
+        present=false
+        branch=glob_fallback
+    fi
+    { printf '{"ts":"%s","sid_present":%s,"branch":"%s","decision":"%s"}\n' \
+        "$(date -Is)" "$present" "$branch" "$decision" >> "$SID_LOG"; } 2>/dev/null || true
+}
+
 # Windows Desktop版のパス区切り正規化（2026-08-30）
 # Windows Desktop版は file_path を "\\\\wsl.localhost\\Ubuntu\\..." と
 # バックスラッシュ区切りで渡すため、下の *01_DECISIONS/* に一致せず素通りしていた。
@@ -93,9 +114,11 @@ case "$FILE_PATH" in
         # 01_DECISIONS 配下・フラグ確認
         if is_skill_active; then
             # スキル経由（フラグあり）→ 許可
+            log_sid_observation allow
             exit 0
         else
             # 手動Write（フラグなし）→ ブロック
+            log_sid_observation block
             cat <<'EOF' >&2
 {
   "decision": "block",
