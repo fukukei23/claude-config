@@ -6,6 +6,7 @@
 実行: cd ~/projects/claude-config && python3 -m pytest tests/test_aggregate_judgment_ledger.py -q
 """
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -55,7 +56,8 @@ def test_generates_row_from_frontmatter(tmp_path):
     r = run(str(tmp_path / "*" / "revised_proposal.md"), out)
     assert r.returncode == 0, r.stderr
     text = out.read_text(encoding="utf-8")
-    assert "| 2026-08-18 | テスト対象 | 21 | 3 | 2 | 判定用 |  |" in text
+    # v2列追加（decision_changed / negative_effect）・REVIEW_OKに値が無ければ —
+    assert "| 2026-08-18 | テスト対象 | 21 | 3 | 2 | — | — | 判定用 |  |" in text
     assert "集約対象: 1件 / 未解析: 0件" in text
 
 
@@ -179,3 +181,107 @@ def test_manual_retrospective_section_is_in_header(tmp_path):
     assert r.returncode == 0
     assert "手記載（遡及" in r.stdout
     assert "判定用(遡及)" in r.stdout
+
+
+# ---------------------------------------------------------------
+# 二源化（ingest DB 一次・glob 照合・バックログL825・台帳スキーマv2）
+
+DB_ROW = {
+    "ts": "2026-09-01T01:00:00+0900",
+    "round_id": "20260901-010000",
+    "topic": "ingestテスト",
+    "proposal_path": "__PLACEHOLDER__",
+    "findings_total": 21,
+    "overturned_by_measurement": 2,
+    "decision_changed": "no",
+    "negative_effect": False,
+    "converted_to_cmd": 3,
+    "evidence": 2,
+    "schema_ok": True,
+    "source": "annotate",
+}
+
+
+def make_db(tmp_path: Path, rows: list[dict]) -> Path:
+    """judgment-ledger.jsonl 相当のDBファイルを作る."""
+    db = tmp_path / "judgment-ledger.jsonl"
+    with open(db, "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    return db
+
+
+def run_with_db(target: str, output: Path, db: Path) -> subprocess.CompletedProcess:
+    cmd = ["python3", str(SCRIPT), "--target", target, "--output", str(output),
+           "--ledger-db", str(db)]
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def test_db_row_rendered_with_v2_columns(tmp_path):
+    # DB行 + 対応ファイル存在 → 台帳に行が出る（v2列 decision_changed / negative_effect 含む）
+    prop = make_review(tmp_path, "2026-09-01_対象レビュー", REVIEW_OK)
+    db = make_db(tmp_path, [{**DB_ROW, "proposal_path": str(prop.resolve())}])
+    out = tmp_path / "台帳.md"
+    r = run_with_db(str(tmp_path / "*" / "revised_proposal.md"), out, db)
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert "| 21 | 3 | 2 |" in text           # findings / converted / overturned
+    assert "| no | false |" in text            # decision_changed / negative_effect
+    assert "ingest漏れ" not in text            # DBと照合済みなので警告無し
+
+
+def test_db_row_without_file_shows_計測未完(tmp_path):
+    # fail条件①: DBにあってファイルが無いroundは「計測未完(未作成)」として台帳に載る
+    db = make_db(tmp_path, [{**DB_ROW, "proposal_path": str(tmp_path / "ghost.md")}])
+    out = tmp_path / "台帳.md"
+    r = run_with_db(str(tmp_path / "*" / "revised_proposal.md"), out, db)
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert "計測未完(未作成)" in text
+    assert "ingestテスト" in text              # topic が載る（静かに漏れない）
+
+
+def test_glob_file_without_db_row_warns_ingest漏れ(tmp_path):
+    # fail条件②: globにあってDBに無い = ingest漏れ警告付きで載せる
+    make_review(tmp_path, "2026-08-18_未ingestレビュー", REVIEW_OK)
+    db = make_db(tmp_path, [])
+    out = tmp_path / "台帳.md"
+    r = run_with_db(str(tmp_path / "*" / "revised_proposal.md"), out, db)
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert "⚠️ingest漏れ" in text
+    assert "2026-08-18_未ingestレビュー" in text  # 警告付きでも行は载る
+
+
+def test_db_file_value_mismatch_is_flagged(tmp_path):
+    # 照合: DBとfrontmatterの数値が食い違う → ⚠️不一致（正典はfrontmatter）
+    prop = make_review(tmp_path, "2026-09-01_不一致レビュー", REVIEW_OK)  # ft=21
+    db = make_db(tmp_path, [{**DB_ROW, "proposal_path": str(prop.resolve()),
+                             "findings_total": 99}])
+    out = tmp_path / "台帳.md"
+    r = run_with_db(str(tmp_path / "*" / "revised_proposal.md"), out, db)
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert "⚠️不一致" in text
+
+
+def test_withdrawal_criterion_in_header(tmp_path):
+    # 撤退基準（過去10回 decision_changed=no 且つ overturned=0 → 頻度見直し）が台帳ヘッダに明記される
+    db = make_db(tmp_path, [])
+    out = tmp_path / "台帳.md"
+    r = run_with_db(str(tmp_path / "*" / "revised_proposal.md"), out, db)
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert "撤退基準" in text
+    assert "decision_changed=no" in text
+
+
+def test_no_db_option_keeps_legacy_behavior(tmp_path):
+    # --ledger-db 無し = 従来どおりglob単源（後方互換・既存テスト全てこの経路）
+    make_review(tmp_path, "2026-08-18_従来レビュー", REVIEW_OK)
+    out = tmp_path / "台帳.md"
+    r = run(str(tmp_path / "*" / "revised_proposal.md"), out)
+    assert r.returncode == 0, r.stderr
+    text = out.read_text(encoding="utf-8")
+    assert "| 21 | 3 | 2 |" in text
+    assert "ingest漏れ" not in text

@@ -42,7 +42,7 @@ fi
 
 cat >&2 <<EOF
 ⚠️ マルチLLMレビュー台帳カバレッジ: 本日（$TODAY）は minimax/gemini の外部LLM呼出があるのに判断収束台帳_計測.md に本日付の行が無い。
-→ multi-llm-review を実行した場合: 成果物を正典 00_SYSTEM/マルチLLMレビュー/YYYY-MM-DD_<トピック>/revised_proposal.md（frontmatter: findings_total / converted_to_cmd / overturned_by_measurement 必須・0 < overturned ≤ 証跡数）に保存し、python3 ~/projects/claude-config/scripts/obsidian/aggregate_judgment_ledger.py を実行して台帳へ反映する。
+→ multi-llm-review を実行した場合: 成果物を正典 00_SYSTEM/マルチLLMレビュー/YYYY-MM-DD_<トピック>/revised_proposal.md（frontmatter: 手書き必須4項目 findings_total / overturned_by_measurement / decision_changed / negative_effect + v1互換 converted_to_cmd・0 < overturned ≤ 証跡数）に保存し、①mlr-log.sh annotate <round_id> <topic> --proposal <revised_proposal.mdのパス>（ingest・必須4項目欠損は警告）②python3 ~/projects/claude-config/scripts/obsidian/aggregate_judgment_ledger.py --ledger-db ~/.claude/state/judgment-ledger.jsonl を実行して台帳へ反映する。
   ※ カレントディレクトリ（プロジェクトrepo内）への出力は集計対象外。
 → 本式レビューでない（lite的用途・minimax_ask を要約等の別用途で使用 等）場合: touch ~/.claude/state/mlr-ledger-exempt-$TODAY で免除して終了。
 EOF
