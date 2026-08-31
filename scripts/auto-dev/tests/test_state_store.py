@@ -172,3 +172,41 @@ def test_cli_set_task_id(tmp_path, monkeypatch):
 def test_cli_unknown_command_returns_1():
     """未知のコマンドは終了コード1。"""
     assert state_store._cli(["unknown-cmd"]) == 1
+
+
+def test_is_stale_spared_when_run_task_cmdline_alive():
+    """ctime不一致でも生存run-task.shは誤クリアしない（L819・2026-09-01実発）。
+
+    再現: 実bashプロセスでrun-task.sh風cmdlineを持ち、意図的にずらしたctimeで
+    is_staleを呼ぶ → False（クリアしない）。
+    """
+    import subprocess
+    import time as _time
+    # run-task.shをcmdlineに含むダミー生存プロセス（sleep）
+    proc = subprocess.Popen(
+        ["bash", "-c", "exec -a run-task.sh sleep 30"],
+    )
+    _time.sleep(0.2)
+    try:
+        import psutil
+        wrong_ctime = int(psutil.Process(proc.pid).create_time()) - 10000
+        # exec -a はargv0書換のため cmdline に run-task.sh が入る
+        assert state_store.is_stale(proc.pid, wrong_ctime) is False
+    finally:
+        proc.kill()
+        proc.wait()
+
+
+def test_is_stale_clears_unrelated_ctime_mismatch():
+    """run-task.sh無関係のプロセスのctime不一致は従来どおりstale（PID再利用検出維持）。"""
+    import subprocess
+    import time as _time
+    import psutil
+    proc = subprocess.Popen(["sleep", "30"])
+    _time.sleep(0.2)
+    try:
+        wrong_ctime = int(psutil.Process(proc.pid).create_time()) - 10000
+        assert state_store.is_stale(proc.pid, wrong_ctime) is True
+    finally:
+        proc.kill()
+        proc.wait()

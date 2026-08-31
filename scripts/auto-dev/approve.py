@@ -231,6 +231,11 @@ def main() -> int:
         s["active"] = True
         s["mode"] = "manual"  # approve.py は manual entry point・auto残留防止(I1)
         s["running"] = False
+        # 前回実行のrunning系残置fieldを掃除（L819: 残置ctimeが次実行の
+        # stale照合に混入し生存run-taskの誤クリア→誤完了の一因）
+        s["running_pid"] = None
+        s["running_create_time"] = None
+        s["running_since"] = None
         if s["pending"]:
             first = s["pending"].pop(0)
             first["started"] = False  # run-task 起動前

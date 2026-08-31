@@ -149,7 +149,18 @@ def is_stale(
         return True
     try:
         current_ctime = int(psutil.Process(running_pid).create_time())
-        return current_ctime != running_create_time  # 不一致=別プロセス再利用
+        if current_ctime == running_create_time:
+            return False
+        # ctime不一致でも /proc で run-task.sh 実プロセスと確認できれば誤クリア回避
+        # （L819: 2026-08-31/09-01 両日で生存run-taskの誤クラッシュ判定→誤完了が実発。
+        #   ctime不一致の原因が実測特定できていないため、cmdline照合の後付けガードで封じる）
+        try:
+            cmdline = Path(f"/proc/{running_pid}/cmdline").read_bytes().split(b"\0")
+            if any(b"run-task.sh" in c for c in cmdline):
+                return False  # 生存するrun-task.sh はクリアしない（誤完了防止優先）
+        except OSError:
+            pass
+        return True  # 不一致=別プロセス再利用
     except psutil.NoSuchProcess:
         return True  # PID不存在=stale確定
     except psutil.AccessDenied:
