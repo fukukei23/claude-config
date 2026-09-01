@@ -109,7 +109,7 @@
     ],
     "defaultMode": "bypassPermissions"
   },
-  "model": "opus",
+  "model": "sonnet",
   "skillOverrides": {
     "record-decision": "off",
     "ab-testing": "off",
@@ -521,6 +521,10 @@
           {
             "type": "command",
             "command": "/home/yn4416/.claude/scripts/session/check-yagi-output.sh"
+          },
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-zero-assert.sh"
           },
           {
             "type": "command",
