@@ -69,6 +69,24 @@ if model_name == 'unknown' and proxy_provider != 'minimax':
     except:
         pass
 
+# --- glm-5.3滞在バッジ（spec 2026-09-01 §4.2・閾値は暫定値・警告ログで2週間後に校正）---
+STAY_WARN_MIN = 15
+STAY_RED_MIN = 30
+try:
+    sys.path.insert(0, os.path.expanduser('~/.claude/scripts/llm'))
+    from model_stay_detector import scan_file
+    tp = d.get('transcript_path')
+    if tp and os.path.exists(tp):
+        stay = scan_file(tp)
+        if stay and stay.get('since_min') is not None:
+            mins = stay['since_min']
+            if mins >= STAY_RED_MIN:
+                parts.append(f'\033[31m⚠️5.3 {mins:.0f}分・/model sonnet で戻す\033[0m')
+            elif mins >= STAY_WARN_MIN:
+                parts.append(f'\033[33m5.3 {mins:.0f}分\033[0m')
+except Exception:
+    pass
+
 # --- 作業量（優先度低・末尾に追加。コストは非表示→claude-costコマンドで確認）---
 work_str = None
 req_str = None
