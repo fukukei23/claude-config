@@ -97,6 +97,45 @@ if re.search(r'0[-〜~]255', last):
 if '実施済み' in last and '[fp:' not in last:
     errs.append('環境指紋suffix [fp:時刻/l1=キャッシュ行サイズ] の記載')
 
+# --- 検証範囲宣言セクション検査（spec v5 3-1・2026-09-01） ---
+# grace期間(〜2026-09-15)は警告のみ・FCC_FORCE_ENFORCE=1で強制enforce（テスト用）
+DECL_LABELS = ['検証範囲宣言', '検証範囲:', '宣言:']
+in_grace = datetime.date.today() <= datetime.date(2026, 9, 15) and os.environ.get('FCC_FORCE_ENFORCE') != '1'
+
+def warn(msg: str) -> None:
+    """grace中は警告表示のみ（exitに影響させない・r4 G#5アラート疲労対策）。"""
+    if in_grace:
+        print(f"⚠️(grace期間・警告のみ) {msg}", file=sys.stderr)
+    else:
+        errs.append(msg)
+
+if not any(lbl in last for lbl in DECL_LABELS):
+    warn('検証範囲宣言セクション（タイプ/正常系/異常系/境界/各ケース理由）の記載')
+else:
+    # タイプIII: 反証可能性チェックリスト必須
+    if re.search(r'タイプ:\s*III', last) and not re.search(r'誤り|反証|気づけ|気付ける|再発', last):
+        warn('タイプIIIは反証可能性チェックリスト必須（誤りの場合どういう観測で気付けるか）')
+    # 異常系: min(2,N)（Phase 1は2種要求・N=1例外は「カテゴリ: 1種」形式＋理由）
+    if not re.search(r'異常系[::]', last) and 'カテゴリ: 1種' not in last:
+        warn('異常系ケースの宣言（min(2,N)種・1種例外は引用付き理由必須）')
+    elif re.search(r'異常系[::]\s*省略', last) and '理由' not in last:
+        warn('異常系の省略には理由必須')
+    # 検証済宣言の証跡突合: 宣言内 EXIT=N がtool_result側に実在（エコー偽装排除）
+    lbl = next(l for l in DECL_LABELS if l in last)
+    decl_part = last[last.find(lbl):]
+    for c in re.findall(r'EXIT=\d+', decl_part)[:5]:
+        if c not in joined_tools:
+            warn(f'宣言内証跡({c})がtool実行結果に存在しない=未実施扱い')
+            break
+    # 境界: 記載または省略理由
+    if not re.search(r'境界[::]', last):
+        warn('境界ケースの宣言（または省略理由）')
+    elif re.search(r'境界[::]\s*省略', last) and '理由' not in last.split('境界')[1][:60]:
+        warn('境界の省略には理由必須')
+    # 理由欄テンプレ文検出
+    if re.search(r'理由[::]\s*(バグ混入防止|品質確保のため|のため)\s*$', last, re.M):
+        warn('各ケース理由がテンプレ文（fail条件欄の語と共起する具体を書く）')
+
 # --- 判定（ errs無し=通過 / 実ユーザー承認あり=通過 / 他は差戻し） ---
 if not errs:
     dispatch('pass')

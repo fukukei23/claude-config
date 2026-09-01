@@ -68,5 +68,40 @@ run_case "5:実ユーザー承認あり→通過"            0 c4 1
 run_case "6:偽引用(tool_result不在)→差戻し"     2 c6 1
 run_case "7:恒真閾値(0-255)→差戻し"             2 c7 1
 run_case "8:引用不整合→差戻し"                  2 c8 1
+
+# --- 検証範囲宣言セクション（spec v5 3-1・2026-09-01・grace期間はFCC_FORCE_ENFORCE=1で検証） ---
+GOOD_DECL='## 合格
+検証済み:
+- ケース1: pytest test_add.py → EXIT=0
+検証範囲宣言: タイプ: I
+- 正常系: test_add → 検証済（EXIT=0）
+- 異常系: test_add_zero → 検証済（EXIT=0）
+- 境界: 省略（理由: 純計算で境界ケースなし）
+- 各ケース理由: 加算仕様のfail条件（0+0・負数）に対応
+- 閾値: EXIT≠0なら不合格(fail条件) [fp:123/l1=64]
+fail条件ケース(未実施): 無し'
+mk_transcript c9 '## 合格
+検証済み:
+- ケース1: grep -c hoge f.txt → EXIT=0
+3
+- 閾値: 0件なら不合格(fail条件) [fp:123/l1=64]
+fail条件ケース(未実施): cwd不一致×≤10ファイル → 合格(限定条件: cwd一致)' '---EXIT=0--- 3' '-'
+mk_transcript c10 '## 合格
+検証済み: 検証範囲宣言: タイプ: III 判断文により検証
+- 異常系: レビュー指摘対応 → 検証済（EXIT=0）
+- 境界: 省略（理由: なし）
+- 閾値: NGなら差戻し [fp:1/l1=64]' '---EXIT=0---' '-'
+mk_transcript c11 '## 合格
+検証済み: 検証範囲宣言: タイプ: I
+- 正常系: test_add → 検証済（EXIT=0）
+- 閾値: EXIT≠0なら不合格 [fp:1/l1=64]' '---pytest test_add.py: EXIT=0---' '-'
+mk_transcript c12 "$GOOD_DECL" '---pytest test_add.py test_add_zero.py: EXIT=0---' '-'
+
+export FCC_FORCE_ENFORCE=1
+run_case "9:宣言セクションなし(enforce)→差戻し"  2 c9 1
+run_case "10:タイプIII反証なし→差戻し"           2 c10 1
+run_case "11:正常系のみ(異常系欠落)→差戻し"      2 c11 1
+run_case "12:完全宣言+証跡実在→通過"             0 c12 1
+unset FCC_FORCE_ENFORCE
 echo "PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" = 0 ]
