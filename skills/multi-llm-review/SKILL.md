@@ -336,26 +336,31 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 - **報告時の平易な解説併記（必須）**: 統合結果をふくけいに提示する時は、専門説明の後に素人にもわかる一言（💡一言でいうと）を必ず併記する（CLAUDE.md平易解説ルール）
 - **デフォルト出力先（2026-08-31正典化・厳格）**: `~/projects/obsidian-ssot/00_SYSTEM/マルチLLMレビュー/YYYY-MM-DD_<トピック>/`
   - **カレントディレクトリ（プロジェクトrepo内等）への出力は台帳集計対象外**（2026-08-31 x-automation r1/r2ですり抜けた実例・ふくけい指摘で正典化）。プロジェクトrepo側に置きたい場合は副本扱いとし、正典側にも必ず保存
-  - **review終了時に集計スクリプトを実行する（Step 9・省略不可）**: `python3 ~/projects/claude-config/scripts/obsidian/aggregate_judgment_ledger.py`
+  - **review終了時に集計スクリプトを実行する（Step 9・省略不可）**: `python3 ~/projects/claude-config/scripts/obsidian/aggregate_judgment_ledger.py --ledger-db /home/yn4416/.claude/state/judgment-ledger.jsonl`（`--ledger-db` でingest DBと照合する二源化モード・2026-09-01実装）
   - **機械強制（2026-08-31）**: Stop hook `check-mlr-ledger-coverage.sh` が「本日の minimax/gemini 呼出があるのに台帳に本日行が無い」状態を差戻す（lite等の例外は免除フラグ `~/.claude/state/mlr-ledger-exempt-YYYY-MM-DD` で通す）
 - **改訂案**（`revised_proposal.md`）: 本文（元案構造保持）＋**却下サマリ**＋「根拠 Y」。Step6.5成立時は冒頭に**集団サボりバイアス疑義の行動可能警告**（反証シナリオ+再確認推奨）を機械挿入
 - **review_log.md**: 全指摘の `{LLM, issue, severity(正規化), quote, decision(採用/却下/保留), reason}`（重要度順・上位Nを本体・残りは折りたたみ/参照リンク）。**decision 行のフォーマット例**: `decision: 採用 / reason: [当初目的:X]の要件R3を満たすため・quote Yが該当`（判断が目的から演繹であることを追跡可能に・spec尊重却下も理由1行で明記）
 - **ラウンド番号の記録（厳格・2026-09-01 ふくけい指示）**: 同一トピックで複数回レビューした場合は、review_log.md の frontmatter に `rounds_total: N` と各ラウンド（`round_N: {id, date, reviewers, findings, target}`）を必ず集約記録する。本文の各ラウンドセクション見出しにも「第N回（rN）」を付ける。**「何回目のレビューか」がfrontmatterを見ただけで分かること**が要件（見出し埋め込みだけでは埋もれるため）
 
-### 実測証跡と計測frontmatter（2026-08-17追加・判断収束ループ計測用）
+### 実測証跡と計測frontmatter（2026-08-17追加・判断収束ループ計測用・2026-09-01 v2スキーマ適用）
 
-revised_proposal.md には frontmatter で以下の3数値を記載する（判断収束ループ「3回計測」の自動蓄積・レビュー経緯は `00_SYSTEM/マルチLLMレビュー/2026-08-17_判断収束ループ計測自動化-設計レビュー/revised_proposal.md`）:
+revised_proposal.md には frontmatter で以下を記載する（判断収束ループ計測の自動蓄積・**台帳スキーマv2〔2026-08-31確定〕: 手書き必須4項目+v1互換1項目**）:
 
 ```yaml
-findings_total: <指摘総数>
-converted_to_cmd: <検証コマンドに変換できた数>
-overturned_by_measurement: <実測で覆した数>
+findings_total: <指摘総数・数値>
+overturned_by_measurement: <実測で覆した数・数値>
+decision_changed: <no / yes / cosmetic / structural / major（重要度併記可）>
+negative_effect: <true / false（レビューが判断を迷わせた・手戻りさせた等のネガティブ効果が有ったか）>
+converted_to_cmd: <検証コマンドに変換できた数・数値（v1互換で引き続き記載）>
 ```
+
+- ⚠️ **v2必須4項目（findings_total/overturned_by_measurement/decision_changed/negative_effect）は ingest の必須キー**——欠損すると `annotate --proposal` が**警告を出して ingest を拒否**する（annotate自体は継続・下記）。その場合はfrontmatterの該当項目を修正して annotate を再実行すること
+- **過去ファイル（2026-08-31以前のrevised_proposal）への遡及編集は禁止**: v1形式（3数値のみ）のままで正常。台帳では v2 項目の欠損は「—」表示で補完される
 
 - **「実測で覆した」の定義（境界3規則つき）**: LLMの指摘・主張が検証コマンド（grep/wc/curl/gh等）の実行結果と矛盾し、**採用撤回・却下・設計変更に至った件**。(a) 部分覆は二値丸め（0.5件扱いなし）(b) 表記修正レベルは除外（構造・事実判断のみ）(c) コマンド実行失敗（エラー）は不採用 (d) 文言裁定・合議のみは不可算
 - **「## 実測証跡」セクション必須**: 覆した件ごとに `### 証跡N`（検証コマンド1行+出力抜粋）を列記。**frontmatter の `overturned_by_measurement` は `0 < overturned ≤ 証跡項目数` を満たすこと**（証跡には「確認系」も含まれるため一致は不要・2026-08-18実測で1<3・1<5の正当な不一致を確認し「一致」から修正）→ LLMによる数値の盛り・架空証跡を機械的に封じる
 - **引用制約**: 実行していないコマンド・ユーザーが提供していない実行結果の引用は禁止
-- **集約（判断収束台帳）**: 本frontmatterは `claude-config/scripts/obsidian/aggregate_judgment_ledger.py` により `00_SYSTEM/判断収束台帳_計測.md` に自動集約される（手書き追記禁止・`0 < overturned ≤ 証跡数` のクロス検証付き・違反行は「要修正」表示・2026-08-18実装）
+- **集約（判断収束台帳・二源化）**: 本frontmatterは `annotate --proposal` 実行時に **ingest DB（`~/.claude/state/judgment-ledger.jsonl`）へ直接取り込まれ**、`aggregate_judgment_ledger.py --ledger-db` が DB一次+glob照合で `00_SYSTEM/判断収束台帳_計測.md` を再生成する（2026-09-01二源化・手書き追記禁止・`0 < overturned ≤ 証跡数` のクロス検証付き・違反行は「要修正」表示）。**警告の定義**: 「計測未完(未作成)」= DBにingestされたがrevised_proposal.mdが未作成 / 「⚠️ingest漏れ」= frontmatter付きファイルが存在するがDBに未登録（`annotate --proposal` 忘れ・`backfill_judgment_ledger.py` で回収可）/ 「⚠️不一致」= DBとfrontmatterの数値が食い違い（正典はfrontmatter）
 
 ## 失敗ログ（呼び出せなかったLLMを残す・2026-08-22実装）
 
@@ -366,18 +371,21 @@ overturned_by_measurement: <実測で覆した数>
 | 誰が | 何を | どうやって |
 |---|---|---|
 | **hook（自動）** | 呼出事実・llm・model・生の成否 | `log-mlr-calls.sh`（PostToolUse）が1行 append。ホストが忘れても必ず残る |
-| **ホスト（あなた）** | `round_id`・`topic`・`attempt`・`findings` | **round終了時に `mlr-log.sh annotate` を1回**だけ実行 |
+| **ホスト（あなた）** | `round_id`・`topic`・`attempt`・`findings`・**ingest** | **round終了時に `mlr-log.sh annotate --proposal` を1回**だけ実行 |
 
 ### ① round 終了時に1回だけ実行する（必須・これだけ）
 
 ```bash
-~/bin/mlr-log.sh annotate <round_id> "<topic>" [--findings <llm>=<件数>,...]
+~/bin/mlr-log.sh annotate <round_id> "<topic>" --proposal <revised_proposal.mdへのパス> [--findings <llm>=<件数>,...]
 ```
 
+- **⚠️ `--proposal` は実質必須（2026-09-01）**: revised_proposal.md のfrontmatterを**ファイルから直接読み**、判断収束台帳用の ingest DB（`~/.claude/state/judgment-ledger.jsonl`）へ1行追記する。数値の二度手入力は不要（frontmatterに書いたものがそのまま取り込まれる）
+- v2必須4項目（findings_total/overturned_by_measurement/decision_changed/negative_effect）欠損の場合は**警告を出して ingest を拒否**する→frontmatterを修正して再実行（annotate自体・レビュー本体は継続）
 - `round_id` は `YYYYMMDD-HHMMSS`（フォールバックを使った round は `fb-` prefix）
 - `--findings` は任意（指標A/Bの算出には不要）。付けるなら各LLMの指摘件数
 - 直近6時間の `status=raw` 行がまとめて `annotated` になる。**attempt は自動採番**なので数えなくてよい
 - 対象0件なら警告して非0で終わる（無言で握り潰さない）。**レビュー本体は続行してよい**——ログ書込の失敗でレビューを人質にしない
+- 詳細なオプションは `~/bin/mlr-log.sh --help` 参照
 
 > `status=raw` のまま残った行が「補記し忘れ」の可視化そのもの。件数は `~/bin/mlr-log.sh --self-test` で分かる。
 
