@@ -206,6 +206,14 @@ KPI: ${KPI_JSON:-なし}
 CLAUDE_DISABLE_PLAIN_EXPLANATION_CHECK=1 "$CLAUDE" --print "$VERIFY_PROMPT" > "$VERIFY" 2>&1
 VERIFY_RC=$?
 
+# 検証範囲宣言の機械検査（spec v5 3-3・2026-09-01「テストは充分？」体系化）
+# 自己修復なし・宣言セクション不在なら即NG（r3レビューで確定・逆用封じ）
+if ! grep -qE '(検証範囲宣言|検証範囲:|宣言:)' "$VERIFY"; then
+  echo "NG" > "$VERIFY"
+  echo "検証出力に検証範囲宣言セクションなし（spec v5 3-3・テンプレ不遵守）" >> "$VERIFY"
+  echo "[$(date '+%F %T')] 検証宣言セクション不在 → NG" >> "$LOG"
+fi
+
 # Phase 5: 実装後レビュー（別ベンダーLLM・git diff対象・⑤拒否権・2026-08-12有効化）
 echo "[$(date '+%F %T')] Phase 5: 実装後レビュー（別LLM・git diff）" >> "$LOG"
 git diff "$HEAD_BEFORE"..HEAD > "$TASK_DIR/impl_diff.txt" 2>/dev/null || git diff >> "$TASK_DIR/impl_diff.txt"
