@@ -39,7 +39,8 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 | 環境 | ホストLLM（統合役） | レビュアーLLM（デフォルト） | triple 指定時（`--triple` / 「3機で」） |
 |---|---|---|---|
-| WSL CLI版 | GLM | MiniMax + Gemini（2） | MiniMax + Gemini + **OpenRouter無料枠1機**（3） |
+| WSL CLI版(proxy-mode=MiniMax時) | MiniMax | **GLM + Gemini（2・手動切替中の特則）** | **GLM + Gemini + OpenRouter無料枠1機（3・手動切替中の特則）** |
+| WSL CLI版(通常時) | GLM | MiniMax + Gemini（2） | MiniMax + Gemini + **OpenRouter無料枠1機**（3） |
 | Windows デスクトップアプリ版 | Sonnet | GLM + MiniMax + Gemini（3） | （既に3機・triple指定は実質同じ） |
 
 - ホスト自身はレビュアーに含めない（自己レビューは多様性ゼロ）
@@ -101,6 +102,7 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 |---|---|---|---|
 | MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨・**⚠️レビュー対象（コード/文章）は本文インライン渡し必須・ファイルパス渡し禁止**（テキスト生成APIはローカルファイルを読めないため・下記⚠️⚠️参照・2026-08-28実証） |
 | Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
+| GLM（手動切替中のレビュアー特則・2026-09-02追加） | `mcp__glm__glm_ask`（MCP・推奨）/ curl REST（`https://api.z.ai/api/anthropic/v1/messages`・代替） | MCP設定 or `$GLM_API_KEY`（.secrets.env） | proxy-mode=MiniMax時のレビューアーに組み込む経路。MCP側: settings.jsonの`mcpServers.glm`に登録（`start-glm-mcp.sh`起動・既存実装流用）。curl REST側: Anthropic互換エンドポイント経由で`GLM-5.3`/`glm-5.3`等へ直接呼出可能（プロキシ経由ではない生ZAI APIのためプロキシ月間枠に影響しない）。**本文インライン渡し必須**（他LLMと同じ制約）。`max_tokens=8000` |
 | OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（`openrouter-free-pick.sh` の戻り値JSON契約・paramsのみマージ）・`max_tokens=2000`＋**`"reasoning": {"enabled": false}` 必須**（下記⚠️）・既存 lite のcurl手順を流用 |
 
 > ⚠️ **OpenRouter には `"reasoning": {"enabled": false}` を必ず付ける（2026-08-21 実測・付けないと5連敗する）**
