@@ -669,6 +669,13 @@
     },
     "minimax-official": {
       "timeout": 900
+    },
+    "glm": {
+      "command": "bash",
+      "args": [
+        "/home/yn4416/.claude/scripts/mcp/start-glm-mcp.sh"
+      ],
+      "timeout": 600
     }
   },
   "autoDream": {
