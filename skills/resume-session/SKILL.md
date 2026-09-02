@@ -125,6 +125,35 @@ if [ -f "$TODAY_TASKS" ]; then
 else
   echo "TRIAGE: today-tasks なし（Daily Triage未実行・bash ~/.claude/scripts/auto-dev/daily-triage.sh で生成可）"
 fi
+# Claude Code changelog 日本語サマリ（Step 3 で挨拶に混ぜる・2026-09-03 追加）
+CHANGELOG_JA="$HOME/projects/obsidian-ssot/00_SYSTEM/claude-code/claude-code-changelog-ja.md"
+if [ -f "$CHANGELOG_JA" ]; then
+  # grep パターンは frontmatter インデント揺れ許容のため緩めに（2026-09-03 multi-llm-review #2 反映）
+  LAST_FETCHED=$(grep -oE 'last_fetched: *[0-9]{4}-[0-9]{2}-[0-9]{2}' "$CHANGELOG_JA" 2>/dev/null | head -1 | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+  # DAYS_OLD 計算:GNU date → macOS date → Python フォールバック（mac対応・2026-09-03 mini-llm-review #2 反映）
+  if [ -n "$LAST_FETCHED" ]; then
+    if date -d "$LAST_FETCHED" +%s >/dev/null 2>&1; then
+      # GNU date (Linux)
+      DAYS_OLD=$(( ($(date +%s) - $(date -d "$LAST_FETCHED" +%s)) / 86400 ))
+    elif date -j -f "%Y-%m-%d" "$LAST_FETCHED" +%s >/dev/null 2>&1; then
+      # macOS date (BSD)
+      DAYS_OLD=$(( ($(date +%s) - $(date -j -f "%Y-%m-%d" "$LAST_FETCHED" +%s)) / 86400 ))
+    else
+      # Python フォールバック（確実に動く）
+      DAYS_OLD=$(python3 -c "from datetime import date; print((date.today()-date.fromisoformat('$LAST_FETCHED')).days)" 2>/dev/null)
+    fi
+  fi
+  echo "CHANGELOG_JA: あり（最終取得: ${LAST_FETCHED:-不明}・経過${DAYS_OLD:-?}日）"
+  # changelog-ja の begin/end マーカー間を抽出してサマリ展開（2026-09-03 multi-llm-review #6 反映）
+  CHANGELOG_SUMMARY=$(awk '/<!-- BEGIN: resume-summarable -->/,/<!-- END: resume-summarable -->/' "$CHANGELOG_JA" 2>/dev/null)
+  if [ -z "$CHANGELOG_SUMMARY" ]; then
+    echo "CHANGELOG_SUMMARY: 抽出失敗（begin/end マーカーが見つかりません・フォーマット確認推奨）"
+  else
+    echo "CHANGELOG_SUMMARY: 抽出成功（${#CHANGELOG_SUMMARY} chars）"
+  fi
+else
+  echo "CHANGELOG_JA: なし（ファイル未作成・changelog 和訳未着手）"
+fi
 ```
 
 ---
@@ -148,6 +177,39 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 
 ```markdown
 🟡[GLM] セッション再開 — 最新5件のhandoffを読み込みました。
+
+## 🤖 Claude Code 最新情報（changelog 日本語サマリ・2026-09-03 追加）
+
+> Step1 の `CHANGELOG_JA:` 出力が「あり」の場合のみ表示。挨拶の最初に混ぜ、ふくけいが CC の現状を即座に把握できるようにする。
+>
+> **出典**: `~/projects/obsidian-ssot/00_SYSTEM/claude-code/claude-code-changelog-ja.md` の `<!-- BEGIN: resume-summarable -->` 〜 `<!-- END: resume-summarable -->` ブロック（2026-09-03 multi-llm-review #6 反映）。
+> 毎回同じ場所から読み込むので、サマリが古く感じたら changelog-ja.md を更新する（更新手順は同ファイル「🔁 更新運用」セクション参照）。
+>
+> **古い和訳の警告（2026-09-03 multi-llm-review #5 反映）**: `DAYS_OLD` が **14 日超**の場合はサマリ表示ではなく警告に切り替える（古い和訳を『最新』として嘘をつかれるリスクを防止）。30 日超は表示スキップ推奨。
+
+### A. 通常（DAYS_OLD ≤ 14）
+
+```
+🤖 Claude Code 直近アップデート（最終取得: <last_fetched>・経過<DAYS_OLD>日）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<Step1 で抽出した CHANGELOG_SUMMARY の中身をここに展開>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### B. 警告（14 < DAYS_OLD ≤ 30）
+
+```
+⚠️ Claude Code changelog 日本語サマリが <DAYS_OLD> 日古いです（最終取得: <last_fetched>）。
+新しいバージョン情報に追随できていない可能性があります。
+更新手順: ~/projects/obsidian-ssot/00_SYSTEM/claude-code/claude-code-changelog-ja.md の「🔁 更新運用」参照
+または `code.claude.com/docs/en/changelog` を直接確認してください。
+```
+
+### C. スキップ推奨（DAYS_OLD > 30）
+
+挨拶ブロック自体を出さない（CHANGELOG_SUMMARY: 抽出成功でも古すぎて価値なし）。
+
+💡 かみ砕くと: これが現状の CC のリビジョン。新しければ「新機能はこれだけ」、古ければ「そろそろ和訳を更新してね」の警告に切り替え。
 
 ## 直近の作業（wt_session でグループ化・spec 2026-07-06）
 
