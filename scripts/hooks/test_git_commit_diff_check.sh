@@ -40,10 +40,13 @@ test_small_change() {
   teardown
 }
 
-# Case 2: 50行追加 → exit 2
+# Case 2: 修正50行（M・L279①により新規Aは除外されたため M で検証）→ exit 2
 test_large_change_block() {
   setup
   seq 1 50 > big.txt
+  git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 51 100 >> big.txt
   git add big.txt
   send_hook "git commit -m test"
   local rc=$?
@@ -80,10 +83,13 @@ test_staged_empty() {
   teardown
 }
 
-# Case 5: stderr構造（block時に5項目含有）
+# Case 5: stderr構造（block時に5項目含有・M-statusで発火）
 test_stderr_structure() {
   setup
   seq 1 50 > big.txt
+  git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 51 100 >> big.txt
   git add big.txt
   local stderr_out
   stderr_out=$(printf '{"tool_name":"Bash","command":"git commit -m test"}' | bash "$HOOK" 2>&1 1>/dev/null)
@@ -204,6 +210,9 @@ test_git_dash_c() {
   setup
   seq 1 50 > big.txt
   git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 51 100 >> big.txt
+  git add big.txt
   local outer
   outer=$(mktemp -d)
   ( cd "$outer" && send_hook "git -C $TMP_REPO commit -m test" )
@@ -220,6 +229,9 @@ test_git_dash_c() {
 test_cd_form() {
   setup
   seq 1 50 > big.txt
+  git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 51 100 >> big.txt
   git add big.txt
   local outer
   outer=$(mktemp -d)
@@ -256,6 +268,9 @@ test_cd_staged_empty
 test_spaced_nested_input() {
   setup
   seq 1 50 > big.txt
+  git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 51 100 >> big.txt
   git add big.txt
   local rc
   printf '{"tool_name": "Bash", "tool_input": {"command": "git commit -m test"}}' | bash "$HOOK" 2>/dev/null
@@ -425,6 +440,127 @@ test_paths_json_broken
 test_stale_declared_warn
 test_perf_1000_files
 test_helper_parallel
+
+# === L279 運用阻害3件修正（2026-09-04・Case 22-26） ===
+
+# Case 22: 新規ファイル(status A)50行・パス指定なし → exit 0（L279①: A新規は意図的追加なのでblockしない）
+test_new_file_not_blocked() {
+  setup
+  seq 1 50 > new.txt
+  git add new.txt
+  send_hook "git commit -m test"
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case22: expected exit 0 (new A file exempt) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 23: 他セッション大量M(big.txt 50行)がstage + 自small(own.txt 11行M)、`git commit -- own.txt` → exit 0（L279②: pathspec限定）
+test_pathspec_limited() {
+  setup
+  echo base > big.txt; echo own > own.txt
+  git add big.txt own.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> big.txt      # 他セッション分（stageに残す）
+  git add big.txt
+  seq 1 11 >> own.txt      # 自分の小変更
+  git add own.txt
+  send_hook "git commit -m test -- own.txt"
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case23: expected exit 0 (pathspec limited) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 24: pathspec指定でも自分のパス自体が大量M(50行) → exit 2（限定は巻き込み除外であって大量変更の無罪化ではない）
+test_pathspec_own_large_still_blocked() {
+  setup
+  echo own > own.txt
+  git add own.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> own.txt
+  git add own.txt
+  send_hook "git commit -m test -- own.txt"
+  local rc=$?
+  if [ "$rc" -ne 2 ]; then
+    echo "FAIL Case24: expected exit 2 (own path large M) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 25: block時のREQUIRED_ACTIONが実行可能手順（paths-json-update.py宣言追加 と restore --staged の両方を案内）
+test_required_action_executable() {
+  setup
+  echo base > med.txt
+  git add med.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> med.txt
+  git add med.txt
+  local stderr_out
+  stderr_out=$(printf '{"tool_name":"Bash","command":"git commit -m test"}' | bash "$HOOK" 2>&1 1>/dev/null)
+  local missing=0
+  echo "$stderr_out" | grep -q "paths-json-update.py" || missing=$((missing+1))
+  echo "$stderr_out" | grep -q "restore --staged" || missing=$((missing+1))
+  if [ "$missing" -ne 0 ]; then
+    echo "FAIL Case25: $missing executable steps missing in REQUIRED_ACTION"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 26: 自タブ宣言したM-file 50行・DRY_RUNなし → exit 0（宣言追加が実際の脱出経路として機能=L279①の解消）
+test_self_declared_m_no_dryrun() {
+  setup
+  echo base > big.txt
+  git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> big.txt
+  git add big.txt
+  local pj hb
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV "{\"entries\":{\"zzzz\":[\"$TMP_REPO/big.txt\"]}}" "$pj/paths.json"
+  local rc out
+  out=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=shadow bash "$HOOK" 2>&1; echo "rc=$?" )
+  rc=${out##*rc=}
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 0 ] || ! echo "$out" | grep -q '過大diff'; then
+    echo "FAIL Case26: expected exit 0 + self warn (self declared M, no DRY_RUN) got rc=$rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+test_new_file_not_blocked
+test_pathspec_limited
+test_pathspec_own_large_still_blocked
+test_required_action_executable
+test_self_declared_m_no_dryrun
+
+# Case 27: コマンド文字列内のインライン DRY_RUN=1 が効く（hook別processでも案内どおり脱出可能・L279①）
+test_inline_dry_run() {
+  setup
+  echo base > big.txt
+  git add big.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> big.txt
+  git add big.txt
+  send_hook "DRY_RUN=1 git commit -m test"
+  local rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case27: expected exit 0 (inline DRY_RUN=1 honored) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+test_inline_dry_run
 
 echo "All cases done. FAILS=$FAILS"
 [ "$FAILS" -eq 0 ] || exit 1

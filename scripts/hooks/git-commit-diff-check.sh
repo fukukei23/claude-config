@@ -28,6 +28,22 @@ log_append() {
   ) 200>"${LOG_FILE}.lock" 2>/dev/null || true
 }
 
+# block stderr出力（L279③・2026-09-04）: REQUIRED_ACTION を実行可能手順に書き換え
+# (1) 自分の意図した大量変更 → paths.json に宣言追加して再commit（宣言内はwarnのみで通過）
+# (2) 巻き込み混入 → git restore --staged で除外して再commit
+emit_block() {
+  local file="$1" delta="$2" hits="${3:-$1}"
+  cat >&2 <<EOF
+[GIT-COMMIT-DIFF-CHECK]
+EXIT_CODE=2
+REASON=stage変動が1ファイル±${BLOCK_THRESHOLD}行超を検出: ${file} (max delta=${delta})
+MAX_DELTA=${delta}
+FILE=${file}
+REQUIRED_ACTION=意図した変更なら (1) python3 $HOME/.claude/scripts/session/paths-json-update.py ${SELF_WT4:-<自タブWT4>} '${file}' を実行して宣言追加後に再commit（宣言内はwarnのみで通過） / 巻き込みなら (2) git restore --staged '${file}' で除外して再commit / 一時的に判定を無効化する場合 (3) DRY_RUN=1 git commit -m ... で再実行（インライン指定可・本commitのみblock無効）
+---
+EOF
+}
+
 INPUT=$(cat)
 
 # tool_name 抽出（純bash・コロンの前後空白を許容: Windows Desktop版実入力は空白+tool_inputネスト形・08-22実測）
@@ -82,6 +98,29 @@ if [ -z "$numstat" ]; then
   exit 0  # staged empty or not a git repo
 fi
 
+# pathspec限定（L279②・2026-09-04）: "git commit ... -- <paths>" 形式は指定パスのみ判定対象。
+# それ以外のstaged（他セッションの作業）は本commitに乗らないため判定外。
+# 近似: 最初の "commit" 以降の最後の " -- " 以降をpathspecとみなす・; & | で打ち切り。
+# 限制: 空白含みパス非対応・メッセージ内 "--" 誤検出時は一致stagedゼロ→全体判定にfallback（偽陰性ガード）
+_pathspec_str=""
+_rest="${cmd#*commit}"
+case "$_rest" in
+  *" -- "*) _pathspec_str="${_rest##* -- }" ;;
+esac
+if [ -n "$_pathspec_str" ]; then
+  _pathspec_str="${_pathspec_str%%[;&|]*}"
+  _filtered=$(git -C "$TARGET_DIR" diff --cached --numstat -- ${_pathspec_str} 2>/dev/null)
+  [ -n "$_filtered" ] && numstat="$_filtered"
+fi
+unset _pathspec_str _rest _filtered
+
+# per-file status map（L279①・2026-09-04）: A=新規は意図的追加としてblock対象から除外
+# リネーム(R)は旧path側をキーにする（numstat/engine の旧側正規化と整合）
+declare -A FILE_STATUS=()
+while IFS=$'\t' read -r _st _p1 _p2; do
+  [ -n "$_p1" ] && FILE_STATUS["$_p1"]="${_st:0:1}"
+done < <(git -C "$TARGET_DIR" diff --cached --name-status 2>/dev/null)
+
 # max delta 計算（insertions/deletions の大きい方）
 max_delta=0
 max_file=""
@@ -108,21 +147,17 @@ BLOCK_THRESHOLD=20
 if [[ "${DRY_RUN:-}" == "1" ]]; then
   BLOCK_THRESHOLD=999999
 fi
-
-if [ "$max_delta" -gt "$BLOCK_THRESHOLD" ]; then
-  cat >&2 <<EOF
-[GIT-COMMIT-DIFF-CHECK]
-EXIT_CODE=2
-REASON=stage変動が1ファイル±${BLOCK_THRESHOLD}行超を検出: ${max_file} (max delta=${max_delta})
-MAX_DELTA=${max_delta}
-FILE=${max_file}
-REQUIRED_ACTION=git diff --cached --stat で内容確認後にcommit再実行 または git restore --staged ${max_file} で巻き込みファイル除外
----
-EOF
-  log_append "BLOCK delta=${max_delta} file=${max_file} status=${file_status} exit=2"
-  exit 2
+# コマンド文字列内のインライン DRY_RUN=1 も受理（L279①・2026-09-04）:
+# hookはCCの別processで起動されるため "DRY_RUN=1 git commit" のインラインenvは
+# hook本体のenvに届かない（2026-09-01実測）。案内された脱出経路を実行可能にするため
+# コマンド文字列側から検出して同等に扱う。
+if printf '%s' "$cmd" | grep -qE '(^|[[:space:];&|])DRY_RUN=1([[:space:]]|$)'; then
+  BLOCK_THRESHOLD=999999
 fi
 
+# 注: ±20超のblock発動は宣言エンジン（下記）の分類後に実施（L279①③・2026-09-04）。
+# 自タブ宣言内(SELF)・新規追加(A)・stale宣言はblock対象外。エンジン故障時(DEGRADED)は
+# 分類不能のため max_file ベースのfallback block で保護を維持（A除外は適用）。
 if [ "$max_delta" -gt "$WARN_THRESHOLD" ]; then
   cat >&2 <<EOF
 [GIT-COMMIT-DIFF-CHECK]
@@ -283,6 +318,12 @@ engine_status=$(printf '%s\n' "$engine_out" | grep -o 'ENGINE_STATUS=[A-Z_]*' | 
 if [ "$engine_status" = "JSON_ERROR" ] || [ "$engine_status" = "ENGINE_FAIL" ]; then
   _today=$(date '+%F')
   _deg_count=$(grep -c "\[${_today}.*DEGRADED" "$LOG_FILE" 2>/dev/null || echo 0)
+  # 分類不能でも ±20超(M)の保護だけは維持する（L279①・エンジン故障をblock迂回に使わせない）
+  if [ "$file_status" != "A" ] && [ "$max_delta" -gt "$BLOCK_THRESHOLD" ]; then
+    emit_block "$max_file" "$max_delta"
+    log_append "BLOCK delta=${max_delta} file=${max_file} status=${file_status} exit=2 engine=${engine_status}"
+    exit 2
+  fi
   echo "[PATHS-BLOCK DEGRADED] 宣言判定エンジンが${engine_status}のため判定不能・commitは通します(要注意)" >&2
   log_append "DEGRADED engine=${engine_status} count=$(( ${_deg_count:-0} + 1 ))"
   if [ "${_deg_count:-0}" -ge 10 ]; then
@@ -314,6 +355,31 @@ done <<< "$(printf '%s\n' "$engine_out" | grep -v 'ENGINE_STATUS')"
 [ -n "$block_a" ] && log_append "SHADOW_BLOCK type=a files=${block_a% } self=${SELF_WT4:-unknown} mode=$PATHS_BLOCK_MODE collision=$ID_COLLISION"
 [ -n "$block_b" ] && log_append "SHADOW_BLOCK type=b thresh=$B_THRESHOLD files=${block_b% } self=${SELF_WT4:-unknown} mode=$PATHS_BLOCK_MODE collision=$ID_COLLISION"
 [ -n "$stale_hit" ] && log_append "SHADOW_BLOCK_STALE files=${stale_hit% } self=${SELF_WT4:-unknown}"
+
+# legacy block（L279①③・2026-09-04）: 宣言分類後に判定。
+# block対象 = 未宣言(UNDECL) or 他タブ活性(OTHER_ACTIVE) かつ 修正系(status≠A) かつ delta>±20。
+# 自タブ宣言内(SELF)とstale宣言は warnのみで通過（宣言追加が実行可能な脱出経路として機能する）。
+legacy_block_hits=""
+while IFS=$'\t' read -r cls delta path; do
+  [ -z "$cls" ] && continue
+  case "$cls" in
+    UNDECL|OTHER_ACTIVE)
+      if [ "${FILE_STATUS[$path]:-?}" != "A" ] && [ "$delta" -gt "$BLOCK_THRESHOLD" ]; then
+        legacy_block_hits="$legacy_block_hits$path(${delta}) "
+      fi
+      ;;
+  esac
+done <<< "$(printf '%s\n' "$engine_out" | grep -v 'ENGINE_STATUS')"
+
+if [ -n "$legacy_block_hits" ]; then
+  _lb_first=${legacy_block_hits%% *}
+  _lb_file=${_lb_first%%(*}
+  _lb_delta=${_lb_first##*\(}; _lb_delta=${_lb_delta%\)}
+  emit_block "$_lb_file" "$_lb_delta" "${legacy_block_hits% }"
+  log_append "BLOCK delta=${_lb_delta} files=${legacy_block_hits% } self=${SELF_WT4:-unknown} exit=2"
+  unset _lb_first _lb_file _lb_delta
+  exit 2
+fi
 
 # 自タブ宣言内の過大diff(理由付きwarn・git add .型大量混入の見える化)
 if [ -n "$self_big" ]; then
