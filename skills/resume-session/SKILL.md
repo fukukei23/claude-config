@@ -143,13 +143,18 @@ if [ -f "$CHANGELOG_JA" ]; then
       DAYS_OLD=$(python3 -c "from datetime import date; print((date.today()-date.fromisoformat('$LAST_FETCHED')).days)" 2>/dev/null)
     fi
   fi
-  echo "CHANGELOG_JA: あり（最終取得: ${LAST_FETCHED:-不明}・経過${DAYS_OLD:-?}日）"
-  # changelog-ja の begin/end マーカー間を抽出してサマリ展開（2026-09-03 multi-llm-review #6 反映）
-  CHANGELOG_SUMMARY=$(awk '/<!-- BEGIN: resume-summarable -->/,/<!-- END: resume-summarable -->/' "$CHANGELOG_JA" 2>/dev/null)
+  echo "CHANGELOG_JA: あり（最終取得: ${LAST_FETCHED:-不明}・経過${DAYS_OLD:-?}日）" >&2
+  # changelog-ja の begin/end マーカー間を抽出（マーカー行は除外・2026-09-03 multi-llm-review r2 #1 反映）
+  # awk 範囲指定は両端を含むため flag 変数方式で BEGIN/END 行をスキップ
+  CHANGELOG_SUMMARY=$(awk '
+    /<!-- BEGIN: resume-summarable -->/ { flag=1; next }
+    /<!-- END: resume-summarable -->/   { flag=0 }
+    flag { print }
+  ' "$CHANGELOG_JA" 2>/dev/null)
   if [ -z "$CHANGELOG_SUMMARY" ]; then
-    echo "CHANGELOG_SUMMARY: 抽出失敗（begin/end マーカーが見つかりません・フォーマット確認推奨）"
+    echo "CHANGELOG_SUMMARY: 抽出失敗（begin/end マーカーが見つかりません・フォーマット確認推奨）" >&2
   else
-    echo "CHANGELOG_SUMMARY: 抽出成功（${#CHANGELOG_SUMMARY} chars）"
+    echo "CHANGELOG_SUMMARY: 抽出成功（${#CHANGELOG_SUMMARY} chars）" >&2
   fi
 else
   echo "CHANGELOG_JA: なし（ファイル未作成・changelog 和訳未着手）"
@@ -205,9 +210,31 @@ Readツールで各ファイルの全文を取得し、以下を把握：
 または `code.claude.com/docs/en/changelog` を直接確認してください。
 ```
 
-### C. スキップ推奨（DAYS_OLD > 30）
+### C. 部分的スキップ（DAYS_OLD > 30・2026-09-03 multi-llm-review r2 #7 反映）
 
-挨拶ブロック自体を出さない（CHANGELOG_SUMMARY: 抽出成功でも古すぎて価値なし）。
+挨拶の骨格は維持・changelog 和訳部分のみ差し替え:
+
+```
+⚠️ changelog 日本語サマリが <DAYS_OLD> 日古いため、和訳表示をスキップしました。
+resume の本来の挨拶（直近作業・バックログ等）は通常通り続行します。
+和訳を更新: ~/projects/obsidian-ssot/00_SYSTEM/claude-code/claude-code-changelog-ja.md の「🔁 更新運用」参照
+```
+
+💡 実装メモ: 挨拶ブロックへの実際の注入は **awk -v テンプレート方式**でプレースホルダ展開（2026-09-03 multi-llm-review r2 #2 反映）:
+
+```bash
+# Step1 で抽出した CHANGELOG_SUMMARY を Step3 テンプレに展開
+awk -v lf="$LAST_FETCHED" -v elapsed="$DAYS_OLD" -v cs="$CHANGELOG_SUMMARY" 'BEGIN{
+  printf "🤖 Claude Code 直近アップデート（最終取得: %s・経過%s日）\n", lf, elapsed
+  print "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  print cs
+  print "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}'
+```
+
+※ `sed` での置換は CHANGELOG_SUMMARY 内の改行で `unterminated 's' command` になるため不適（**2026-09-03 検証で確認**）。
+※ 変数名 `do` は awk 予約語なので使えない（**gawk: fatal: cannot use gawk builtin 'do' as variable name**・2026-09-03 検証で確認）→ `elapsed` 等の非予約語を使う。
+※ `-v` 経由でなく、シェル変数の **直接展開**（`'"$CHANGELOG_SUMMARY"'` のシングルクォート内の式展開）も可。
 
 💡 かみ砕くと: これが現状の CC のリビジョン。新しければ「新機能はこれだけ」、古ければ「そろそろ和訳を更新してね」の警告に切り替え。
 
