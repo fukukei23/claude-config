@@ -121,7 +121,7 @@ if [ -f "$BACKLOG" ] && [ "$rc" -eq 0 ] && [ "${DAILY_TRIAGE_SKIP_REMINDER_CHECK
       if printf '%s' "$_body" | grep -qE '[0-9]{4}-[0-9]{2}-[0-9]{2}'; then
         _due=$(printf '%s' "$_body" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
         if [ "$_due" \< "$_today" ]; then
-          _warn="${_warn}- ⏰ 期限超過+cron未記載: L${_ln} (due=${_due}) $(printf '%s' "$_body" | cut -c1-60)\n"
+          _warn="${_warn}- ⏰ 期限超過+cron未記載: L${_ln} (due=${_due}) ${_body:0:60}\n"
         fi
       fi
     fi
