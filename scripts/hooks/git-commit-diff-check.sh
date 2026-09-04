@@ -33,13 +33,20 @@ log_append() {
 # (2) 巻き込み混入 → git restore --staged で除外して再commit
 emit_block() {
   local file="$1" delta="$2" hits="${3:-$1}"
+  # paths-json-update.py への案内はrepoルート起点の絶対パスにする（2026-09-05修正）。
+  # paths-json-update.py の norm() は os.path.abspath をcwd基準で行うため、repo相対の
+  # ${file} をそのまま渡すと呼び出し時のcwd(通常$HOME付近)基準で誤ったパスに解決され、
+  # 宣言してもblockが解消しない実害があった(Windows Desktop実運用で実測)。
+  local abs_file
+  abs_file=$(cd "$TARGET_DIR" 2>/dev/null && realpath -m -- "$file" 2>/dev/null)
+  [ -z "$abs_file" ] && abs_file="$TARGET_DIR/$file"
   cat >&2 <<EOF
 [GIT-COMMIT-DIFF-CHECK]
 EXIT_CODE=2
 REASON=stage変動が1ファイル±${BLOCK_THRESHOLD}行超を検出: ${file} (max delta=${delta})
 MAX_DELTA=${delta}
 FILE=${file}
-REQUIRED_ACTION=意図した変更なら (1) python3 $HOME/.claude/scripts/session/paths-json-update.py ${SELF_WT4:-<自タブWT4>} '${file}' を実行して宣言追加後に再commit（宣言内はwarnのみで通過） / 巻き込みなら (2) git restore --staged '${file}' で除外して再commit / 一時的に判定を無効化する場合 (3) DRY_RUN=1 git commit -m ... で再実行（インライン指定可・本commitのみblock無効）
+REQUIRED_ACTION=意図した変更なら (1) python3 $HOME/.claude/scripts/session/paths-json-update.py ${SELF_WT4:-<自タブWT4>} '${abs_file}' を実行して宣言追加後に再commit（宣言内はwarnのみで通過） / 巻き込みなら (2) git restore --staged '${file}' で除外して再commit / 一時的に判定を無効化する場合 (3) DRY_RUN=1 git commit -m ... で再実行（インライン指定可・本commitのみblock無効）
 ---
 EOF
 }
@@ -53,8 +60,25 @@ if [[ "$tool_name" != "Bash" ]]; then
   exit 0
 fi
 
-# command 抽出
-cmd=$(printf '%s' "$INPUT" | sed -n 's/.*"command" *: *"\(.*\)".*/\1/p' | head -1)
+# command 抽出（python3のjson decodeで正しくアンエスケープ・2026-09-05修正）
+# 旧実装はsedで"command":"..."の生文字列を抜き出すのみで、JSON側の \n エスケープを
+# 実際の改行にデコードしていなかった。ヒアドキュメント形式(wsl bash -s <<EOF\n...\nEOF)
+# のコマンドはJSON化時に改行が \n (バックスラッシュ+n の2文字)のまま残り、
+# 直前が単語文字(例: pipefail\ngit の n)だと後続の \bgit の単語境界(\b)が
+# 「n と g の間」に成立しなくなり cwd/-C 解析(_cd_path/_gc_path)が空振りして
+# hookのcwd(=無関係なrepo)にfallbackする実害が出た(Windows Desktop実運用で実測)。
+cmd=$(printf '%s' "$INPUT" | python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.stdin.read())
+except Exception:
+    sys.exit(0)
+ti = d.get('tool_input')
+c = ti.get('command') if isinstance(ti, dict) else None
+if c is None:
+    c = d.get('command', '')
+sys.stdout.write(c if isinstance(c, str) else '')
+" 2>/dev/null)
 
 # git commit 以外は対象外（cwd対応: git -C <path> commit 形式も検出・L260①）
 if ! echo "$cmd" | grep -qE 'git([[:space:]]+-C[[:space:]]+("[^"]*"|[^ ;&|]+))*[[:space:]]+commit([[:space:]]|$)'; then
@@ -92,8 +116,10 @@ if [ -n "$_gc_path" ]; then
 fi
 unset _cd_path _gc_path
 
-# staged diff の行数取得
-numstat=$(git -C "$TARGET_DIR" diff --cached --numstat 2>/dev/null)
+# staged diff の行数取得（core.quotepath=false: 非ASCIIファイル名の8進エスケープを無効化。
+# 既定(true)だと日本語ファイル名が "\346\227..." 形式で出力され、paths.json宣言の生UTF-8
+# 文字列と一致せず宣言判定が常に外れる不具合があった・2026-09-05実測）
+numstat=$(git -c core.quotepath=false -C "$TARGET_DIR" diff --cached --numstat 2>/dev/null)
 if [ -z "$numstat" ]; then
   exit 0  # staged empty or not a git repo
 fi
@@ -109,7 +135,7 @@ case "$_rest" in
 esac
 if [ -n "$_pathspec_str" ]; then
   _pathspec_str="${_pathspec_str%%[;&|]*}"
-  _filtered=$(git -C "$TARGET_DIR" diff --cached --numstat -- ${_pathspec_str} 2>/dev/null)
+  _filtered=$(git -c core.quotepath=false -C "$TARGET_DIR" diff --cached --numstat -- ${_pathspec_str} 2>/dev/null)
   [ -n "$_filtered" ] && numstat="$_filtered"
 fi
 unset _pathspec_str _rest _filtered
@@ -119,7 +145,7 @@ unset _pathspec_str _rest _filtered
 declare -A FILE_STATUS=()
 while IFS=$'\t' read -r _st _p1 _p2; do
   [ -n "$_p1" ] && FILE_STATUS["$_p1"]="${_st:0:1}"
-done < <(git -C "$TARGET_DIR" diff --cached --name-status 2>/dev/null)
+done < <(git -c core.quotepath=false -C "$TARGET_DIR" diff --cached --name-status 2>/dev/null)
 
 # max delta 計算（insertions/deletions の大きい方）
 max_delta=0
@@ -137,7 +163,7 @@ done <<< "$numstat"
 # max_file の status 判定（A=新規/M=修正/R=リネーム・doubt-driven #7 正規/非正規タグ基盤）
 file_status="?"
 if [ -n "$max_file" ]; then
-  ns_line=$(git -C "$TARGET_DIR" diff --cached --name-status -- "$max_file" 2>/dev/null | head -1 | cut -f1)
+  ns_line=$(git -c core.quotepath=false -C "$TARGET_DIR" diff --cached --name-status -- "$max_file" 2>/dev/null | head -1 | cut -f1)
   [ -n "$ns_line" ] && file_status="${ns_line:0:1}"
 fi
 

@@ -26,6 +26,15 @@ send_hook() {
   printf '{"tool_name":"Bash","command":"%s"}' "$cmd" | bash "$HOOK" 2>/dev/null
 }
 
+# hookにJSONを流す（python3のjson.dumpsで正しくエスケープ・改行/ダブルクォート含むcommand用）
+send_hook_json() {
+  local cmd="$1"
+  python3 -c "
+import json, sys
+print(json.dumps({'tool_name': 'Bash', 'tool_input': {'command': sys.argv[1]}}))
+" "$cmd" | bash "$HOOK" 2>/dev/null
+}
+
 # Case 1: 小変更(5行) → exit 0
 test_small_change() {
   setup
@@ -561,6 +570,85 @@ test_inline_dry_run() {
 }
 
 test_inline_dry_run
+
+# === Windows Desktop版で実測した欠陥3件の再発防止（2026-09-05・Case 28-30） ===
+
+# Case 28: ヒアドキュメント複数行コマンド(wsl bash -s <<EOF\ngit -C <repo> commit\nEOF)経由・
+# hookのcwdは対象repo外+別repoに大量staged → 対象repoの小変更で exit 0（誤判定なら別repoの
+# 大量変更を検出しexit 2になる・2026-09-05 Windows Desktop実運用で実際に誤block発生）
+test_heredoc_multiline_git_dash_c() {
+  setup
+  # "無関係な別repo"を用意し、そちらには大量staged変更を作る(誤検出されると事故る対象)
+  local other
+  other=$(mktemp -d)
+  ( cd "$other" && git init -q && git config user.email t@t && git config user.name t \
+    && seq 1 50 > other_big.txt && git add other_big.txt && git commit -qm init 2>/dev/null \
+    && seq 51 200 >> other_big.txt && git add other_big.txt )
+  # 対象repo(TMP_REPO)には小変更のみ
+  seq 1 5 > small.txt
+  git add small.txt
+  git commit -q -m init 2>/dev/null
+  seq 6 8 >> small.txt
+  git add small.txt
+  local heredoc_cmd rc
+  heredoc_cmd=$(printf 'wsl bash -s <<'"'"'EOF'"'"'\nset -uo pipefail\ngit -C %s add small.txt\ngit -C %s commit -m "test msg" -- small.txt\nEOF' "$TMP_REPO" "$TMP_REPO")
+  ( cd "$other" && send_hook_json "$heredoc_cmd" )
+  rc=$?
+  rm -rf "$other"
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case28: expected exit 0 (heredoc git -C correctly scoped to TMP_REPO, not other repo) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 29: 日本語ファイル名+自タブ宣言済み → quotepath既定(8進エスケープ)でも宣言と一致しblockされない
+test_japanese_filename_declared_free() {
+  setup
+  local jfile="変更履歴.md"
+  printf 'base\n' > "$jfile"
+  git add "$jfile"
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> "$jfile"
+  git add "$jfile"
+  local pj hb
+  pj=$(mktemp -d); hb=$(mktemp -d)
+  PATHS_ENV "{\"entries\":{\"zzzz\":[\"$TMP_REPO/$jfile\"]}}" "$pj/paths.json"
+  local rc out
+  out=$( cd "$TMP_REPO" && printf '{"tool_name":"Bash","tool_input":{"command":"git commit -m t"}}' \
+    | env WT_SESSION=zzzz PATHS_JSON_FILE="$pj/paths.json" HEARTBEAT_DIR="$hb" PATHS_BOARD_FILE=/nonexistent \
+      PATHS_BLOCK_MODE=enforce bash "$HOOK" 2>&1; echo "rc=$?" )
+  rc=${out##*rc=}
+  rm -rf "$pj" "$hb"
+  if [ "$rc" -ne 0 ]; then
+    echo "FAIL Case29: expected exit 0 (self-declared Japanese filename matched despite quotepath escaping) got $rc"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+# Case 30: block時のREQUIRED_ACTIONに書かれるpaths-json-update.py引数が絶対パス
+# （相対パスのままだとcwd依存のnorm()で誤ったパスに解決される・2026-09-05実測）
+test_required_action_absolute_path() {
+  setup
+  echo base > med.txt
+  git add med.txt
+  git commit -q -m init 2>/dev/null
+  seq 1 50 >> med.txt
+  git add med.txt
+  local stderr_out
+  stderr_out=$(printf '{"tool_name":"Bash","command":"git commit -m test"}' | bash "$HOOK" 2>&1 1>/dev/null)
+  if ! echo "$stderr_out" | grep -q "paths-json-update.py [^ ]* '$TMP_REPO/med.txt'"; then
+    echo "FAIL Case30: REQUIRED_ACTION path arg is not absolute ($TMP_REPO/med.txt)"
+    echo "$stderr_out" | grep "REQUIRED_ACTION"
+    FAILS=$((FAILS+1))
+  fi
+  teardown
+}
+
+test_heredoc_multiline_git_dash_c
+test_japanese_filename_declared_free
+test_required_action_absolute_path
 
 echo "All cases done. FAILS=$FAILS"
 [ "$FAILS" -eq 0 ] || exit 1
