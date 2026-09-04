@@ -367,6 +367,15 @@
             "command": "DRY_RUN=1 bash $HOME/.claude/scripts/hooks/git-commit-diff-check.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/hooks/git-suction-guard.sh"
+          }
+        ]
       }
     ],
     "SessionStart": [
