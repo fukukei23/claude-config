@@ -376,6 +376,16 @@
             "command": "/home/yn4416/.claude/scripts/hooks/git-suction-guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|Read|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/hooks/diary-write-guard.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionStart": [
