@@ -109,7 +109,7 @@
     ],
     "defaultMode": "bypassPermissions"
   },
-  "model": "opus",
+  "model": "sonnet",
   "skillOverrides": {
     "record-decision": "off",
     "ab-testing": "off",
