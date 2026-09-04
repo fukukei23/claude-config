@@ -116,17 +116,17 @@ class ProxyServer:
             await self._manual.clear()
             logger.info("Manual mode cleared (auto)")
             return web.json_response(self._manual_status())
-        if provider != "minimax":
+        if provider not in ("minimax", "glm"):
             return web.json_response(
-                {"error": "provider must be 'minimax' or 'auto'"}, status=400)
+                {"error": "provider must be 'minimax', 'glm' or 'auto'"}, status=400)
 
         hours = data.get("hours", 8)
         if not isinstance(hours, (int, float)) or isinstance(hours, bool) \
                 or not (1 <= hours <= 72):
             return web.json_response({"error": "hours must be 1-72"}, status=400)
 
-        await self._manual.set("minimax", float(hours))
-        logger.info(f"Manual mode set: provider=minimax hours={hours}")
+        await self._manual.set(provider, float(hours))
+        logger.info(f"Manual mode set: provider={provider} hours={hours}")
         return web.json_response(self._manual_status())
 
     def _manual_status(self) -> dict:
@@ -136,12 +136,18 @@ class ProxyServer:
     def _effective_route(self, req_model: str | None,
                          usage_pct: float) -> tuple[str, str]:
         """通常ルーティング + 手動モード上書き。manual=minimax 中は
-        peak時間帯・使用率しきい値を無視して MiniMax-M3 へ強制する。"""
+        peak時間帯・使用率しきい値を無視して MiniMax-M3 へ強制する。
+        manual=glm 中は peak_block 時のみGLMへ強制（peak_block外は無効=
+        戻し忘れても19時に自然解除・2026-09-04 spec）。"""
         model, provider = self._router.route_model(req_model, usage_pct)
-        if self._manual.active() == "minimax":
+        manual = self._manual.active()
+        if manual == "minimax":
             fb_model, _ = self._router.get_fallback()
             model = fb_model
             provider = "minimax"
+        elif manual == "glm" and self._router.current_mode == "peak_block":
+            model = req_model or self._router.default_model
+            provider = "zai"
         return model, provider
 
     async def _handle_api(self, request: web.Request) -> web.Response:
@@ -195,7 +201,10 @@ class ProxyServer:
         # peak_block (JST 15-19時) は GLM を使わない設計。
         # MiniMax が 429 でも通常は GLM には逃げず MiniMax の短いリトライのみ行う
         # （MiniMax 全滅時のみ 4.7-Flash 最後の砦へ逃がす・2026-08-19 改訂）。
-        if self._router.current_mode == "peak_block":
+        # ただし manual=glm 中は GLM を primary で使っているため通常チェーン
+        # （MiniMax→4.7-Flash）に逃がす（emergency維持・2026-09-04 spec）。
+        if (self._router.current_mode == "peak_block"
+                and self._manual.active() != "glm"):
             return await self._handle_429_peak_block(method, path, headers, orig_body)
 
         # 新チェーン（2026-08-17 改訂・ユーザー確定）:

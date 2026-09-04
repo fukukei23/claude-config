@@ -172,6 +172,9 @@ def _make_server():
     server._last_actual_model = None
     server._last_request_bytes = 0
     server._upstream = MagicMock()
+    # 2026-09-04: _handle_429 が manual.active() を参照するため追加
+    from glm_rate_proxy.manual_mode import ManualOverride
+    server._manual = ManualOverride(state_file="/tmp/test-fb-manual.json")
     return server
 
 

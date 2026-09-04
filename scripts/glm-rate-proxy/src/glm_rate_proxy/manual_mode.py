@@ -19,10 +19,12 @@ logger = logging.getLogger("glm-rate-proxy")
 DEFAULT_STATE_FILE = "/tmp/glm-rate-proxy-manual.json"
 # 期限何秒前に警告ログを出すか
 TTL_WARNING_SEC = 1800
+# 手動指定を許可するprovider（2026-09-04: "glm" 追加・peak_block中のみ有効）
+ALLOWED_PROVIDERS = ("minimax", "glm")
 
 
 class ManualOverride:
-    """manual provider override（現在は "minimax" のみ対応・None=auto）."""
+    """manual provider override（"minimax"=常時MiniMax・"glm"=peak_block中のみGLM・None=auto）."""
 
     def __init__(self, state_file: str = DEFAULT_STATE_FILE):
         self._state_file = state_file
@@ -41,12 +43,12 @@ class ManualOverride:
             data = json.load(open(self._state_file))
         except (OSError, json.JSONDecodeError):
             return
-        if (isinstance(data, dict) and data.get("provider") == "minimax"
+        if (isinstance(data, dict) and data.get("provider") in ALLOWED_PROVIDERS
                 and data.get("expires_at", 0) > time.time()):
-            self._provider = "minimax"
+            self._provider = data["provider"]
             self._expires_at = float(data["expires_at"])
             logger.info(
-                f"Restored manual override: provider=minimax "
+                f"Restored manual override: provider={self._provider} "
                 f"expires_at={self._expires_at:.0f}")
 
     async def set(self, provider: str, hours: float) -> None:

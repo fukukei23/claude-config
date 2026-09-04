@@ -18,6 +18,8 @@ import os
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from aiohttp import web
+
 import pytest
 
 from glm_rate_proxy.manual_mode import ManualOverride
@@ -341,3 +343,96 @@ class TestMinimaxKeyChain:
         with pytest.raises(UpstreamError):
             await client.request_minimax("POST", "/v1/messages", {}, BODY)
         assert calls == ["key0"]
+
+
+# ---- manual=glm（peak_block中のみ有効・2026-09-04 spec） ----
+
+def _make_always_peak_server():
+    """_is_peak_hour を常にTrueにするrouterを持つサーバ（start=0,end=24）.
+
+    実時刻に依存せず peak_block 状態を再現するためのヘルパー。
+    """
+    cfg = _make_config()
+    server = ProxyServer.__new__(ProxyServer)
+    server._config = cfg
+    server._tracker = UsageTracker("/tmp/test-status.json", zai_api_key="dummy")
+    router_cfg = dict(cfg.peak_hours, enabled=True, start_hour=0, end_hour=24)
+    server._router = ModelRouter(cfg.thresholds, cfg.fallback, cfg.default_model, router_cfg)
+    server._last_actual_model = None
+    server._last_request_bytes = 0
+    server._upstream = MagicMock()
+    server._manual = ManualOverride(state_file="/tmp/test-manual-glm-never.json")
+    return server
+
+
+class TestManualGlmOverride:
+    @pytest.mark.asyncio
+    async def test_setでglm有効(self):
+        m = ManualOverride(state_file="/tmp/test-mm-glm.json")
+        await m.set("glm", hours=8)
+        assert m.active() == "glm"
+
+    @pytest.mark.asyncio
+    async def test_再起動復元_期限内ならglm復元(self, tmp_path):
+        f = str(tmp_path / "mm.json")
+        m1 = ManualOverride(state_file=f)
+        await m1.set("glm", hours=8)
+        m2 = ManualOverride(state_file=f)
+        m2.load()
+        assert m2.active() == "glm"
+
+    @pytest.mark.asyncio
+    async def test_glm指定で200_state反映(self):
+        server = _make_always_peak_server()
+        resp = await server._handle_mode(_StubRequest({"provider": "glm", "hours": 4}))
+        assert resp.status == 200
+        data = json.loads(resp.body)
+        assert data["manual_provider"] == "glm"
+
+    @pytest.mark.asyncio
+    async def test_peak_block中glm_manualはGLMへ強制(self):
+        server = _make_always_peak_server()
+        await server._manual.set("glm", hours=4)
+        model, provider = server._effective_route("glm-5.3", 10.0)
+        assert provider == "zai"
+        assert model == "glm-5.3"
+
+    @pytest.mark.asyncio
+    async def test_peak_block中glm_manual_モデル指定なしは既定モデル(self):
+        server = _make_always_peak_server()
+        await server._manual.set("glm", hours=4)
+        model, provider = server._effective_route(None, 10.0)
+        assert provider == "zai"
+        assert model == server._router.default_model
+
+    @pytest.mark.asyncio
+    async def test_非peak時glm_manualは効果なし_emergencyのまま(self):
+        """glm manualはpeak_block外では無効=emergency(usage 99%)ならMiniMaxのまま."""
+        server = _make_server()
+        await server._manual.set("glm", hours=4)
+        model, provider = server._effective_route("glm-5.3", 99.0)
+        assert provider == "minimax"
+
+    @pytest.mark.asyncio
+    async def test_peak_block中glm_manual時の429は通常チェーン(self):
+        """manual=glm中はpeak_block専用429分岐を通らず通常チェーン(MiniMax保険)へ."""
+        server = _make_always_peak_server()
+        server._router._current_mode = "peak_block"
+        await server._manual.set("glm", hours=4)
+        server._handle_429_peak_block = AsyncMock(
+            return_value=web.Response(status=599))
+        server._upstream.request_minimax = AsyncMock(return_value=_ok_resp())
+        resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
+        assert resp.status == 200
+        server._handle_429_peak_block.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_peak_block中manual無しの429はpeak_block分岐維持(self):
+        """baseline: manual無し+peak_block時は従来通りpeak_block分岐に入る."""
+        server = _make_always_peak_server()
+        server._router._current_mode = "peak_block"
+        server._handle_429_peak_block = AsyncMock(
+            return_value=web.Response(status=599))
+        resp = await server._handle_429("POST", "/v1/messages", {}, BODY)
+        assert resp.status == 599
+        server._handle_429_peak_block.assert_awaited_once()

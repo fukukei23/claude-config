@@ -69,5 +69,9 @@ class ModelRouter:
         return self._fallback["model"], self._fallback["provider"]
 
     @property
+    def default_model(self) -> str:
+        return self._default_model
+
+    @property
     def current_mode(self) -> str:
         return self._current_mode
