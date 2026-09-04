@@ -301,13 +301,23 @@ def _import_requests_post() -> Callable:
 
 
 def _import_gemini_runner() -> tuple[Callable, Callable]:
-    """lib.api_base の (run_api_with_fallback, _load_candidates) を遅延 import。"""
-    root = Path(__file__).resolve().parents[2]  # claude-config/
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
-    from lib.api_base import _load_candidates, run_api_with_fallback
+    """lib.api_base の (run_api_with_fallback, _load_candidates) を遅延 import。
 
-    return run_api_with_fallback, _load_candidates
+    L437 対策: sys.path 挿入ではなく importlib で実ファイルを直接ロードする。
+    claude-config/lib は名前空間パッケージ（__init__.py 無し）のため、
+    対象repoの同名正規パッケージ lib/ に解決を奪われる事故が起きた
+    （2026-09-04 実測・x-automation cwd で ModuleNotFoundError）。
+    一般名 lib に依存しない明示パスで解決し、cwd に依存しない。
+    """
+    import importlib.util
+
+    api_base_path = Path(__file__).resolve().parents[2] / "lib" / "api_base.py"
+    if not api_base_path.exists():
+        raise FileNotFoundError(f"api_base.py が見つからない: {api_base_path}")
+    spec = importlib.util.spec_from_file_location("claude_config_api_base", api_base_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.run_api_with_fallback, module._load_candidates
 
 
 # --- プロンプト組み立て ---
