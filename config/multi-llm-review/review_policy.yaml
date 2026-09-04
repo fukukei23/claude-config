@@ -1,0 +1,59 @@
+# review_policy.yaml — マルチLLMレビューのポリシー正本（中立位置）
+# spec: obsidian-ssot/docs/superpowers/specs/2026-09-04-レビュー統合スキルとlib共有ポリシー統一-design.md
+# G1初期版: SKILL.md と review_lib.py の現行実値を抽出したもの（このリリースでは参照化しない・G3は次リリース）
+# 各値の出所は 00_SYSTEM/マルチLLMレビュー/2026-09-04_レビュー統合スキルとlib共有化設計/g1_extraction_diff.md
+version: 1.0.0
+last_updated: 2026-09-05 # G1初期版作成（抽出diffを正典として値を移設）
+
+vendors:
+  gemini:
+    # lib側はcapability候補解決（直書き0件）・SKILL.md L104/L129の直書き実値のみ収録
+    models: [gemini-3.1-pro-preview]
+    max_output_tokens: 8000
+    temperature: 0.4
+  minimax:
+    mcp_tool: mcp__minimax__minimax_ask
+    models: [MiniMax-M3, MiniMax-M2.7]
+    max_tokens: 8000
+  openrouter:
+    pick_script: ~/bin/openrouter-free-pick.sh
+    # lib側OPENROUTER_MODELS実値・env OPENROUTER_MODELSで上書き可（退役対策）
+    models: [cohere/north-mini-code:free, openai/gpt-oss-20b:free]
+    max_tokens: 2000
+    reasoning_enabled: false
+judge:
+  abort_vendor_threshold: 2 # ok vendor数 < 2 でabort（多様性保証）
+  critical_ng_threshold: 2 # criticals >= 2 でng
+  silent_policy: all_silent_is_ng
+
+severity_enum: [critical, high, med, low]
+
+# SKILL.md正規化テーブル + review_lib.py SEVERITY_MAP のunion（mediumはlibのみ存在）
+severity_normalize:
+  blocker: critical
+  critical: critical
+  P0: critical
+  致命的: critical
+  major: high
+  high: high
+  重大: high
+  P1: high
+  med: med
+  medium: med # libのみ（SKILL.mdテーブルに無し・G1乖離の記録あり）
+  P2: med
+  中: med
+  minor: low
+  low: low
+  nit: low
+  P3: low
+  低: low
+
+output_schema:
+  items_max: 7
+  required_fields: [issue, severity, quote, suggestion]
+
+# silent_policy の値は本セクションのキーと一致必須（spec r6）
+silent_definition:
+  all_silent_is_ng:
+    meaning: judgment_ignore
+    conditions: [non_ok_raw_status, zero_items, no_issues_template, fallback_invoked]
