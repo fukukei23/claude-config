@@ -1,0 +1,5 @@
+payload = {
+    "model": model,
+    "max_tokens": or_policy["max_tokens"],
+    "reasoning": {"enabled": bool(or_policy["reasoning_enabled"])},
+}

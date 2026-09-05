@@ -1,0 +1,1 @@
+| MiniMax | YAML vendors.minimax.mcp_tool 正本 | 設定 | max_tokens は YAML vendors.minimax.max_tokens 正本 |

@@ -1,0 +1,1 @@
+| MiniMax | MCP呼出 | 設定 | max_tokens=8000 推奨でレビューする |

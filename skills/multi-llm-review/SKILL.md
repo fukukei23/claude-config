@@ -126,7 +126,7 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
    - triple時: `/tmp/req_or_<sessionsuffix>.json`（OpenRouter用）も生成
    - **`<sessionsuffix>` は必須（d′・2026-08-28）**: 並行セッションとの衝突防止（`CLAUDE_CODE_SESSION_ID` 先頭8桁等・例: `req_gemini_c56c356b.json`）。同日2回の衝突事故（他セッションの古いペイロードを踏む）の再発防止。読み取り側も同名で読むこと
 2. **並列送信**（同一メッセージでツール呼出・triple時は3ツール同時）:
-   - MiniMax: `mcp__minimax__minimax_ask`（prompt に同一プロンプトを指定）
+   - MiniMax: **YAML `vendors.minimax.mcp_tool` 正本のMCPツール**を呼ぶ（prompt に同一プロンプトを指定）
      - **⚠️⚠️ レビュー対象は必ずプロンプト本文にインラインで貼る（ファイルパス渡しは全LLMで禁止・2026-08-28実証）**
        本ルールの本質は「MCPだから読めない」ではなく、**レビューに使う呼び出し（`minimax_ask`・Gemini curl・OpenRouter curl）はいずれもローカルファイルを読めないテキスト生成API**であること。読めない形式（パス）で対象を渡すと、LLMは読めない代わりに**存在しない実装（pandas・tkinter・GUI等）を想像してレビューする**（ハルシネーション）。実例: 2026-08-28リハーサル納品レビューでMiniMaxにパスのみ渡した結果39指摘中大多数が架空実装への指摘（`quote`が元案と不一致=Fact Checkで機械排除・有効指摘は4件のみ）。
        - ※MiniMax MCPサーバー自体には**サーバー側でファイルを読む別ツール**（`minimax_summarize_file`・`minimax_batch_process(file_paths)`等）が実在するが、レビュー用途では使わない（要約・翻訳向けでレビュープロンプトとの組合せ保証が無い）。**`minimax_ask` はテキスト生成専用**と覚えること
@@ -210,7 +210,7 @@ curl/MCP の生レスポンスは **API用JSONで包まれている**（Gemini/O
 |---|---|---|
 | **Gemini**（curl REST） | `{"candidates":[{"content":{"parts":[{"text":"..."}]}}], "usageMetadata":{...}}` | `resp['candidates'][0]['content']['parts'][0]['text']` |
 | **OpenRouter**（curl REST） | `{"choices":[{"message":{"content":"..."}}]}` | `resp['choices'][0]['message']['content']` |
-| **MiniMax MCP**（`mcp__minimax__minimax_ask`） | 直接テキスト（封筒なし） | そのまま（前処理不要・MCPが本文を返す） |
+| **MiniMax MCP**（YAML `vendors.minimax.mcp_tool` 正本） | 直接テキスト（封筒なし） | そのまま（前処理不要・MCPが本文を返す） |
 
 抽出例（python3）:
 ```python

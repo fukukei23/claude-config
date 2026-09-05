@@ -1,0 +1,2 @@
+縮退判定: 呼出成功LLM数 M ≥ YAML judge.abort_vendor_threshold（正本）で続行。
+閾値の実値はYAML正本を参照する（この文書に数値の複製を置かない）。

@@ -13,4 +13,8 @@ if [ "$count" -gt 10 ]; then
   echo "⚠️ $count ファイル staged・並行セッション巻き込み確認"
   echo "   戻す: git restore --staged <file>"
 fi
-exit 0
+
+# review_policy.yaml 参照化ゲート（G3・spec §3.6・YAML構文→直書きgrep→pytest）
+# ポリシー関連ファイルがstagedされた時のみ実行・SKIP_GREP=1でgrepスキップ可
+bash "$(git rev-parse --show-toplevel)/scripts/hooks/check-review-policy-gate.sh"
+exit $?

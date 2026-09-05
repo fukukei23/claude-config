@@ -1,0 +1,5 @@
+payload = {
+    "model": model,
+    "max_tokens": 2000,
+    "reasoning": {"enabled": True},
+}
