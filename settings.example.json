@@ -364,7 +364,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "DRY_RUN=1 bash $HOME/.claude/scripts/hooks/git-commit-diff-check.sh"
+            "command": "PATHS_BLOCK_MODE=enforce bash $HOME/.claude/scripts/hooks/git-commit-diff-check.sh"
           }
         ]
       },
