@@ -5,6 +5,12 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 # multi-llm-review
 
+## 📋 ポリシーYAML正本（手順開始前の強制Read・必須・G3参照化2026-09-06）
+
+**手順開始前に `~/projects/claude-config/config/multi-llm-review/review_policy.yaml` を必ずReadせよ（未読のまま進むことを禁止）。** 本手順内のモデル名・MCPツール名・トークン上限・判定閾値・severity正規化の**値はすべてYAML正本から読む**（このファイル内の値表記は参照指示であり値の複製を作らない・spec §3.1）。
+
+**version照合（ステートレス・spec §3.4）**: Read直後にYAMLの `version` を抽出し、`git -C ~/projects/claude-config show HEAD:config/multi-llm-review/review_policy.yaml` の出力から最新コミット側のversionを取得して比較する。不一致なら「**コミット漏れのYAML変更がある**」と警告し、続行可否をふくけいに確認する（major/minor差はYAML再読込を促す）。照合に使うversionが抽出できない場合、「スキル側のYAML Read自体に失敗した可能性」を疑って読み直すこと。
+
 ## 概要
 
 レビュー対象（設計/コード/文章）を複数の**異なるLLM**に並列独立レビューさせ、ホストLLM（現在動いているLLM）が**当初目的を唯一の基準**に取捨選択して元案へ統合し、よりよい改訂案を作る。
@@ -81,7 +87,7 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 | **500 / ネットワークエラー / timeout** | 再試行1回（timeout=60s・累計上限180s）→それでも失敗ならスキップ |
 | **429**（レート制限） | 順次化または2モデルに縮退（後述「コスト・レート制限」） |
 
-**縮退判定**: 呼出成功LLM数 M ≥ 2 で続行。M < 2 は中止（多様性が保証できないため）。
+**縮退判定**: 呼出成功LLM数 M ≥ **YAML `judge.abort_vendor_threshold`（正本）** で続行。未満は中止（多様性が保証できないため・値の複製を作らないためYAML参照・spec §3.1/3.4）。lib側 `_judge` も同一YAML値を使用する。
 
 ### 自動フォールバック（lite から移植・2026-08-22）
 
@@ -100,10 +106,10 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
 
 | LLM | 通信方式 | 認証 | 備考 |
 |---|---|---|---|
-| MiniMax | `mcp__minimax__minimax_ask`（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens=8000` 推奨・**⚠️レビュー対象（コード/文章）は本文インライン渡し必須・ファイルパス渡し禁止**（テキスト生成APIはローカルファイルを読めないため・下記⚠️⚠️参照・2026-08-28実証） |
-| Gemini | curl REST（`gemini-3.1-pro-preview`） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・モデル名は現時点の最新版（退役時にホストが最新へ読み替え・ハードコードは例示）・**思考モデルのため `maxOutputTokens=8000` 必須**（3000では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・2ラウンド実例で実証） |
-| GLM（手動切替中のレビュアー特則・2026-09-02追加） | `mcp__glm__glm_ask`（MCP・推奨）/ curl REST（`https://api.z.ai/api/anthropic/v1/messages`・代替） | MCP設定 or `$GLM_API_KEY`（.secrets.env） | proxy-mode=MiniMax時のレビューアーに組み込む経路。MCP側: settings.jsonの`mcpServers.glm`に登録（`start-glm-mcp.sh`起動・既存実装流用）。curl REST側: Anthropic互換エンドポイント経由で`GLM-5.3`/`glm-5.3`等へ直接呼出可能（プロキシ経由ではない生ZAI APIのためプロキシ月間枠に影響しない）。**本文インライン渡し必須**（他LLMと同じ制約）。`max_tokens=8000` |
-| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（`openrouter-free-pick.sh` の戻り値JSON契約・paramsのみマージ）・`max_tokens=2000`＋**`"reasoning": {"enabled": false}` 必須**（下記⚠️）・既存 lite のcurl手順を流用 |
+| MiniMax | **YAML `vendors.minimax.mcp_tool` 正本**（MCP） | MCP設定 | 同一メッセージで他curlと並列可能・JSON多指摘対策で `max_tokens` は **YAML `vendors.minimax.max_tokens` 正本**・**⚠️レビュー対象（コード/文章）は本文インライン渡し必須・ファイルパス渡し禁止**（テキスト生成APIはローカルファイルを読めないため・下記⚠️⚠️参照・2026-08-28実証） |
+| Gemini | curl REST（モデル名は **YAML `vendors.gemini.models` 正本**） | `$GEMINI_API_KEY` | `gemini.py` はYouTube専用で不使用・**思考モデルのため `maxOutputTokens` = YAML `vendors.gemini.max_output_tokens` 正本必須**（小さい値では思考トークンが枠を消費して出力途中切れ=MAX_TOKENS・実例で実証）。`temperature` = YAML `vendors.gemini.temperature` |
+| GLM（手動切替中のレビュアー特則・2026-09-02追加） | `mcp__glm__glm_ask`（MCP・推奨）/ curl REST（`https://api.z.ai/api/anthropic/v1/messages`・代替） | MCP設定 or `$GLM_API_KEY`（.secrets.env） | proxy-mode=MiniMax時のレビューアーに組み込む経路。**GLMはYAML正本未収録**（G1乖離3・SKILL-only経路・将来 `vendors.glm` 新設時に移行）。MCP側: settings.jsonの`mcpServers.glm`に登録。curl REST側: Anthropic互換エンドポイント経由で直接呼出可能（プロキシ経由ではない生ZAI APIのためプロキシ月間枠に影響しない）。**本文インライン渡し必須**（他LLMと同じ制約） |
+| OpenRouter（triple時の3機目） | curl REST（OpenRouter `/api/v1/chat/completions`） | `$OPENROUTER_API_KEY` | triple指定時のみ追加・free枠モデル（`openrouter-free-pick.sh` の戻り値JSON契約・paramsのみマージ）・`max_tokens` は **YAML `vendors.openrouter.max_tokens` 正本**＋**`"reasoning": {"enabled": false}` 必須**（正本は YAML `vendors.openrouter.reasoning_enabled`・下記⚠️）・既存 lite のcurl手順を流用 |
 
 > ⚠️ **OpenRouter には `"reasoning": {"enabled": false}` を必ず付ける（2026-08-21 実測・付けないと5連敗する）**
 > free枠の思考系モデル（cohere系・openai gpt-oss系等・具体slugはpick.shの戻り値参照）は**思考を `content` ではなく `reasoning` フィールドへ出力**し、思考が `max_tokens` を食い尽くして `content: null` / `finish_reason: length` のまま終わる。抽出コードが読む `message.content` は常に空になり、「200が返っているのに指摘0件」という**原因の見えない全滅**を起こす。
@@ -126,18 +132,18 @@ description: 設計・コード・文章を複数の異なるLLMに並列独立�
        - ※MiniMax MCPサーバー自体には**サーバー側でファイルを読む別ツール**（`minimax_summarize_file`・`minimax_batch_process(file_paths)`等）が実在するが、レビュー用途では使わない（要約・翻訳向けでレビュープロンプトとの組合せ保証が無い）。**`minimax_ask` はテキスト生成専用**と覚えること
        - ※Gemini/OpenRouter のcurlも同様にローカルファイルは読めない。ペイロード生成時に本文を入れる現行手順がこの制約への対応そのもの
        - **ペイロード生成ファイル（Gemini/OR用）とMiniMaxのpromptで「同一本文インライン」を維持すること**（3機同一プロンプトの独立性の前提でもある）
-   - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=$GEMINI_API_KEY"`
+   - Gemini: Bash で `curl -s -H "Content-Type: application/json" -d @/tmp/req_gemini.json "https://generativelanguage.googleapis.com/v1beta/models/<YAML vendors.gemini.models[0]>:generateContent?key=$GEMINI_API_KEY"`
    - OpenRouter（triple時のみ）: Bash で `set -a; source ~/.secrets.env 2>/dev/null; set +a; curl -s --max-time 90 https://openrouter.ai/api/v1/chat/completions -H "Authorization: Bearer $OPENROUTER_API_KEY" -H "Content-Type: application/json" -d @/tmp/req_or.json`（プロンプトはPROMPT環境変数経由でpython3に渡してペイロード生成・liteと同一手順）
-     - **ペイロードに `"reasoning": {"enabled": false}` を必ず含める**（上記⚠️・欠落すると `content: null` で全モデル全滅する）:
-       `{"model": <slug>, "messages": [...], "max_tokens": 2000, "reasoning": {"enabled": false}}`
+     - **ペイロードに `"reasoning": {"enabled": false}` を必ず含める**（正本値は YAML `vendors.openrouter.reasoning_enabled`・欠落すると `content: null` で全モデル全滅する）:
+       `{"model": <slug>, "messages": [...], "max_tokens": <YAML vendors.openrouter.max_tokens>, "reasoning": {"enabled": false}}`
 3. **JSON抽出**: 結果から**文字種ステートマシン**でJSON配列を再構成（下記「JSON抽出」参照）
 
-> python3 でペイロード生成する例:
-> `python3 -c "import json; open('/tmp/req_gemini.json','w').write(json.dumps({'contents':[{'parts':[{'text':PROMPT}]}],'generationConfig':{'temperature':0.4,'maxOutputTokens':8000}},ensure_ascii=False))"`
+> python3 でペイロード生成する例（`temperature`/`maxOutputTokens` は YAML `vendors.gemini` 正本値を代入する）:
+> `python3 -c "import json; open('/tmp/req_gemini.json','w').write(json.dumps({'contents':[{'parts':[{'text':PROMPT}]}],'generationConfig':{'temperature':<YAML vendors.gemini.temperature>,'maxOutputTokens':<YAML vendors.gemini.max_output_tokens>}},ensure_ascii=False))"`
 
 ### Gemini 空応答時のリトライ（思考モデルの罠・2026-07-05 実証）
 
-Gemini 思考モデル（2.5 Pro / 3.1 Pro 等）は `maxOutputTokens=8000` 設定でも、**長大コード＋長focus** の組合せで思考トークンが枠を消費して**空応答**を返すことがある（`finishReason: MAX_TOKENS`・本文空）。
+Gemini 思考モデル（2.5 Pro / 3.1 Pro 等）は YAML正本の `maxOutputTokens` 設定でも、**長大コード＋長focus** の組合せで思考トークンが枠を消費して**空応答**を返すことがある（`finishReason: MAX_TOKENS`・本文空）。
 
 **検知**: レスポンス本文が空、または `candidates[0].content.parts[0].text` が空文字列。
 
@@ -151,7 +157,7 @@ Gemini 思考モデル（2.5 Pro / 3.1 Pro 等）は `maxOutputTokens=8000` 設�
 - 1回目（focus=readability・コード全文）: **空応答**
 - 2回目（focus=bug・コード圧縮・背景1行追加）: **具体的指摘2件**（状態列動的特定・ヘルパー化）を獲得
 
-> **MCP直接呼出 `mcp__gemini__review_with_gemini` は `maxOutputTokens` 指定不可**（スキル外で直接呼ぶ場合）で特に空応答しやすい。`multi-llm-review` スキル経由の curl REST（8000指定）でも長大コードでは発生するため、本リトリア戦略を標準手順に組み込む。
+> **MCP直接呼出 `mcp__gemini__review_with_gemini` は `maxOutputTokens` 指定不可**（スキル外で直接呼ぶ場合）で特に空応答しやすい。`multi-llm-review` スキル経由の curl REST（YAML正本の maxOutputTokens 指定）でも長大コードでは発生するため、本リトリア戦略を標準手順に組み込む。
 
 ---
 
@@ -280,14 +286,7 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 
 ## severity 正規化マップ
 
-各LLMの severity を `{critical, high, med, low}` に正規化する:
-
-| LLM出力 | 正規化後 |
-|---|---|
-| blocker / critical / P0 / 致命的 | critical |
-| major / high / P1 / 重大 | high |
-| med / P2 / 中 | med |
-| minor / low / nit / P3 / 低 | low |
+各LLMの severity を **YAML `severity_enum`（正本）** に正規化する。**マップの正本はYAML `severity_normalize`** — 強制Readで読んだ値を使用すること（このファイルには値の複製を置かない・spec §3.1）。lib側 `review_lib._severity_map()` も同一YAMLから読む（同一正本・片側変更はYAML1行で済む）。
 
 ---
 
@@ -296,7 +295,7 @@ print(json.dumps(res, ensure_ascii=False, indent=2))
 **各ステップのプロンプト先頭に「当初目的: {目的}」を再注入する（機械的ホールド）。**
 
 1. **JSON抽出**（上記・文字種ステートマシン）
-2. **severity 正規化**: 上記マップで各指摘を `{critical, high, med, low}` に正規化
+2. **severity 正規化**: YAML `severity_normalize` マップ（強制Readで読んだ正本）で各指摘を `severity_enum` の4値に正規化
 3. **Fact Check**: 各指摘の `quote` が元案に**部分一致**するか（トークン Jaccard ≥ 0.7・正規化後）→ 不存在は即却下（ハルシネーション除外）
    - **※要約渡し時（対象サイズ大）は Fact Check をスキップ**（要約ベースでは quote が元案と一致せず全却下される矛盾を回避）。**判定基準**: ホストが Step2 のプロンプト組み立て時に「全文渡し or 要約渡し」のフラグを保持し、要約渡し時は本ステップをスキップ（コスト・レート制限の要約渡しとも整合）
 4. **ペルソナ切替（著者バイアス対策・ホストの認知ステップ）**: 「あなたは元案の作者ではない。冷徹な品質管理責任者として外部指摘を客観的に裁定せよ」＋盲点カタログ（著者が見落としがちな観点を列挙）＋devil's advocate（自分がこの指摘を出した側ならどう反論するか）。**※これは統合側のホスト認知であり、追加のLLM呼出は行わない**（独立性命題を維持。Step4でレビューアーを再呼びしない）

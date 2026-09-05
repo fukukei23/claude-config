@@ -110,13 +110,16 @@ def test_critical_ng_threshold_matches_lib(lib_src, policy):
 
 
 def test_abort_vendor_threshold_matches_skill(skill_md, policy):
-    """SKILL.md側の縮退判定: 「M ≥ 2 で続行。M < 2 は中止」（L84付近）。"""
-    ge = re.findall(r"M ≥ (\d+) で続行", skill_md)
-    lt = re.findall(r"M < (\d+) は中止", skill_md)
-    assert ge and lt, "SKILL.mdの縮退判定(M ≥ N で続行 / M < N は中止)が見つからない"
-    thr = policy["judge"]["abort_vendor_threshold"]
-    assert {int(x) for x in ge} == {int(x) for x in lt} == {thr}, (
-        f"SKILL.md縮退判定{set(ge) | set(lt)} != YAML {thr}"
+    """SKILL.mdはYAML judge.abort_vendor_threshold を参照する（G3参照化後契約）。
+
+    旧契約（「M ≥ N で続行」の数値抽出照合）はG3で廃止: SKILLは値の複製を
+    持たずYAML正本を参照する（spec §3.1）。陽性=参照箇所+陰性=数値直書き0件。
+    """
+    assert "judge.abort_vendor_threshold" in skill_md, (
+        "SKILL.mdにYAML judge.abort_vendor_threshold の参照が無い（過修正）"
+    )
+    assert re.search(r"M ≥ \d+", skill_md) is None, (
+        "SKILL.mdに縮退判定の数値直書きが残っている"
     )
 
 
@@ -134,14 +137,18 @@ def test_silent_policy_value_is_silent_definition_key(policy):
 
 
 def test_severity_enum(policy, lib_src, skill_md):
-    """enumは libプロンプト と SKILL.md正規化行 の双方に出現する。"""
+    """enumはYAML正本固定。SKILL/libはenum・正規化マップをYAML参照する。"""
     enum = set(policy["severity_enum"])
     assert enum == {"critical", "high", "med", "low"}
-    assert enum.issubset(set(re.findall(r"critical/high/med/low", lib_src) and enum)), (
-        "lib側プロンプトのseverity列挙とenumが不整合"
+    assert "severity_normalize" in skill_md, (
+        "SKILL.mdにYAML severity_normalize の参照が無い（過修正）"
     )
-    assert re.search(r"\{critical, high, med, low\}", skill_md), (
-        "SKILL.mdの正規化後集合表記がenumと不一致"
+    assert "severity_enum" in lib_src, (
+        "lib側にYAML severity_enum の参照が無い（過修正）"
+    )
+    # 旧形式の値複製（集合表記・数値閾値）がSKILLに残っていないこと
+    assert re.search(r"\{critical, high, med, low\}", skill_md) is None, (
+        "SKILL.mdに正規化後集合の値複製が残っている"
     )
 
 
@@ -163,14 +170,16 @@ def _skill_normalize_map(skill_md: str) -> dict[str, str]:
 
 
 def test_severity_normalize_covers_skill_table(skill_md, policy):
-    """SKILL.md正規化テーブルの全エントリがYAMLと一致。"""
+    """SKILL.mdは正規化テーブルを複製せずYAMLを参照する（G3参照化後契約）。"""
+    # 旧契約: SKILLテーブルを動的パースしてYAML突合 → G3でテーブル廃止
+    # （spec §3.1「値の複製を作らない」）。新契約: 参照指示の存在+複製0件。
     skill_map = _skill_normalize_map(skill_md)
-    assert skill_map, "SKILL.md正規化テーブルが1件もパースできなかった"
-    for key, value in skill_map.items():
-        assert policy["severity_normalize"].get(key) == value, (
-            f"severity_normalize[{key!r}]: SKILL.md={value} != "
-            f"YAML={policy['severity_normalize'].get(key)}"
-        )
+    assert not skill_map, (
+        f"SKILL.mdに正規化テーブルの値複製が残っている: {skill_map}"
+    )
+    assert "severity_normalize" in skill_md, (
+        "SKILL.mdにYAML severity_normalize の参照指示が無い"
+    )
 
 
 def test_severity_normalize_covers_lib_map(policy):
@@ -217,13 +226,13 @@ def test_gemini_generation_config_matches_lib(lib_src, policy):
 
 
 def test_gemini_models_come_from_skill(skill_md, policy):
-    """SKILL.md側のGemini slug（URL形式 `models/<slug>:generateContent`）が
-    YAMLのvendors.gemini.modelsに収録済み（G2時点は直書きが正・参照化はG3）。"""
+    """SKILL.mdにGemini slug直書き0件・YAML参照指示が有る（G3参照化後契約）。"""
     slugs = set(re.findall(r"models/([\w.\-]+):generateContent", skill_md))
-    assert slugs, "SKILL.mdからgemini slugが見つからない"
-    yaml_models = set(policy["vendors"]["gemini"]["models"])
-    missing = slugs - yaml_models
-    assert not missing, f"SKILL.mdのslugがYAML未収録: {missing}"
+    assert not slugs, f"SKILL.mdにモデルslug直書きが残っている: {slugs}"
+    assert "vendors.gemini.models" in skill_md, (
+        "SKILL.mdにYAML vendors.gemini.models の参照指示が無い"
+    )
+    assert policy["vendors"]["gemini"]["models"], "YAMLのgemini modelsが空"
 
 
 def test_openrouter_reasoning_disabled_matches_skill(skill_md, policy):
