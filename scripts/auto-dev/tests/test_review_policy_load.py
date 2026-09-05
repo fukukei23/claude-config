@@ -18,7 +18,7 @@ from review_lib import PolicyConfigError, load_review_policy  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]  # claude-config
 REAL_YAML = REPO_ROOT / "config/multi-llm-review/review_policy.yaml"
-REAL_VERSION = "1.0.0"
+REAL_VERSION = "1.1.0"
 
 
 def _policy_text(fn=None, version: str = REAL_VERSION) -> str:
@@ -50,8 +50,8 @@ def test_load_real_policy_ok(capsys):
 
 
 def test_patch_diff_warns_and_continues(roots, capsys):
-    """patch差（1.0.0 → 1.0.1期待）は警告1行で継続（spec §3.4・OR採用）。"""
-    policy = load_review_policy("1.0.1")
+    """patch差（1.1.0 → 1.1.1期待）は警告1行で継続（spec §3.4・OR採用）。"""
+    policy = load_review_policy("1.1.1")
     assert policy["version"] == REAL_VERSION
     err = capsys.readouterr().err
     assert "警告" in err or "warning" in err.lower()
@@ -78,7 +78,7 @@ def test_missing_expected_version_aborts(roots):
 
 def test_major_and_minor_diff_abort(roots):
     """major差・minor差はともにabort（spec §3.4）。"""
-    for ver in ("0.9.0", "2.0.0", "1.1.0"):
+    for ver in ("0.9.0", "2.0.0", "1.2.0"):
         with pytest.raises(PolicyConfigError) as ei:
             load_review_policy(ver)
         assert ei.value.error_type == "version_mismatch", ver

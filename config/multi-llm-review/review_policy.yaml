@@ -1,9 +1,10 @@
 # review_policy.yaml — マルチLLMレビューのポリシー正本（中立位置）
 # spec: obsidian-ssot/docs/superpowers/specs/2026-09-04-レビュー統合スキルとlib共有ポリシー統一-design.md
-# G1初期版: SKILL.md と review_lib.py の現行実値を抽出したもの（このリリースでは参照化しない・G3は次リリース）
-# 各値の出所は 00_SYSTEM/マルチLLMレビュー/2026-09-04_レビュー統合スキルとlib共有化設計/g1_extraction_diff.md
-version: 1.0.0
-last_updated: 2026-09-05 # G1初期版作成（抽出diffを正典として値を移設）
+# G1初期版: SKILL.md と review_lib.py の現行実値を抽出（各値の出所は g1_extraction_diff.md）
+# G3参照化(2026-09-06): SKILL.md/review_lib.py のハードコードを廃止し本YAMLが唯一の値ソースに
+#   （libは load_review_policy() で読込・SKILLは強制Read手順・pre-commitゲートで直書き検知）
+version: 1.1.0
+last_updated: 2026-09-06 # G3参照化完了（SKILL/lib直書き廃止・pre-commitゲート新設）によるminor bump
 
 vendors:
   gemini:
