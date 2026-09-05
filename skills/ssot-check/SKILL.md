@@ -208,8 +208,7 @@ awk '/^repositories:/{f=1;next}/^relationship_groups:/{f=0}f && /^  - name:/' /h
 ```bash
 cd /home/yn4416/projects/obsidian-ssot
 # auto 時は安全装置（5ファイル/100行超）で commit 中止判定を先に行うこと
-git add -A
-git commit -m "update: SSOT整合性チェック（修正対象: XXX）"
+git commit-scoped -m "update: SSOT整合性チェック（修正対象: XXX）" -- <修正ファイルを明示>
 # ※ push は行わない。ssot-auto-sync.sh（*/30）が自動 push する（git競合窓口を減らす）
 ```
 

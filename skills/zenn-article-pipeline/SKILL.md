@@ -163,6 +163,6 @@ npx zenn preview --port 8000 --host 0.0.0.0
 ## 最後に
 
 全ステップ完了後:
-1. `git add -A && git commit && git push`
+1. `git commit-scoped -m "publish: <記事タイトル>" -- <変更ファイルを明示> && git push`
 2. SSOTに記録（ssot-record スキルを起動）
 3. `published: true` で公開した場合は、ユーザーに「Xの投稿文も作りますか？」と一声かけ、YESなら `x-post-draft` スキルを起動して投稿文案を生成する

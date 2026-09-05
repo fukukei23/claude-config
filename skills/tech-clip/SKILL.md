@@ -48,7 +48,7 @@ X等で見つけたワード・URL・OSSを、その場で解析して**書き�
 - **テーマセクション新設時**: 既存テーマセクションの一覧をまず確認し、似たテーマがあればそちらへ追記（類似名の乱立防止）
 - 追記後 commit+push（`*/30` auto-sync を待たない）:
   ```bash
-  cd ~/projects/obsidian-ssot && git add 30_RESEARCH/気になりクリップ.md && git commit -m "clip: <テーマ>に1件追加" && git push
+  cd ~/projects/obsidian-ssot && git commit-scoped -m "clip: <テーマ>に1件追加" -- 30_RESEARCH/気になりクリップ.md && git push
   ```
 
 ### STEP 3: ガイド化判断（毎回・省略不可・本スキルの責務は「数えて繋ぐ」だけ）

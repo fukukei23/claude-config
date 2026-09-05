@@ -813,7 +813,7 @@ tags: [tag1, tag2]
 2. 「触る共通ファイル」欄に今回触ったファイルを追記（既存なら重複回避）
 3. **即commit+push**（フェーズ5のcommitとは別に、ボードは時間感度高め）:
    ```bash
-   cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions 更新(<セッション名>: <触ったファイル>)" && git push
+   cd ~/projects/obsidian-ssot && git commit-scoped -m "chore: active-sessions 更新(<セッション名>: <触ったファイル>)" -- 00_SYSTEM/active-sessions.md && git push
    ```
 
 **注意**: 共通ファイルを触る**前**にボードで被り確認（逆方向ならふくけい判断）。本ステップは事後の宣言更新。
@@ -1019,7 +1019,7 @@ ls //wsl.localhost/Ubuntu/home/yn4416/projects/ssot-guide/source/
 1. `source/XX_<章名>.md` に内容を追記（Markdownで書く）
 2. テスト実行: `python3 -m pytest test_convert.py -q`
 3. ビルド: `python3 convert.py`
-4. ガイドリポジトリで `git add -A && git commit -m "docs: ..." && git push`
+4. ガイドリポジトリで `git commit-scoped -m "docs: ..." -- <変更ファイルを明示> && git push`
 
 `ssot-guide` の場合も手順は同じ（パスが `~/projects/ssot-guide/`）。  
 `claude-code-guide` の場合は `update-guide` スキルを呼び出してもよい。
@@ -1032,8 +1032,7 @@ ls //wsl.localhost/Ubuntu/home/yn4416/projects/ssot-guide/source/
 
 ```bash
 cd /home/yn4416/projects/obsidian-ssot
-git add -A
-git commit -m "record: <内容の1行説明>"
+git commit-scoped -m "record: <内容の1行説明>" -- <今回触ったファイルを明示>
 git push
 ```
 
@@ -1043,8 +1042,7 @@ git push
 
 ```bash
 cd /home/yn4416/projects/<project>
-git add -A
-git commit -m "docs: <内容の1行説明>"
+git commit-scoped -m "docs: <内容の1行説明>" -- <今回更新したdocsを明示>
 git push
 ```
 
@@ -1216,8 +1214,7 @@ tags: [claude-code, セッション総括, <セッション内容に応じた追
 4. **commit & push**:
    ```bash
    cd ~/projects/obsidian-ssot
-   git add -A
-   git commit -m "record: セッション横断総括 <タイトル>"
+   git commit-scoped -m "record: セッション横断総括 <タイトル>" -- <今回作成した記録ファイルを明示>
    git push
    ```
 5. 完了報告に以下の1行を追加してから `new-session` を呼び出す:

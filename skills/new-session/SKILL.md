@@ -259,7 +259,7 @@ SSOT 永続保存済み: ~/projects/obsidian-ssot/00_SYSTEM/handoff/YYYY-MM-DD_H
 3. **✅行の定期GC**: **開始日（MM-DD）から30日経過した✅行を削除**（handoffが履歴SSOT・アーカイブ不要）。過去行（HH:MMのみ・日付なし）は残す（段階的移行）
 4. **即commit+push**:
    ```bash
-   cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions 終了処理(<セッション名>)" && git push
+   cd ~/projects/obsidian-ssot && git commit-scoped -m "chore: active-sessions 終了処理(<セッション名>)" -- 00_SYSTEM/active-sessions.md && git push
    ```
 5. 併せて **24h超・状態不明のstale🟢行**があれば警告（resume-session の次回開始時にも検出）
 

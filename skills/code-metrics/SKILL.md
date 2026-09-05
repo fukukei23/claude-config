@@ -332,8 +332,7 @@ tags: [実績検証, コード計測]
 その後：
 ```bash
 cd ~/projects/obsidian-ssot
-git add -A
-git commit -m "record: コード行数実測 YYYY-MM-DD（全プロジェクト）"
+git commit-scoped -m "record: コード行数実測 YYYY-MM-DD（全プロジェクト）" -- <今回更新したファイルを明示>
 git push
 ```
 

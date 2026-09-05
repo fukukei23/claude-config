@@ -177,7 +177,7 @@ python3 convert.py
 
 ### STEP N9: GitHub Pages 設定
 
-1. `git add -A && git commit -m "feat: 初期リリース — <サイトタイトル>（N章）"`
+1. `git commit-scoped -m "feat: 初期リリース — <サイトタイトル>（N章）" -- <新規ファイル一式を明示>`（新規untrackedは先に `git add <file>`）
 2. `git push origin main`
 3. GitHub Web UI で Settings → Pages → Source: `main` / `docs` に設定
 

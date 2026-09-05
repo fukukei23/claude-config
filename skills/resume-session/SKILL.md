@@ -417,7 +417,7 @@ grep '| ✅' ~/projects/obsidian-ssot/00_SYSTEM/active-sessions.md
 ### 4d. 即commit+push（ラグ回避）
 
 ```bash
-cd ~/projects/obsidian-ssot && git add 00_SYSTEM/active-sessions.md && git commit -m "chore: active-sessions に🟢行追加(<セッション名>)" && git push
+cd ~/projects/obsidian-ssot && git commit-scoped -m "chore: active-sessions に🟢行追加(<セッション名>)" -- 00_SYSTEM/active-sessions.md && git push
 ```
 
 **注意**: 開始時にボードを読み、**自分が触ろうとする共通ファイルを別セッションが既に触っている場合**、および**着手セッションが🟢行に既にある場合**は、作業前にユーザーに相談（逆方向なら特に）。
