@@ -49,63 +49,34 @@ if [ ! -f "$PATHS_JSON" ]; then
   exit 64
 fi
 
-# --- 宣言pathの取得（repoルートは実行cwdで解決・相対pathspecはcwd基準）---
+# --- 宣言検証（python 1本化・値はすべて環境変数渡し=インジェクション面なし）---
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$REPO_ROOT" ]; then
   echo "git-commit-scoped: gitリポジトリ外" >&2
   exit 64
 fi
-
-DECLARED=$(python3 "$HOME/bin/active-declarations.py" --mode include \
-  --paths-json "$PATHS_JSON" \
-  --active-sessions "$REPO_ROOT/00_SYSTEM/active-sessions.md" \
-  --repo-root "$REPO_ROOT" 2>/dev/null | sed 's/^://')
-
-# active-sessions.md が無いrepo（obsidian-ssot以外）では上記は空になるため
-# paths.jsonの自WT4宣言を直接使う（cwd起点で突合）
-if [ -z "$DECLARED" ] || [ ! -f "$REPO_ROOT/00_SYSTEM/active-sessions.md" ]; then
-  DECLARED=$(python3 -c "
-import json, os
-try:
-    d = json.load(open(os.path.expanduser('$PATHS_JSON')))
-    for p in d.get('entries',{}).get('$WT4',[]):
-        print(os.path.relpath(os.path.normpath(p), '$REPO_ROOT') if os.path.isabs(p) else p)
-except Exception:
-    pass
-" 2>/dev/null)
-fi
-
-if [ -z "$DECLARED" ]; then
-  echo "git-commit-scoped: 自セッション($WT4)の宣言が空・commit拒否（先に paths-json-update.py で宣言せよ）" >&2
+# active-declarations.py --mode check が: ①path正規化 ②宣言突合 ③正規化済pathspec出力 を一括実行
+VALIDATION=$(CLAUDE_GCS_WT4="$WT4" \
+  CLAUDE_GCS_PATHS_JSON="$PATHS_JSON" \
+  CLAUDE_GCS_REPO_ROOT="$REPO_ROOT" \
+  CLAUDE_GCS_ACTIVE="$REPO_ROOT/00_SYSTEM/active-sessions.md" \
+  CLAUDE_GCS_PATHS_INPUT="$(printf '%s\n' "${PATHS[@]}")" \
+  python3 "$HOME/bin/active-declarations.py" --mode check 2>&1)
+RC=$?
+if [ $RC -ne 0 ]; then
+  echo "git-commit-scoped: 検証失敗" >&2
+  echo "$VALIDATION" >&2
+  echo "  → 先に paths-json-update.py で宣言するか、宣言内のファイルのみ指定せよ" >&2
   exit 1
 fi
 
-# --- 宣言突合（各pathspecが宣言のいずれかに含まれるか） ---
-for f in "${PATHS[@]}"; do
-  norm=$(python3 -c "
-import os, sys
-p = os.path.normpath('$f')
-root = '$REPO_ROOT'
-if os.path.isabs(p):
-    try:
-        p = os.path.relpath(p, root)
-    except ValueError:
-        pass
-print(p)
-")
-  ok=false
-  while IFS= read -r d; do
-    [ -z "$d" ] && continue
-    case "$norm" in
-      "$d"|"$d"/*) ok=true; break ;;
-    esac
-  done <<< "$DECLARED"
-  if ! $ok; then
-    echo "git-commit-scoped: 宣言外path検出: $f （宣言: $DECLARED）" >&2
-    echo "  → 先に paths-json-update.py で宣言するか、宣言内のファイルのみ指定せよ" >&2
-    exit 1
-  fi
-done
+# 正規化済みpathspec（1行目OK・2行目以降が正規化済みrepo相対パス）
+NORM_PATHS=()
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  [ "$line" = "OK" ] && continue
+  NORM_PATHS+=("$line")
+done <<< "$VALIDATION"
 
 # --- pathspec commit（一時index = HEAD+指定パスのみ・共有indexを参照しない）---
-exec git commit "${COMMIT_ARGS[@]}" -- "${PATHS[@]}"
+exec git commit "${COMMIT_ARGS[@]}" -- "${NORM_PATHS[@]}"

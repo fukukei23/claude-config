@@ -116,7 +116,39 @@ test_wt_session_precedence() {
   teardown
 }
 
+# Case 8: シングルクォート入りのファイル名でも安全（インジェクション/構文エラーなし・宣言外なら拒否）
+test_quote_filename_safe() {
+  setup
+  touch "we'ird.md"
+  git add "we'ird.md"
+  run_scoped aaaa -m "x" -- "we'ird.md"
+  [ "$RC" -eq 1 ] || { echo "FAIL Case8: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; }
+  # 宣言に追加すれば通る（crashしない）
+  cat > paths.json << 'PEOF'
+{"entries": {"aaaa": ["declared.md", "we'ird.md"]}}
+PEOF
+  printf 'content' >> "we'ird.md"
+  run_scoped aaaa -m "quote ok" -- "we'ird.md"
+  [ "$RC" -eq 0 ] || { echo "FAIL Case8b: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 9: スペース入りの宣言パスが正しくcommitされる（word splitting不発）
+test_space_filename_ok() {
+  setup
+  echo "sp content" > "my file.md"
+  git add "my file.md"
+  printf '{"entries": {"aaaa": ["declared.md", "my file.md"]}}' > paths.json
+  run_scoped aaaa -m "space ok" -- "my file.md"
+  if [ "$RC" -ne 0 ]; then echo "FAIL Case9: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; fi
+  git show --name-only HEAD | grep -q 'my file.md' || { echo "FAIL Case9: スペース入りファイルがcommitされていない"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+test_quote_filename_safe
+test_space_filename_ok
 test_wt_session_precedence
+
 test_declared_ok
 test_undeclared_rejected
 test_untracked_two_step
@@ -124,5 +156,5 @@ test_no_pathspec
 test_no_session
 test_sweep_isolation
 
-[ "$FAILS" -eq 0 ] && echo "ALL PASS (7 cases)" || echo "FAILS=$FAILS"
+[ "$FAILS" -eq 0 ] && echo "ALL PASS (9 cases)" || echo "FAILS=$FAILS"
 exit $FAILS
