@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# test_git_commit_scoped.sh — git-commit-scoped.sh の6ケーステスト
+# 宣言検証+pathspec commit の薄いラッパー（spec 2026-09-05 巻き込み再設計 §3 Phase 2-1）
+set -uo pipefail
+RUNNER="$HOME/.claude/scripts/hooks/git-commit-scoped.sh"
+TMP=""
+FAILS=0
+
+setup() {
+  TMP=$(mktemp -d)
+  cd "$TMP"
+  git init -q
+  git config user.email "t@t"; git config user.name "t"
+  echo "init" > declared.md
+  git add declared.md && git commit -qm "init"
+  echo "v1" > declared.md
+  mkdir -p sub
+  echo "new file" > new.md
+  echo "v1" > sub/nested.md; git add sub/nested.md && git commit -qm "nested"
+  echo "v2" > sub/nested.md
+  # paths.json（実形式・entries[WT4]=パス配列・ディレクトリ宣言も可）
+  cat > paths.json << 'PEOF'
+{"entries": {"aaaa": ["declared.md", "sub/nested.md"]}}
+PEOF
+}
+
+teardown() { [ -n "$TMP" ] && rm -rf "$TMP" && cd /; TMP=""; }
+
+run_scoped() { # run_scoped <wt4> <args...>
+  local wt4="$1"; shift
+  CLAUDE_CODE_SESSION_ID="${wt4}1111222233334444" \
+    PATHS_JSON="$TMP/paths.json" \
+    bash "$RUNNER" "$@" > /tmp/gcs_out 2>&1
+  RC=$?
+}
+
+# Case 1: 宣言内pathのみ → commit成功（HEAD移動+指定ファイルのみ変更）
+test_declared_ok() {
+  setup
+  run_scoped aaaa -m "scoped commit" -- declared.md
+  if [ "$RC" -ne 0 ]; then echo "FAIL Case1: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; fi
+  # HEADの内容確認: declared.md は v1・他ファイルは無関係
+  local msg; msg=$(git log -1 --format=%s)
+  [ "$msg" = "scoped commit" ] || { echo "FAIL Case1: msg=$msg"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 2: 宣言外path → 拒否（exit 1・commitされない）
+test_undeclared_rejected() {
+  setup
+  run_scoped aaaa -m "bad" -- declared.md new.md
+  if [ "$RC" -ne 1 ]; then echo "FAIL Case2: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; fi
+  local n; n=$(git rev-list --count HEAD)
+  [ "$n" = "2" ] || { echo "FAIL Case2: commit数が増えた n=$n"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 3: 新規untrackedは git add 後なら commit可能（2段手順）
+test_untracked_two_step() {
+  setup
+  git add new.md   # 追跡化（共有indexに載るが、commitはpathspecで限定される）
+  run_scoped aaaa -m "add new" -- new.md
+  if [ "$RC" -eq 0 ]; then echo "FAIL Case3: 宣言外new.mdが通ってしまった（宣言不足の検証が必要）"; FAILS=$((FAILS+1)); teardown; return; fi
+  # new.md を宣言に追加した場合のみ成功する
+  cat > paths.json << 'PEOF'
+{"entries": {"aaaa": ["declared.md", "new.md"]}}
+PEOF
+  run_scoped aaaa -m "add new" -- new.md
+  [ "$RC" -eq 0 ] || { echo "FAIL Case3: 宣言追加後も失敗 rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 4: pathspec未指定 → 使用法エラー exit 64
+test_no_pathspec() {
+  setup
+  run_scoped aaaa -m "no paths"
+  [ "$RC" -eq 64 ] || { echo "FAIL Case4: rc=$RC"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 5: セッションID未設定 → exit 64
+test_no_session() {
+  setup
+  ( unset CLAUDE_CODE_SESSION_ID; PATHS_JSON="$TMP/paths.json" bash "$RUNNER" -m x -- declared.md ) > /tmp/gcs_out 2>&1
+  RC=$?
+  [ "$RC" -eq 64 ] || { echo "FAIL Case5: rc=$RC"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 6: 共有indexに他セッション分のstageがあっても、指定pathのみcommitされる（核心・巻き込み不発）
+test_sweep_isolation() {
+  setup
+  echo "other session work" > other.md
+  git add other.md          # 他セッションがstageした状態を再現
+  run_scoped aaaa -m "scoped" -- declared.md
+  if [ "$RC" -ne 0 ]; then echo "FAIL Case6: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; fi
+  # commitに other.md が含まれていないこと
+  if git show --name-only HEAD | grep -q 'other.md'; then
+    echo "FAIL Case6: 他セッションstageが巻き込まれた"; FAILS=$((FAILS+1)); teardown; return
+  fi
+  # other.md は引き続きstageに残る（他セッションの作業は破壊されない）
+  git diff --cached --name-only | grep -q 'other.md' || { echo "FAIL Case6: 他セッションのstageが破壊された"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+test_declared_ok
+test_undeclared_rejected
+test_untracked_two_step
+test_no_pathspec
+test_no_session
+test_sweep_isolation
+
+[ "$FAILS" -eq 0 ] && echo "ALL PASS (6 cases)" || echo "FAILS=$FAILS"
+exit $FAILS
