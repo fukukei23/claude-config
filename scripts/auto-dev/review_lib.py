@@ -29,13 +29,354 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-SEVERITY_MAP: dict[str, str] = {
-    "critical": "critical",
-    "high": "high",
-    "med": "med",
-    "medium": "med",
-    "low": "low",
+import yaml
+
+# --- review_policy.yaml 読込機構（G3・spec §3.3-3.5） ---
+# YAML正本: claude-config/config/multi-llm-review/review_policy.yaml
+# fail-fast の error_type は spec §3.5 固定の 7 種。
+
+_CONFIG_ENV_VAR = "MULTI_LLM_REVIEW_CONFIG_PATH"
+_MAX_CONFIG_BYTES = 100 * 1024 * 1024
+_ERROR_LOG_PATH: Path | None = None  # None ならデフォルトパス（テストで差し替え可）
+_POLICY_CACHE: dict | None = None
+_ALLOWED_REPO_ROOTS: list[Path] = [
+    Path("/home/yn4416/projects/claude-config"),
+    Path("//wsl.localhost/Ubuntu/home/yn4416/projects/claude-config"),
+]
+# 深部Strict用の許容キーツリー（葉=None・YAML拡張時はここも同時更新）
+_POLICY_ALLOWED_KEYS: dict = {
+    "version": None,
+    "last_updated": None,
+    "vendors": {
+        "gemini": {"models": None, "max_output_tokens": None, "temperature": None},
+        "minimax": {"mcp_tool": None, "models": None, "max_tokens": None},
+        "openrouter": {
+            "pick_script": None,
+            "models": None,
+            "max_tokens": None,
+            "reasoning_enabled": None,
+        },
+    },
+    "judge": {
+        "abort_vendor_threshold": None,
+        "critical_ng_threshold": None,
+        "silent_policy": None,
+    },
+    "severity_enum": None,
+    "severity_normalize": None,
+    "output_schema": None,
+    "silent_definition": None,
 }
+
+
+class PolicyConfigError(RuntimeError):
+    """review_policy.yaml 読込の fail-fast 例外（spec §3.5）。
+
+    error_type は spec 固定の 7 種:
+    config_not_found / parse_error / schema_violation / version_mismatch /
+    permission_error / config_path_insecure / config_path_relative。
+    """
+
+    def __init__(
+        self, error_type: str, message: str, config_path: Path | None = None
+    ) -> None:
+        super().__init__(message)
+        self.error_type = error_type
+        self.config_path = config_path
+
+    @property
+    def message(self) -> str:
+        """例外メッセージ（JSONL記録・表示用）。"""
+        return self.args[0] if self.args else ""
+
+
+def _normalize_to_wsl_posix(p: Path) -> Path:
+    """UNCパス（Windows表記）をWSL POSIXパスへ正規化する（spec §3.3・r5b採用）。
+
+    バックスラッシュ表記の UNC（例: wsl.localhost/Ubuntu/home/yn4416 配下を
+    Windows区切りで書いたもの）を POSIX 形式へ正規化する。
+    例: ``//wsl.localhost/Ubuntu/home/yn4416/...`` → ``/home/yn4416/...``。
+    すでにPOSIXなら無変換。is_relative_to 比較はOS種別が異なると失敗するため、
+    比較前に必ず本関数を通す。
+    """
+    s = str(p).replace("\\", "/")
+    s = re.sub(r"^/{0,2}wsl\.localhost/Ubuntu/home/yn4416", "/home/yn4416", s)
+    return Path(s)
+
+
+def _error_log_path() -> Path:
+    """エラーJSONLの書込先。環境変数 REVIEW_POLICY_ERROR_LOG で上書き可。"""
+    if _ERROR_LOG_PATH is not None:
+        return _ERROR_LOG_PATH
+    env = os.environ.get("REVIEW_POLICY_ERROR_LOG", "")
+    if env:
+        return Path(env)
+    return Path.home() / ".claude/state/review_policy_errors.jsonl"
+
+
+def _raise_policy_error(
+    error_type: str,
+    message: str,
+    config_path: Path | None = None,
+) -> None:
+    """PolicyConfigError を生成しエラーJSONLへ1行記録してから raise する。"""
+    exc = PolicyConfigError(error_type, message, config_path)
+    log = _error_log_path()
+    try:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        rec = {
+            "timestamp": datetime.now().isoformat(timespec="seconds"),
+            "error_type": error_type,
+            "message": _mask_str(message),
+            "config_path": str(config_path or ""),
+        }
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001  # ログ書込失敗でabort自体を妨げない
+        pass
+    raise exc
+
+
+def _policy_candidates() -> list[Path]:
+    """YAML探索候補（先頭から順に試す・spec §3.3）。
+
+    1. env ``MULTI_LLM_REVIEW_CONFIG_PATH``（違反時はフォールバックしない）
+    2. 本ファイル位置由来（review_lib.py → claude-config root）
+    3. 固定POSIX候補 / 固定UNC候補（Windows実行対応・r4採用）
+    """
+    cands: list[Path] = []
+    env = os.environ.get(_CONFIG_ENV_VAR, "")
+    if env:
+        cands.append(Path(env))
+    try:
+        cands.append(
+            Path(__file__).resolve().parents[2] / "config/multi-llm-review/review_policy.yaml"
+        )
+    except IndexError:
+        pass
+    for fixed in _ALLOWED_REPO_ROOTS:
+        cands.append(
+            Path(fixed) / "config/multi-llm-review/review_policy.yaml"
+        )
+    uniq: list[Path] = []
+    for c in cands:
+        if c not in uniq:
+            uniq.append(c)
+    return uniq
+
+
+def _strict_check(data: Any, allowed: dict, path: str = "") -> None:
+    """未知キー検査の再帰（YAML Strict・r4採用）。葉の値域は別途検証する。"""
+    if not isinstance(data, dict):
+        return
+    for key, value in data.items():
+        if key not in allowed:
+            _raise_policy_error(
+                "schema_violation",
+                f"未知キー: {path}{key}（YAML Strict・lib側スキーマ未対応）",
+            )
+        if isinstance(allowed[key], dict):
+            _strict_check(value, allowed[key], f"{path}{key}.")
+
+
+def _validate_policy(data: dict) -> None:
+    """必須キー・型・値域の検証（spec §3.5 schema_violation 相当）。"""
+    required = [k for k, sub in _POLICY_ALLOWED_KEYS.items()]
+    for key in required:
+        if key not in data:
+            _raise_policy_error("schema_violation", f"必須キー欠落: {key}")
+    _strict_check(data, _POLICY_ALLOWED_KEYS)
+
+    if not re.fullmatch(r"\d+\.\d+\.\d+", str(data["version"])):
+        _raise_policy_error(
+            "schema_violation", f"version がSemVerでない: {data['version']}"
+        )
+    try:
+        datetime.fromisoformat(str(data["last_updated"]))
+    except (TypeError, ValueError):
+        _raise_policy_error(
+            "schema_violation",
+            f"last_updated がISO形式でない: {data['last_updated']}（V6）",
+        )
+
+    enum = data["severity_enum"]
+    if (
+        not isinstance(enum, list)
+        or set(enum) != {"critical", "high", "med", "low"}
+    ):
+        _raise_policy_error(
+            "schema_violation",
+            f"severity_enum は [critical, high, med, low] 固定: {enum}",
+        )
+    norm = data["severity_normalize"]
+    if not isinstance(norm, dict) or not all(
+        isinstance(v, str) and v in enum for v in norm.values()
+    ):
+        _raise_policy_error(
+            "schema_violation", "severity_normalize の値が severity_enum 外"
+        )
+
+    judge = data["judge"]
+    if judge["silent_policy"] not in data["silent_definition"]:
+        _raise_policy_error(
+            "schema_violation",
+            f"silent_policy '{judge['silent_policy']}' が silent_definition の"
+            "キーに存在しない（spec r6）",
+        )
+    for name, defn in data["silent_definition"].items():
+        if not isinstance(defn, dict) or not {"meaning", "conditions"} <= set(defn):
+            _raise_policy_error(
+                "schema_violation",
+                f"silent_definition.{name} に meaning/conditions が無い",
+            )
+
+
+def _resolve_policy_path() -> Path:
+    """YAMLパスを解決しホワイトリスト検証まで行う（spec §3.3・V4/V7）。"""
+    from_env = False
+    last_not_found: Path | None = None
+    for cand in _policy_candidates():
+        env_str = os.environ.get(_CONFIG_ENV_VAR, "")
+        from_env = bool(env_str) and cand == Path(env_str)
+        if from_env and not cand.is_absolute():
+            _raise_policy_error(
+                "config_path_relative",
+                f"相対パス指定は拒否（resolve必須）: {cand}",
+            )
+        try:
+            resolved = cand.resolve(strict=True)
+        except FileNotFoundError:
+            if from_env:
+                _raise_policy_error(
+                    "config_not_found",
+                    f"env指定パスが存在しない: {cand}",
+                    cand,
+                )
+            last_not_found = cand
+            continue
+        except PermissionError:
+            _raise_policy_error(
+                "permission_error", f"パス解決で権限拒否: {cand}", cand
+            )
+        except OSError as exc:
+            _raise_policy_error(
+                "config_not_found",
+                f"パス解決に失敗: {cand}（{_mask_str(str(exc))}）",
+                cand,
+            )
+        posix = _normalize_to_wsl_posix(resolved)
+        if not any(posix.is_relative_to(Path(r)) for r in _ALLOWED_REPO_ROOTS):
+            if from_env:
+                _raise_policy_error(
+                    "config_path_insecure",
+                    f"env指定パスが claude-config root 配下でない: {posix}",
+                    posix,
+                )
+            continue
+        return resolved
+    _raise_policy_error(
+        "config_not_found",
+        f"review_policy.yaml が見つからない（最終候補: {last_not_found}）",
+    )
+
+
+def load_review_policy(
+    expected_version: str | None = None, *, force_local: bool = False
+) -> dict:
+    """review_policy.yaml を読み込み検証する（G3の参照プロトコル本体）。
+
+    Args:
+        expected_version: スキル側がRead直後に抽出したYAML version（必須・
+            None かつ force_local=False なら即abort）。
+        force_local: version照合をスキップする明示オーバーライド（警告ログ出力）。
+
+    Returns:
+        検証済みポリシーdict。
+
+    Raises:
+        PolicyConfigError: 読込・検証・version照合の失敗（error_type 7種）。
+    """
+    resolved = _resolve_policy_path()
+    try:
+        if resolved.stat().st_size > _MAX_CONFIG_BYTES:
+            _raise_policy_error(
+                "schema_violation",
+                f"YAMLがサイズ上限({_MAX_CONFIG_BYTES}B)超過: {resolved}",
+                resolved,
+            )
+        text = resolved.read_text(encoding="utf-8")
+    except PermissionError:
+        _raise_policy_error(
+            "permission_error", f"読取権限なし: {resolved}", resolved
+        )
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        _raise_policy_error(
+            "parse_error", f"YAMLパース失敗: {_mask_str(str(exc))}", resolved
+        )
+    if not isinstance(data, dict):
+        _raise_policy_error("parse_error", "YAMLがオブジェクトでない", resolved)
+
+    _validate_policy(data)
+
+    cur = str(data["version"])
+    if not force_local:
+        if not expected_version:
+            _raise_policy_error(
+                "version_mismatch",
+                "--expected-version 省略はabort。スキル側のYAML Read自体に"
+                "失敗した可能性（spec §3.4・r6）",
+                resolved,
+            )
+        try:
+            exp = tuple(int(x) for x in str(expected_version).split("."))
+            curop = tuple(int(x) for x in cur.split("."))
+        except ValueError:
+            _raise_policy_error(
+                "version_mismatch",
+                f"version照合失敗: expected={expected_version} / actual={cur}",
+                resolved,
+            )
+        if exp[:2] != curop[:2]:
+            _raise_policy_error(
+                "version_mismatch",
+                f"version major/minor差: 期待{expected_version} vs 実際{cur}"
+                "（再読込を促す）",
+                resolved,
+            )
+        if exp != curop:
+            print(
+                f"[review_lib] 警告: version patch差（期待{expected_version} vs "
+                f"実際{cur}）— 続行する",
+                file=sys.stderr,
+            )
+    elif force_local:
+        print(
+            "[review_lib] 警告: force_local でversion照合をスキップ",
+            file=sys.stderr,
+        )
+
+    print(f"[review_lib] policy: {resolved} (version={cur})", file=sys.stderr)
+    return data
+
+
+def _policy_cached() -> dict:
+    """モジュール共通のポリシーキャッシュ。未ロードなら force_local で読込。
+
+    CLI main() は入口で version照合済み policy をキャッシュへ置くため、
+    ライブラリ内部経路（単体テスト等の直接呼出）でのみ本関数の遅延読込が効く。
+    """
+    global _POLICY_CACHE
+    if _POLICY_CACHE is None:
+        _POLICY_CACHE = load_review_policy(None, force_local=True)
+    return _POLICY_CACHE
+
+
+def _severity_map() -> dict[str, str]:
+    """YAML severity_normalize 由来の正規化マップ（小文字キー・正本参照）。"""
+    raw = _policy_cached()["severity_normalize"]
+    return {str(k).lower(): str(v) for k, v in raw.items()}
 
 
 def extract_json_from_text(text: str) -> dict[str, Any]:
@@ -101,7 +442,7 @@ def normalize_severity(severity: str) -> str:
     """
     if not severity:
         return "low"
-    return SEVERITY_MAP.get(severity.strip().lower(), "low")
+    return _severity_map().get(severity.strip().lower(), "low")
 
 
 def classify_review_item(review: str, objective: str) -> str:
@@ -207,12 +548,14 @@ class MultiReviewResult:
 # --- 定数 ---
 
 MINIMAX_URL = "https://api.minimax.io/anthropic/v1/messages"
-MINIMAX_MODELS = ["MiniMax-M3", "MiniMax-M2.7"]
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-# 選定根拠: multi-llm-review スキルの purpose=code 実績選定（1番目）+
-# デザイン系 free 枠（2番目・フォールバック）。free 枠は退役が頻繁なため
-# 環境変数 OPENROUTER_MODELS（カンマ区切り）で上書き可能（退役対策）。
-OPENROUTER_MODELS = ["cohere/north-mini-code:free", "openai/gpt-oss-20b:free"]
+
+
+def _minimax_models() -> list[str]:
+    """MiniMax モデル候補（YAML正本参照・ハードコード廃止）。"""
+    return list(_policy_cached()["vendors"]["minimax"]["models"])
+
+
 _SENSITIVE_HEADER_NAMES = {"x-api-key", "authorization", "api-key"}
 _SECRET_PATTERNS = [
     re.compile(r"(sk-[A-Za-z0-9]{6})[A-Za-z0-9]*"),
@@ -324,16 +667,30 @@ def _import_gemini_runner() -> tuple[Callable, Callable]:
 
 
 def _build_prompt(target: str, objective: str, viewpoint: str) -> str:
-    """全レビュアー共通プロンプト（objective 先頭再注入・目的ホールド）。"""
+    """全レビュアー共通プロンプト（objective 先頭再注入・目的ホールド）。
+
+    出力形式行は YAML output_schema / severity_enum 由来で動的生成（G3参照化）。
+    """
+    policy = _policy_cached()
+    schema = policy["output_schema"]
+    sev_enum = "/".join(policy["severity_enum"])
+    # フィールド別ヒント（無いフィールドは "..."・正本はYAML output_schema）
+    hints = {
+        "severity": sev_enum,
+        "quote": "対象からのコピペ抜粋",
+        "suggestion": "改善案",
+    }
+    fields = ", ".join(
+        f'"{f}": "{hints.get(f, "...")}"' for f in schema["required_fields"]
+    )
     return (
         f"[当初目的] {objective}\n"
         f"[観点] {viewpoint}\n\n"
         "[対象]\n"
         f"{target}\n\n"
         "[出力形式] JSON配列のみで返答（挨拶・markdownコードブロック不要）:\n"
-        '[{"issue": "...", "severity": "critical/high/med/low", '
-        '"quote": "対象からのコピペ抜粋", "suggestion": "改善案"}]\n'
-        "※ 最大7件。\n"
+        f"[{{{fields}}}]\n"
+        f"※ 最大{schema['items_max']}件。\n"
     )
 
 
@@ -368,8 +725,10 @@ def _gemini_call_factory(
 ) -> Callable[[str], Callable[[], str]]:
     """model 名を受け取り generate_content を実行する call() を返す（api_base 用）。
 
-    maxOutputTokens=8000・temperature=0.4 を指定（思考モデル MAX_TOKENS 対策）。
+    maxOutputTokens・temperature は YAML vendors.gemini 正本参照
+    （思考モデル MAX_TOKENS 対策・8000/0.4 は YAML 既定値）。
     """
+    gem_policy = _policy_cached()["vendors"]["gemini"]
 
     def factory(model: str):
         def call() -> str:
@@ -381,7 +740,8 @@ def _gemini_call_factory(
                 model=model,
                 contents=prompt_text,
                 config=types.GenerateContentConfig(
-                    maxOutputTokens=8000, temperature=0.4
+                    maxOutputTokens=gem_policy["max_output_tokens"],
+                    temperature=gem_policy["temperature"],
                 ),
             )
             text = response.text or ""
@@ -478,10 +838,11 @@ def _call_minimax(
     }
     post = requester or _import_requests_post()
     last_err = ""
-    for model in MINIMAX_MODELS:
+    mm_policy = _policy_cached()["vendors"]["minimax"]
+    for model in _minimax_models():
         payload = {
             "model": model,
-            "max_tokens": 8000,
+            "max_tokens": mm_policy["max_tokens"],
             "messages": [{"role": "user", "content": prompt}],
         }
         try:
@@ -517,15 +878,11 @@ def _call_minimax(
 
 
 def _openrouter_models() -> list[str]:
-    """モデル候補リスト。環境変数 OPENROUTER_MODELS（カンマ区切り）で上書可。
-
-    free 枠は退役が頻発するため、ハードコードを正とせず運用側で
-    差し替えられる経路を用意する（マルチLLMレビュー改訂案・採用B）。
-    """
+    """モデル候補リスト。YAML正本 + 環境変数 OPENROUTER_MODELS で上書可。"""
     env = os.environ.get("OPENROUTER_MODELS", "")
     if env:
         return [m.strip() for m in env.split(",") if m.strip()]
-    return OPENROUTER_MODELS
+    return list(_policy_cached()["vendors"]["openrouter"]["models"])
 
 
 def _call_openrouter(
@@ -538,7 +895,7 @@ def _call_openrouter(
 
     戻り値: (text, model, raw_status, error_detail)。
     requester に requests.post 互換 callable を mock 注入可（テスト用）。
-    候補リスト（OPENROUTER_MODELS）を順に試行（フォールバック）。
+    候補リスト（YAML正本 + env OPENROUTER_MODELS 上書き）を順に試行。
 
     防御的パース（採用A・M1+G1）: 200 でも choices 空・content None 等
     構造欠損はクラッシュせず次モデルへフォールバック。
@@ -550,17 +907,17 @@ def _call_openrouter(
     }
     post = requester or _import_requests_post()
     last_err = ""
+    or_policy = _policy_cached()["vendors"]["openrouter"]
     for model in _openrouter_models():
         payload = {
             "model": model,
-            "max_tokens": 2000,
+            "max_tokens": or_policy["max_tokens"],
             # free 枠モデルは思考を content と別の reasoning フィールドへ出力し、
             # 思考が max_tokens を食い尽くして content: null / finish_reason: length で
-            # 終わる（2026-08-21 実測: cohere/north-mini-code:free・openai/gpt-oss-20b:free
-            # の両方で再現。以前の「思考モデルでないので 8000 不要」は誤った前提だった）。
-            # reasoning を無効化すると content が返る（同日実測で確認）。
+            # 終わる（2026-08-21 実測）。reasoning を無効化すると content が返る
+            # （enabled は YAML vendors.openrouter.reasoning_enabled 正本参照）。
             # 詳細: 30_RESEARCH/LLMモデル/2026-08-21_思考出力の落とし穴-reasoning-thinkによる本文欠落.md
-            "reasoning": {"enabled": False},
+            "reasoning": {"enabled": bool(or_policy["reasoning_enabled"])},
             "messages": [{"role": "user", "content": prompt}],
         }
         try:
@@ -660,15 +1017,16 @@ def _has_critical(review: VendorReview) -> bool:
 def _judge(reviews: list[VendorReview]) -> str:
     """判定 3 値ポリシー（silent agree 握り潰し防止・3社化で(b)を修正）。
 
-    (a) critical が2社以上 → ng
+    (a) critical が YAML judge.critical_ng_threshold 社以上 → ng
     (b) critical が1社 + **他の全社が沈黙** → ng
         （3社化・ポリシーB・2026-08-18: エラー社は「反証の欠如」でなく
           無情報。1社でも active（指摘あり）なら反証ありとして ok。
           2社構成では others=1社のため any==all で旧挙動と同値）
     (c) それ以外 → ok
     """
+    thr = _policy_cached()["judge"]["critical_ng_threshold"]
     criticals = [r for r in reviews if _has_critical(r)]
-    if len(criticals) >= 2:
+    if len(criticals) >= thr:
         return "ng"
     if len(criticals) == 1:
         others = [r for r in reviews if r not in criticals]
@@ -943,9 +1301,9 @@ def run_multi_llm_review(
     # 失敗ログの round_id（auto-loop 由来を示す al- prefix・hook経由と区別）
     rid = round_id or ("al-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
 
-    # ベンダー数判定（<2 は即 abort・2社以上生き残れば成立）
+    # ベンダー数判定（YAML judge.abort_vendor_threshold 未満は即 abort）
     ok_vendors = {r.vendor for r in reviews if r.raw_status == "ok"}
-    if len(ok_vendors) < 2:
+    if len(ok_vendors) < _policy_cached()["judge"]["abort_vendor_threshold"]:
         if not ok_vendors:
             reason = "両系障害・pending-retry 相当"
         else:
@@ -974,6 +1332,9 @@ def main(argv: list[str] | None = None) -> int:
 
     run-task.sh(bash) から ``python3 review_lib.py --target-file ... --objective-file ...``
     で起動。objective はファイルパス経由（シェルクォート破壊回避）。
+
+    終了コード: 0=ok / 1=ng / 2=abort（ベンダー多様性不能）/ 4=config error
+    （review_policy.yaml 読込・検証・version照合の失敗・spec §3.5 fail-fast）。
     """
     import argparse
 
@@ -991,7 +1352,32 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--topic", default="", help="失敗ログの topic（検索のヒント・集計キーではない）"
     )
+    parser.add_argument(
+        "--expected-version",
+        default=None,
+        help="スキル側がRead直後に抽出した review_policy.yaml の version"
+        "（spec §3.4・必須。省略時は --force-local のみ例外）",
+    )
+    parser.add_argument(
+        "--force-local",
+        action="store_true",
+        help="version照合をスキップする明示オーバーライド（警告ログ出力）",
+    )
     args = parser.parse_args(argv)
+
+    # G3: policy 読込を最初のゲートとする（fail-fast・spec §3.3-3.5）。
+    # 成功時はキャッシュへ置き、以降の内部関数は遅延読込せずこれを使う。
+    global _POLICY_CACHE
+    try:
+        _POLICY_CACHE = load_review_policy(
+            args.expected_version, force_local=args.force_local
+        )
+    except PolicyConfigError as exc:
+        print(
+            f"[review_lib] config error: {exc.error_type}: {exc.message}",
+            file=sys.stderr,
+        )
+        return 4
 
     target = Path(args.target_file).read_text(encoding="utf-8")
     objective = Path(args.objective_file).read_text(encoding="utf-8").strip()

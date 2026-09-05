@@ -85,22 +85,27 @@ def test_yaml_last_updated_is_iso(policy):
 
 
 def test_abort_vendor_threshold_matches_lib(lib_src, policy):
-    """lib側: `len(ok_vendors) < 2` → abort。閾値の実値を動的抽出して照合。"""
-    matches = re.findall(r"len\(ok_vendors\) < (\d+)", lib_src)
-    assert matches, "lib側にabort閾値(len(ok_vendors) < N)が見つからない"
-    values = {int(m) for m in matches}
-    assert values == {policy["judge"]["abort_vendor_threshold"]}, (
-        f"lib側abort閾値{values} != YAML {policy['judge']['abort_vendor_threshold']}"
+    """lib側はYAML judge.abort_vendor_threshold を参照する（G3参照化後契約）。
+
+    旧契約（`len(ok_vendors) < N` の値抽出照合）はG3で廃止:
+    libは値の複製を持たず、実行時にYAMLから読む。陽性=参照箇所の存在 +
+    陰性=数値直書き0件で代替する。
+    """
+    assert 'judge"]["abort_vendor_threshold"' in lib_src, (
+        "lib側にYAML judge.abort_vendor_threshold の参照が無い（過修正）"
+    )
+    assert re.search(r"len\(ok_vendors\) < \d", lib_src) is None, (
+        "lib側にabort閾値の数値直書きが残っている"
     )
 
 
 def test_critical_ng_threshold_matches_lib(lib_src, policy):
-    """lib側: `len(criticals) >= 2` → ng。動的抽出して照合。"""
-    matches = re.findall(r"len\(criticals\) >= (\d+)", lib_src)
-    assert matches, "lib側にng閾値(len(criticals) >= N)が見つからない"
-    values = {int(m) for m in matches}
-    assert values == {policy["judge"]["critical_ng_threshold"]}, (
-        f"lib側ng閾値{values} != YAML {policy['judge']['critical_ng_threshold']}"
+    """lib側はYAML judge.critical_ng_threshold を参照する（G3参照化後契約）。"""
+    assert 'judge"]["critical_ng_threshold"' in lib_src, (
+        "lib側にYAML judge.critical_ng_threshold の参照が無い（過修正）"
+    )
+    assert re.search(r"len\(criticals\) >= \d", lib_src) is None, (
+        "lib側にng閾値の数値直書きが残っている"
     )
 
 
@@ -169,12 +174,9 @@ def test_severity_normalize_covers_skill_table(skill_md, policy):
 
 
 def test_severity_normalize_covers_lib_map(policy):
-    """lib側SEVERITY_MAPの全エントリがYAMLと一致（libのみの'medium'も含む）。"""
-    for key, value in review_lib.SEVERITY_MAP.items():
-        assert policy["severity_normalize"].get(key) == value, (
-            f"severity_normalize[{key!r}]: lib={value} != "
-            f"YAML={policy['severity_normalize'].get(key)}"
-        )
+    """lib正規化マップ（YAML由来・小文字キー）がYAMLと一致（G3参照化後契約）。"""
+    expected = {str(k).lower(): v for k, v in policy["severity_normalize"].items()}
+    assert review_lib._severity_map() == expected
 
 
 # ---------------------------------------------------------------------------
@@ -183,46 +185,35 @@ def test_severity_normalize_covers_lib_map(policy):
 
 
 def test_minimax_models_match_lib(policy):
-    assert list(policy["vendors"]["minimax"]["models"]) == list(
-        review_lib.MINIMAX_MODELS
-    ), (
-        f"minimax models: lib={review_lib.MINIMAX_MODELS} != "
-        f"YAML={policy['vendors']['minimax']['models']}"
+    """lib実行時のMiniMax候補がYAML由来で一致（G3参照化後契約）。"""
+    assert review_lib._minimax_models() == list(
+        policy["vendors"]["minimax"]["models"]
     )
 
 
 def test_openrouter_models_match_lib(policy):
-    assert list(policy["vendors"]["openrouter"]["models"]) == list(
-        review_lib.OPENROUTER_MODELS
-    ), (
-        f"openrouter models: lib={review_lib.OPENROUTER_MODELS} != "
-        f"YAML={policy['vendors']['openrouter']['models']}"
+    """lib実行時のOpenRouter候補がYAML由来で一致（env未設定時）。"""
+    assert review_lib._openrouter_models() == list(
+        policy["vendors"]["openrouter"]["models"]
     )
 
 
 def test_vendor_max_tokens_match_lib(lib_src, policy):
-    """lib内 `"max_tokens": N` は MiniMax と OpenRouter のペイロード2箇所。
-    全抽出値の集合が「YAMLに定義した両vendorのmax_tokens集合」と一致する。"""
-    matches = re.findall(r'"max_tokens":\s*(\d+)', lib_src)
-    assert matches, "lib側にmax_tokensが見つからない"
-    lib_values = {int(m) for m in matches}
-    yaml_values = {
-        policy["vendors"]["minimax"]["max_tokens"],
-        policy["vendors"]["openrouter"]["max_tokens"],
-    }
-    assert lib_values == yaml_values, (
-        f"lib側max_tokens{lib_values} != YAML集合{yaml_values}"
+    """lib内にmax_tokens数値の直書き0件・YAML参照が有る（G3参照化後契約）。"""
+    assert re.search(r'"max_tokens":\s*\d', lib_src) is None, (
+        "lib側にmax_tokens数値直書きが残っている"
     )
+    for ref in ('["vendors"]["minimax"]', '["max_tokens"]', '["vendors"]["openrouter"]'):
+        assert ref in lib_src, f"lib側にYAML参照 '{ref}' が無い"
 
 
 def test_gemini_generation_config_matches_lib(lib_src, policy):
-    """lib側 `_gemini_call_factory`: maxOutputTokens=8000・temperature=0.4。"""
-    m_tokens = re.search(r"maxOutputTokens=(\d+)", lib_src)
-    m_temp = re.search(r"temperature=([\d.]+)", lib_src)
-    assert m_tokens and m_temp, "lib側にgemini generationConfigが見つからない"
-    gem = policy["vendors"]["gemini"]
-    assert int(m_tokens.group(1)) == gem["max_output_tokens"]
-    assert float(m_temp.group(1)) == float(gem["temperature"])
+    """libのgemini生成設定はYAML正本参照・数値直書き0件（G3参照化後契約）。"""
+    assert re.search(r"maxOutputTokens=\d", lib_src) is None, (
+        "lib側にmaxOutputTokens数値直書きが残っている"
+    )
+    for ref in ('["vendors"]["gemini"]', '["max_output_tokens"]', '["temperature"]'):
+        assert ref in lib_src, f"lib側にYAML参照 '{ref}' が無い"
 
 
 def test_gemini_models_come_from_skill(skill_md, policy):
@@ -258,7 +249,9 @@ def test_output_schema_fields_match_lib_prompt(lib_src, policy):
 
 
 def test_output_schema_items_max_matches_lib(lib_src, policy):
-    """libプロンプト「※ 最大7件。」の件数上限。"""
-    m = re.search(r"最大(\d+)件", lib_src)
-    assert m, "lib側に指摘件数上限が見つからない"
-    assert int(m.group(1)) == policy["output_schema"]["items_max"]
+    """libプロンプトの件数上限はYAML output_schema.items_max 参照（G3参照化後）。"""
+    assert re.search(r"最大\d+件", lib_src) is None, (
+        "lib側に指摘件数上限の数値直書きが残っている"
+    )
+    for ref in ("output_schema", "items_max", "required_fields"):
+        assert ref in lib_src, f"lib側にYAML参照 '{ref}' が無い"

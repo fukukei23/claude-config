@@ -17,6 +17,9 @@ CLAUDE="/home/yn4416/.local/share/fnm/node-versions/v22.22.2/installation/bin/cl
 [ -n "$CLAUDE" ] || { echo "[run-task] claude CLIが見つかりません" >> "$LOG"; exit 1; }
 SS="/home/yn4416/.claude/scripts/auto-dev/state_store.py"
 SS_PYSPATH="/home/yn4416/.claude/scripts/auto-dev"
+# review_policy.yaml 正本のversion（review_lib.py --expected-version に渡す・G3参照化）
+POLICY_YAML="/home/yn4416/projects/claude-config/config/multi-llm-review/review_policy.yaml"
+EXPECT_VER=$(python3 -c "import yaml; print(yaml.safe_load(open('$POLICY_YAML'))['version'])" 2>/dev/null)
 
 # state.json の current から PROMPT/REPO/ISSUE/TEST_POLICY 抽出（state_store.read 経由・共有ロック）
 # JSON経由で取出す（複数行promptで行ベースsedが壊れる既存バグ修正・2026-08-12 13:38実測）
@@ -127,7 +130,7 @@ fi
 
 # Phase 2: 計画レビュー（別ベンダーLLM・backend_kind必須・目的ホールド・2026-08-12有効化）
 echo "[$(date '+%F %T')] Phase 2: 計画レビュー（別LLM・Gemini+MiniMax）" >> "$LOG"
-python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/plan.md" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/plan_review.json" --round-id "al-${TASK_ID}-plan" --topic "$TASK_ID plan" >> "$LOG" 2>&1
+python3 "$SS_PYSPATH/review_lib.py" --expected-version "${EXPECT_VER:-}" --target-file "$TASK_DIR/plan.md" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/plan_review.json" --round-id "al-${TASK_ID}-plan" --topic "$TASK_ID plan" >> "$LOG" 2>&1
 PLAN_REVIEW_RC=$?
 echo "[$(date '+%F %T')] plan_review rc=$PLAN_REVIEW_RC (0=ok/1=ng/2=abort)" >> "$LOG"
 # ②で abort(2) は多様性保証不能・即停止（plan改訂ループはTask4品質ゲート拡張で別途）
@@ -217,7 +220,7 @@ fi
 # Phase 5: 実装後レビュー（別ベンダーLLM・git diff対象・⑤拒否権・2026-08-12有効化）
 echo "[$(date '+%F %T')] Phase 5: 実装後レビュー（別LLM・git diff）" >> "$LOG"
 git diff "$HEAD_BEFORE"..HEAD > "$TASK_DIR/impl_diff.txt" 2>/dev/null || git diff >> "$TASK_DIR/impl_diff.txt"
-python3 "$SS_PYSPATH/review_lib.py" --target-file "$TASK_DIR/impl_diff.txt" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/impl_review.json" --round-id "al-${TASK_ID}-impl" --topic "$TASK_ID impl" >> "$LOG" 2>&1
+python3 "$SS_PYSPATH/review_lib.py" --expected-version "${EXPECT_VER:-}" --target-file "$TASK_DIR/impl_diff.txt" --objective-file "$TASK_DIR/objective.txt" --out "$TASK_DIR/impl_review.json" --round-id "al-${TASK_ID}-impl" --topic "$TASK_ID impl" >> "$LOG" 2>&1
 IMPL_REVIEW_RC=$?
 echo "[$(date '+%F %T')] impl_review rc=$IMPL_REVIEW_RC (0=ok/1=ng/2=abort)" >> "$LOG"
 # ⑤ verdict で VERIFY に追記（G3追記式・④結果を上書きしない・次ループ実装AIが修正可能）
