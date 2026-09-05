@@ -100,7 +100,7 @@ LLM（ホスト自身含む）のサボり（省略/楽観/迎合/検証回避�
 **ルール**:
 - 共通ファイルを触る前にボードで被りを確認。**逆方向の変更（修正 vs 削除 等）は勝手に進めず必ずふくけい判断**
 - ボード変更時は即commit+push（5分auto-syncを待たない）
-- **commit前は必ず pre-commit hook の stage 内容出力を見る**（並行セッションの他タブ作業ファイル巻き込み検知・2026-07-25 導入）。`git add -A`/`git add .` は原則使わず**特定ファイル指定**。配備済み: claude-config/NexusCore/reserve-optimizer は `.githooks/pre-commit`・obsidian-ssot は `.pre-commit-config.yaml`(local hook)。10件超で警告。**他タブ🟢セッションがある時は特に注意**
+- **commit前は必ず pre-commit hook の stage 内容出力を見る**（並行セッションの他タブ作業ファイル巻き込み検知・2026-07-25 導入）。`git add -A`/`git add .` は原則使わず**特定ファイル指定**。**標準commitは `git commit-scoped -m "<msg>" -- <files>`（2026-09-05巻き込み再設計・宣言検証+共有index非参照）**。配備済み: claude-config/NexusCore/reserve-optimizer は `.githooks/pre-commit`・obsidian-ssot は `.pre-commit-config.yaml`(local hook)。10件超で警告。**他タブ🟢セッションがある時は特に注意**
 - 開始時は resume-session、記録時は ssot-record、終了時は new-session がエントリを更新
 
 **タスク重複着手防止（タスク占有ボード）**:
