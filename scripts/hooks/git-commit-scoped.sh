@@ -17,7 +17,7 @@
 
 set -uo pipefail
 
-SESSION_ID="${CLAUDE_CODE_SESSION_ID:-}"
+SESSION_ID="${WT_SESSION:-${CLAUDE_CODE_SESSION_ID:-unknown}}"
 WT4="${SESSION_ID:0:4}"
 PATHS_JSON="${PATHS_JSON:-$HOME/.claude/state/active-sessions-paths.json}"
 

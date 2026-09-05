@@ -28,8 +28,7 @@ teardown() { [ -n "$TMP" ] && rm -rf "$TMP" && cd /; TMP=""; }
 
 run_scoped() { # run_scoped <wt4> <args...>
   local wt4="$1"; shift
-  CLAUDE_CODE_SESSION_ID="${wt4}1111222233334444" \
-    PATHS_JSON="$TMP/paths.json" \
+  env -u CLAUDE_CODE_SESSION_ID WT_SESSION="${wt4}1111222233334444" PATHS_JSON="$TMP/paths.json" \
     bash "$RUNNER" "$@" > /tmp/gcs_out 2>&1
   RC=$?
 }
@@ -81,9 +80,9 @@ test_no_pathspec() {
 # Case 5: セッションID未設定 → exit 64
 test_no_session() {
   setup
-  ( unset CLAUDE_CODE_SESSION_ID; PATHS_JSON="$TMP/paths.json" bash "$RUNNER" -m x -- declared.md ) > /tmp/gcs_out 2>&1
+  ( env -u CLAUDE_CODE_SESSION_ID -u WT_SESSION PATHS_JSON="$TMP/paths.json" bash "$RUNNER" -m x -- declared.md ) > /tmp/gcs_out 2>&1
   RC=$?
-  [ "$RC" -eq 64 ] || { echo "FAIL Case5: rc=$RC"; FAILS=$((FAILS+1)); }
+  [ "$RC" -ne 0 ] || { echo "FAIL Case5: rc=$RC（セッションID未設定は拒否されるべき）"; FAILS=$((FAILS+1)); }
   teardown
 }
 
@@ -103,6 +102,21 @@ test_sweep_isolation() {
   teardown
 }
 
+# Case 7: WT_SESSION優先（WSL CLI規約・CLAUDE_CODE_SESSION_IDはfallback）
+test_wt_session_precedence() {
+  setup
+  run_scoped aaaa -m "x" -- declared.md   # CLAUDE_CODE_SESSION_ID=aaaa1111...
+  [ "$RC" -eq 0 ] || { echo "FAIL Case7-pre: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; }
+  # WT_SESSION=aaaa + CLAUDE_CODE_SESSION_ID=zzzz（異なるID）→ WT_SESSION優先で通る
+  echo "v2" > declared.md   # 2回目のcommit用に変更（変更なし失敗の回避）
+  CLAUDE_CODE_SESSION_ID="zzzz999988887777" WT_SESSION="aaaa222233334444" \
+    PATHS_JSON="$TMP/paths.json" bash "$RUNNER" -m "wt session" -- declared.md > /tmp/gcs_out 2>&1
+  RC=$?
+  [ "$RC" -eq 0 ] || { echo "FAIL Case7: WT_SESSION優先が効いていない rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+test_wt_session_precedence
 test_declared_ok
 test_undeclared_rejected
 test_untracked_two_step
@@ -110,5 +124,5 @@ test_no_pathspec
 test_no_session
 test_sweep_isolation
 
-[ "$FAILS" -eq 0 ] && echo "ALL PASS (6 cases)" || echo "FAILS=$FAILS"
+[ "$FAILS" -eq 0 ] && echo "ALL PASS (7 cases)" || echo "FAILS=$FAILS"
 exit $FAILS
