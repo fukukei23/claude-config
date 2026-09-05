@@ -145,7 +145,33 @@ test_space_filename_ok() {
   teardown
 }
 
+# Case 10: "OK"という名前のファイルも正しくcommitされる（status行との衝突不発）
+test_ok_named_file() {
+  setup
+  echo "ok content" > OK
+  git add OK
+  printf '{"entries": {"aaaa": ["declared.md", "OK"]}}' > paths.json
+  run_scoped aaaa -m "ok named" -- OK
+  if [ "$RC" -ne 0 ]; then echo "FAIL Case10: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); teardown; return; fi
+  git show --name-only HEAD | grep -q '^OK$' || { echo "FAIL Case10: OKファイルがcommitされていない"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+# Case 11: ..foo.md（..で始まる正当なファイル名）がrepo外誤判定されない
+test_dotdot_prefix_filename() {
+  setup
+  echo "x" > ..foo.md
+  git add ..foo.md
+  printf '{"entries": {"aaaa": ["declared.md", "..foo.md"]}}' > paths.json
+  run_scoped aaaa -m "dotdot" -- ..foo.md
+  [ "$RC" -eq 0 ] || { echo "FAIL Case11: rc=$RC out=$(cat /tmp/gcs_out)"; FAILS=$((FAILS+1)); }
+  teardown
+}
+
+test_ok_named_file
+test_dotdot_prefix_filename
 test_quote_filename_safe
+
 test_space_filename_ok
 test_wt_session_precedence
 
@@ -156,5 +182,5 @@ test_no_pathspec
 test_no_session
 test_sweep_isolation
 
-[ "$FAILS" -eq 0 ] && echo "ALL PASS (9 cases)" || echo "FAILS=$FAILS"
+[ "$FAILS" -eq 0 ] && echo "ALL PASS (11 cases)" || echo "FAILS=$FAILS"
 exit $FAILS

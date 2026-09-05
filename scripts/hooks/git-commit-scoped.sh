@@ -61,7 +61,7 @@ VALIDATION=$(CLAUDE_GCS_WT4="$WT4" \
   CLAUDE_GCS_REPO_ROOT="$REPO_ROOT" \
   CLAUDE_GCS_ACTIVE="$REPO_ROOT/00_SYSTEM/active-sessions.md" \
   CLAUDE_GCS_PATHS_INPUT="$(printf '%s\n' "${PATHS[@]}")" \
-  python3 "$HOME/bin/active-declarations.py" --mode check 2>&1)
+  python3 "$HOME/bin/active-declarations.py" --mode check)
 RC=$?
 if [ $RC -ne 0 ]; then
   echo "git-commit-scoped: 検証失敗" >&2
@@ -70,13 +70,23 @@ if [ $RC -ne 0 ]; then
   exit 1
 fi
 
-# 正規化済みpathspec（1行目OK・2行目以降が正規化済みrepo相対パス）
+# 正規化済みpathspec（1行目=status"OK"・2行目以降が正規化済みrepo相対パス）
+# 1行目のみをstatusとして扱う（"OK"という名前のファイルとの衝突不発・r3 Gemini指摘）
+STATUS=$(printf '%s\n' "$VALIDATION" | head -1)
+if [ "$STATUS" != "OK" ]; then
+  echo "git-commit-scoped: 検証出力異常: $VALIDATION" >&2
+  exit 1
+fi
 NORM_PATHS=()
 while IFS= read -r line; do
   [ -z "$line" ] && continue
-  [ "$line" = "OK" ] && continue
   NORM_PATHS+=("$line")
-done <<< "$VALIDATION"
+done <<< "$(printf '%s\n' "$VALIDATION" | tail -n +2)"
+# 空ガード: NORM_PATHS空で git commit -- は共有indexにフォールバックする危険経路（r3 Gemini指摘）
+if [ ${#NORM_PATHS[@]} -eq 0 ]; then
+  echo "git-commit-scoped: 有効な正規化パスが0件・commit拒否" >&2
+  exit 1
+fi
 
 # --- pathspec commit（一時index = HEAD+指定パスのみ・共有indexを参照しない）---
 exec git commit "${COMMIT_ARGS[@]}" -- "${NORM_PATHS[@]}"
