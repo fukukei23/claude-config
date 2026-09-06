@@ -50,6 +50,13 @@ import json; print(json.dumps({'transcript_path':'$TMP/t5.jsonl','session_id':'t
 RC=$?
 if [ "$RC" -eq 0 ]; then ok "T5 反証ありでexit0"; else ng "T5 反証ありでexit0(rc=$RC out=$OUT)"; fi
 
+# T5b stop: 根拠付き同意 → exit0（案B・3機レビュー収束・「正しいことは正しいと言える」）
+make_transcript "$TMP/t5b.jsonl" "この戦略でいいと思う？判断の参考にしたい" "賛成です。【根拠】AWS公式ドキュメント(2026-09)に日本語対応の記載があり、実測でも日本語受験を確認済みです。"
+OUT=$(GUARD_DIR="$TMP/g5b" MODE="warn" CLAUDE_CODE_SESSION_ID=testsess5b bash "$CHECK" < <(python3 -c "
+import json; print(json.dumps({'transcript_path':'$TMP/t5b.jsonl','session_id':'testsess5b'}))") 2>&1)
+RC=$?
+if [ "$RC" -eq 0 ]; then ok "T5b 根拠付き同意はexit0"; else ng "T5b 根拠付き同意はexit0(rc=$RC out=$OUT)"; fi
+
 # T6 stop: 同意なし → exit0
 make_transcript "$TMP/t6.jsonl" "この戦略でいいと思う？判断の参考にしたい" "2案を比較します。案Aは未検証の仮説と整合します。"
 OUT=$(GUARD_DIR="$TMP/g6" MODE="warn" CLAUDE_CODE_SESSION_ID=testsess6 bash "$CHECK" < <(python3 -c "
