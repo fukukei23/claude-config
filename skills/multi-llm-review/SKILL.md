@@ -385,7 +385,7 @@ converted_to_cmd: <検証コマンドに変換できた数・数値（v1互換�
 ### ① round 終了時に1回だけ実行する（必須・これだけ）
 
 ```bash
-~/bin/mlr-log.sh annotate <round_id> "<topic>" --proposal <revised_proposal.mdへのパス> [--findings <llm>=<件数>,...]
+bash ~/bin/mlr-log.sh annotate <round_id> "<topic>" --proposal <revised_proposal.mdへのパス> [--findings <llm>=<件数>,...]
 ```
 
 - **⚠️ `--proposal` は実質必須（2026-09-01）**: revised_proposal.md のfrontmatterを**ファイルから直接読み**、判断収束台帳用の ingest DB（`~/.claude/state/judgment-ledger.jsonl`）へ1行追記する。数値の二度手入力は不要（frontmatterに書いたものがそのまま取り込まれる）
@@ -394,9 +394,9 @@ converted_to_cmd: <検証コマンドに変換できた数・数値（v1互換�
 - `--findings` は任意（指標A/Bの算出には不要）。付けるなら各LLMの指摘件数
 - 直近6時間の `status=raw` 行がまとめて `annotated` になる。**attempt は自動採番**なので数えなくてよい
 - 対象0件なら警告して非0で終わる（無言で握り潰さない）。**レビュー本体は続行してよい**——ログ書込の失敗でレビューを人質にしない
-- 詳細なオプションは `~/bin/mlr-log.sh --help` 参照
+- 詳細なオプションは `bash ~/bin/mlr-log.sh --help` 参照
 
-> `status=raw` のまま残った行が「補記し忘れ」の可視化そのもの。件数は `~/bin/mlr-log.sh --self-test` で分かる。
+> `status=raw` のまま残った行が「補記し忘れ」の可視化そのもの。件数は `bash ~/bin/mlr-log.sh --self-test` で分かる。
 
 ### ② 失敗をバックログに起票する前に必ず引く（二重起票の防止）
 
