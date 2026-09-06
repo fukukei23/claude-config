@@ -6,7 +6,7 @@
 #
 # 責務（hook が原理的に知り得る情報のみ）:
 #   ts / llm / model / result(暫定) / reason(暫定) / http / finish_reason
-# ホストが `~/bin/mlr-log.sh annotate` で後から補記する:
+# ホストが `bash ~/bin/mlr-log.sh annotate` で後から補記する（bash明示・実行ビット消失対策）:
 #   round_id / topic / attempt / findings / status=annotated
 #
 # 必須条件（spec §6・レビュー3機の指摘）:
