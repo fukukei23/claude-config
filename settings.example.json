@@ -623,6 +623,24 @@
             "command": "/home/yn4416/.claude/scripts/hooks/check-model-stay.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/check-consult-balance.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/home/yn4416/.claude/scripts/session/consult-balance-inject.sh"
+          }
+        ]
       }
     ]
   },
